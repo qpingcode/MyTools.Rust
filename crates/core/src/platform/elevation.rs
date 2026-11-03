@@ -164,9 +164,17 @@ mod tests {
                 .unwrap();
         }
         let actual = target(&path).unwrap();
-        assert_eq!(actual.path, executable);
+        // ShellLink may expand an 8.3 path supplied by the runner temp directory.
+        // Compare resolved filesystem paths rather than their spelling.
+        assert_eq!(
+            actual.path.canonicalize().unwrap(),
+            executable.canonicalize().unwrap()
+        );
         assert_eq!(actual.arguments, args);
-        assert_eq!(actual.directory, root);
+        assert_eq!(
+            actual.directory.canonicalize().unwrap(),
+            root.canonicalize().unwrap()
+        );
         assert_eq!(
             expand(Path::new("%WINDIR%")).unwrap(),
             PathBuf::from(std::env::var_os("WINDIR").unwrap())
