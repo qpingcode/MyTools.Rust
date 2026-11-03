@@ -252,13 +252,13 @@ fn start_action(ui: &MainWindow, action: Action) {
                     Ok(effect.message)
                 }
             });
-            if message.is_ok() {
-                if let Err(error) = action.record_success() {
-                    eprintln!(
-                        "{}",
-                        i18n::format("history.save_failed", &[("error", &error.to_string())])
-                    );
-                }
+            if message.is_ok()
+                && let Err(error) = action.record_success()
+            {
+                eprintln!(
+                    "{}",
+                    i18n::format("history.save_failed", &[("error", &error.to_string())])
+                );
             }
             ui.set_action_busy(false);
             // A completed action must not replace the status of a newer search.
