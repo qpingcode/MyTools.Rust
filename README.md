@@ -367,3 +367,20 @@ cargo fmt --all -- --check
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
 ```
+
+## Windows 便携版打包
+
+GitHub Actions 的 **Windows Portable** 工作流在推送 `master`、推送 `v*` 标签时构建，也可在 Actions 页面手动 **Run workflow**。
+完成后进入该次运行的 **Artifacts**，下载 `MyTools-windows-x64-portable`，其中包含便携版 ZIP 和 SHA256 校验文件。
+解压 ZIP 后直接运行 `MyTools/mytools.exe`，通过托盘或 `Alt+空格` 打开窗口，无需安装 Rust。
+请保留整个目录结构：程序依赖旁边的 `plugins/`，不能只复制主程序。
+
+本地打包：
+
+```powershell
+.\scripts\package-windows.ps1
+```
+
+打包输出为 `dist/MyTools-windows-x64-portable.zip`，包含 Release 主程序、所有插件、语言文件、默认配置、说明和图标许可。
+便携版表示免安装运行；剪贴板、快捷文本和搜索历史仍存放在用户数据目录，开机启动仍使用系统启动项。
+翻译插件仍需自行设置 `DEEPSEEK_API_KEY` 环境变量。压缩包不包含本机配置、历史、密钥或调试符号。
