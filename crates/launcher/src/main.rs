@@ -9,6 +9,7 @@ mod i18n;
 mod icons;
 mod search;
 mod tray;
+mod window_position;
 
 slint::include_modules!();
 

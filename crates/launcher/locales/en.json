@@ -48,5 +48,6 @@
   "restart.message": "Language saved. Restart MyTools to apply it. Would you like to restart now?",
   "restart.now": "Restart Now",
   "restart.later": "Later",
-  "history.save_failed": "Cannot save search history: {error}"
+  "history.save_failed": "Cannot save search history: {error}",
+  "window.position_save_failed": "Cannot save window position: {error}"
 }

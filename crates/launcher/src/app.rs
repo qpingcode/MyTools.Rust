@@ -29,6 +29,7 @@ pub fn run() -> anyhow::Result<()> {
     mytools_plugin_api::i18n::initialize(requested);
     desktop::configure_backend()?;
     let ui = MainWindow::new()?;
+    let position_tracker = crate::window_position::Tracker::new(&ui);
     let tray = AppTray::new()?;
     let about = AboutWindow::new()?;
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
@@ -123,6 +124,7 @@ pub fn run() -> anyhow::Result<()> {
     drop(tray_controller);
     drop(tray);
     drop(about);
+    drop(position_tracker);
     drop(ui);
     if restart {
         tray::restart()?;

@@ -48,5 +48,6 @@
   "restart.message": "语言设置已保存，重启 MyTools 后生效。是否立即重启？",
   "restart.now": "立即重启",
   "restart.later": "稍后",
-  "history.save_failed": "无法保存搜索历史：{error}"
+  "history.save_failed": "无法保存搜索历史：{error}",
+  "window.position_save_failed": "无法保存窗口位置：{error}"
 }

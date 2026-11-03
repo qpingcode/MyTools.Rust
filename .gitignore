@@ -22,3 +22,6 @@ search-history.lock
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Saved launcher position
+window-position.json
