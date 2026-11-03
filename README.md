@@ -370,7 +370,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ## Windows 便携版打包
 
-GitHub Actions 的 **Windows Portable** 工作流在推送 `master`、推送 `v*` 标签时构建，也可在 Actions 页面手动 **Run workflow**。
+GitHub Actions 的 **Rust** 工作流在推送和 Pull Request 时运行，也可在 Actions 页面手动 **Run workflow**。Windows 与 macOS 分别检查格式、Clippy 并执行测试；Windows 检查通过后构建 Release 便携包，macOS 完成开发版本编译。
 完成后进入该次运行的 **Artifacts**，下载 `MyTools-windows-x64-portable`，其中包含便携版 ZIP 和 SHA256 校验文件。
 解压 ZIP 后直接运行 `MyTools/mytools.exe`，通过托盘或 `Alt+空格` 打开窗口，无需安装 Rust。
 请保留整个目录结构：程序依赖旁边的 `plugins/`，不能只复制主程序。
