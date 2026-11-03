@@ -15,5 +15,6 @@
   "search": {
     "global": false
   },
-  "view": "list-detail"
+  "view": "list-detail",
+  "hotkey": "Alt+V"
 }
