@@ -64,3 +64,12 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 
 Windows 通过 netstat 获取本地 TCP/UDP 端口的进程，macOS 通过系统 lsof 获取。
 显示当前用户可见的信息；结束权限由操作系统决定。终止前校验启动时间，避免 PID 被复用后误杀。
+
+## 脚本管理（Windows 执行）
+
+1. 在启动器搜索 **脚本** 或输入 `scripts `，选中 **管理脚本** 并按 Enter。
+2. 在独立窗口点击 **新建脚本**，录入名称、可选搜索别名、多行脚本内容，选择 **PowerShell (.ps1)** 或 **CMD (.cmd)**，然后保存。可填写工作目录，留空使用用户主目录。
+3. 回到启动器，输入名称或别名找到脚本。按 Enter **普通执行**；通过 **操作**（`Ctrl+K`）选 **管理员执行**，由 Windows 显示 UAC 确认。管理窗口也有这两个按钮。
+4. 执行会打开终端保留输出。脚本数据保存在 `%LOCALAPPDATA%\MyTools\scripts\scripts.json`，可以用 `MYTOOLS_SCRIPTS_DIR` 指定数据目录。每次执行使用单独的脚本文件，后续编辑不会改动正在运行的脚本。
+
+macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚本。

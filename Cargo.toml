@@ -14,6 +14,7 @@ members = [
     "plugins/uuid-generator",
     "plugins/translator",
     "plugins/quick-text",
+    "plugins/scripts-runner",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"

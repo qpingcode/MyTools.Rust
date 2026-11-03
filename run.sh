@@ -21,7 +21,7 @@ cp ui/assets/icons/LICENSE "target/$profile/licenses/Lucide.txt"
 if [[ ! -e "target/$profile/config.json" ]]; then
     cp config.example.json "target/$profile/config.json"
 fi
-for plugin in calculator applications clipboard chrome-bookmark encode decode formatter process-killer uuid-generator translator quick-text; do
+for plugin in calculator applications clipboard chrome-bookmark encode decode formatter process-killer uuid-generator translator quick-text scripts-runner; do
     directory="target/$profile/plugins/$plugin"
     mkdir -p "$directory"
     cp "plugins/$plugin/plugin.json" "$directory/"

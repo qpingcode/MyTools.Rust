@@ -1,0 +1,89 @@
+import { VerticalBox, HorizontalBox, Button, LineEdit, TextEdit, ComboBox, ScrollView } from "std-widgets.slint";
+import { Theme } from "../../../ui/theme.slint";
+import { I18n } from "../../../ui/i18n.slint";
+export { I18n } from "../../../ui/i18n.slint";
+export component ScriptManager inherits Window {
+    title: I18n.text("manage");
+    icon: @image-url("../../../ui/assets/app.png");
+    preferred-width: 1020px; preferred-height: 720px;
+    min-width: 820px; min-height: 580px;
+    background: Theme.background;
+    default-font-family: "Microsoft YaHei UI";
+    in property <[string]> scripts;
+    in property <int> selected: -1;
+    in-out property <string> script-name;
+    in-out property <string> alias;
+    in-out property <int> kind;
+    in-out property <string> content;
+    in-out property <string> directory;
+    in-out property <bool> dirty;
+    in-out property <bool> deleting;
+    in property <bool> saved;
+    in property <bool> busy;
+    in property <bool> windows;
+    in property <string> status;
+    callback choose(int);
+    callback create();
+    callback save();
+    callback discard();
+    callback remove();
+    callback execute(bool);
+    changed script-name => { root.dirty = true; root.deleting = false; }
+    changed alias => { root.dirty = true; root.deleting = false; }
+    changed kind => { root.dirty = true; root.deleting = false; }
+    changed content => { root.dirty = true; root.deleting = false; }
+    changed directory => { root.dirty = true; root.deleting = false; }
+    VerticalBox {
+        padding: 22px; spacing: 14px;
+        HorizontalBox {
+            Text { text: I18n.text("manage"); color: Theme.foreground; font-size: 24px; }
+            Button { text: I18n.text("new"); enabled: !root.busy; clicked => { root.create(); } }
+        }
+        HorizontalBox {
+            spacing: 20px;
+            ScrollView {
+                width: 225px;
+                VerticalBox {
+                    spacing: 6px;
+                    for name[index] in root.scripts: Button {
+                        text: (index == root.selected ? "● " : "") + name;
+                        enabled: !root.busy;
+                        clicked => { root.choose(index); }
+                    }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+            }
+            VerticalBox {
+                spacing: 8px;
+                HorizontalBox {
+                    Text { text: I18n.text("field.name"); color: Theme.muted; width: 100px; }
+                    LineEdit { text <=> root.script-name; enabled: !root.busy; }
+                }
+                HorizontalBox {
+                    Text { text: I18n.text("field.alias"); color: Theme.muted; width: 100px; }
+                    LineEdit { text <=> root.alias; placeholder-text: I18n.text("alias.hint"); enabled: !root.busy; }
+                }
+                HorizontalBox {
+                    Text { text: I18n.text("field.type"); color: Theme.muted; width: 100px; }
+                    ComboBox { model: ["PowerShell (.ps1)", "CMD (.cmd)"]; current-index <=> root.kind; enabled: !root.busy; }
+                }
+                HorizontalBox {
+                    Text { text: I18n.text("field.directory"); color: Theme.muted; width: 100px; }
+                    LineEdit { text <=> root.directory; placeholder-text: I18n.text("directory.hint"); enabled: !root.busy; }
+                }
+                Text { text: I18n.text("field.content"); color: Theme.muted; }
+                TextEdit { text <=> root.content; enabled: !root.busy; vertical-stretch: 1; }
+                HorizontalBox {
+                    Button { text: I18n.text("save"); enabled: !root.busy; clicked => { root.save(); } }
+                    Button { text: I18n.text("discard"); enabled: root.dirty && !root.busy; clicked => { root.discard(); } }
+                    Button { text: root.deleting ? I18n.text("delete.confirm") : I18n.text("delete"); enabled: root.saved && !root.busy; clicked => { root.remove(); } }
+                }
+                HorizontalBox {
+                    Button { text: I18n.text("run"); enabled: root.saved && !root.dirty && !root.busy && root.windows; clicked => { root.execute(false); } }
+                    Button { text: I18n.text("admin"); enabled: root.saved && !root.dirty && !root.busy && root.windows; clicked => { root.execute(true); } }
+                }
+            }
+        }
+        Text { text: root.status; color: Theme.accent; wrap: word-wrap; min-height: 38px; }
+    }
+}
