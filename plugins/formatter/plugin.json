@@ -4,7 +4,7 @@
     "defaultValue": "Formatter",
     "key": "name"
   },
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "search",
   "entry": "mytools-formatter",
   "icon": "builtin:file-text",

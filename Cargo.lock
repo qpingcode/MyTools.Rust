@@ -2911,7 +2911,7 @@ dependencies = [
 
 [[package]]
 name = "mytools"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "arboard",
@@ -2933,7 +2933,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-applications"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde_json",
@@ -2941,14 +2941,14 @@ dependencies = [
 
 [[package]]
 name = "mytools-calculator"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
 ]
 
 [[package]]
 name = "mytools-chrome-bookmark"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde_json",
@@ -2956,7 +2956,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-clipboard"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "arboard",
@@ -2975,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "mytools-plugin-api",
@@ -2988,7 +2988,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-decode"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-encode",
  "mytools-plugin-api",
@@ -2996,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-encode"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "md-5",
@@ -3008,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-formatter"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "quick-xml",
@@ -3018,7 +3018,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-plugin-api"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "pinyin",
  "serde",
@@ -3029,7 +3029,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-process-killer"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde_json",
@@ -3038,7 +3038,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-quick-text"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde",
@@ -3047,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-translator"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "reqwest",
@@ -3058,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "mytools-uuid-generator"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "uuid",

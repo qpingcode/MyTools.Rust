@@ -20,7 +20,18 @@ impl Default for Config {
 pub fn path() -> anyhow::Result<PathBuf> {
     Ok(std::env::var_os("MYTOOLS_CONFIG")
         .map(PathBuf::from)
-        .unwrap_or(std::env::current_exe()?.with_file_name("config.json")))
+        .unwrap_or(default_path()?))
+}
+
+fn default_path() -> anyhow::Result<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")
+            .ok_or_else(|| anyhow::anyhow!("Missing user home directory"))?;
+        Ok(PathBuf::from(home).join("Library/Application Support/MyTools/config.json"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    Ok(std::env::current_exe()?.with_file_name("config.json"))
 }
 
 pub fn load() -> anyhow::Result<Config> {
@@ -49,6 +60,9 @@ fn save_language_at(path: &std::path::Path, language: &str) -> anyhow::Result<()
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("Configuration must be a JSON object"))?;
     object.insert("language".into(), language.into());
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let temporary = path.with_extension(format!("{}.tmp", std::process::id()));
     std::fs::write(&temporary, serde_json::to_vec_pretty(&value)?)?;
     if let Err(error) = std::fs::rename(&temporary, path) {

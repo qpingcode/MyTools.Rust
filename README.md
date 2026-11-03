@@ -370,7 +370,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ## Windows 便携版打包
 
-GitHub Actions 分为 **Windows** 和 **macOS** 两个独立工作流，均在推送和 Pull Request 时运行，也可手动 **Run workflow**。两个平台分别检查格式、Clippy 并执行测试；Windows 检查通过后构建 Release 便携包，macOS 完成开发版本编译。下载便携版请进入 **Windows** 工作流。
+GitHub Actions 分为 **Windows** 和 **macOS** 两个独立工作流，均在推送和 Pull Request 时运行，也可手动 **Run workflow**。两个平台分别检查格式、Clippy 并执行测试；Windows 检查通过后构建 Release 便携包，macOS 构建 Release 应用并打包 DMG。下载便携版请进入 **Windows** 工作流。
 完成后进入该次运行的 **Artifacts**，下载 `MyTools-windows-x64-portable`，其中包含便携版 ZIP 和 SHA256 校验文件。
 解压 ZIP 后直接运行 `MyTools/mytools.exe`，通过托盘或 `Alt+空格` 打开窗口，无需安装 Rust。
 请保留整个目录结构：程序依赖旁边的 `plugins/`，不能只复制主程序。
@@ -384,3 +384,17 @@ GitHub Actions 分为 **Windows** 和 **macOS** 两个独立工作流，均在�
 打包输出为 `dist/MyTools-windows-x64-portable.zip`，包含 Release 主程序、所有插件、语言文件、默认配置、说明和图标许可。
 便携版表示免安装运行；剪贴板、快捷文本和搜索历史仍存放在用户数据目录，开机启动仍使用系统启动项。
 翻译插件仍需自行设置 `DEEPSEEK_API_KEY` 环境变量。压缩包不包含本机配置、历史、密钥或调试符号。
+
+## GitHub Releases 与 macOS DMG
+
+推送 `v*` 版本标签后，Windows 和 macOS 各自检查通过后，会自动创建或更新同一 GitHub Release 并上传产物：
+
+- Windows：`MyTools-windows-x64-portable.zip` 及 SHA256。
+- macOS：`MyTools-macos-<架构>.dmg` 及 SHA256，架构取决于 macOS runner。
+
+打开 DMG，把 `MyTools.app` 拖到“应用程序”目录，再双击运行。应用包已包含全部插件和图标。
+macOS 配置保存到 `~/Library/Application Support/MyTools/config.json`，避免写入应用包而破坏签名。
+当前使用临时签名（ad-hoc），尚未进行 Developer ID 签名和 Apple 公证，首次打开可能被 Gatekeeper 拦截。
+普通分支推送和 Pull Request 只上传 Actions Artifacts，不创建 Release。
+
+本地 macOS 打包：`python3 scripts/package-macos.py`。
