@@ -1,0 +1,15 @@
+{
+  "name": "中英翻译",
+  "missing": "翻译请求已失效，请重新搜索",
+  "config.error": "无法加载翻译配置：{error}",
+  "usage.detail": "自动中英互译。Enter 发起 DeepSeek API 请求；请先配置 DEEPSEEK_API_KEY。",
+  "usage": "tr [en|zh|auto] <文本或 @文件路径>",
+  "failed": "翻译失败，选择“翻译”可重试",
+  "copy": "Enter 复制译文",
+  "key.missing": "请设置环境变量 DEEPSEEK_API_KEY，然后重试",
+  "result": "翻译结果",
+  "input.error": "请输入非空 UTF-8 文本，最大 16 KiB",
+  "translate.detail": "Enter 将该文本发送给 DeepSeek 翻译",
+  "translate": "翻译",
+  "completed": "翻译完成"
+}

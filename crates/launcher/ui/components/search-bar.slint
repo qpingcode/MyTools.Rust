@@ -1,0 +1,63 @@
+import { I18n } from "../../../../ui/i18n.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { WindowDragArea } from "../../../../ui/components/window-drag-area.slint";
+
+export component SearchBar inherits Rectangle {
+    in-out property <string> query;
+    callback edited(string);
+    callback accepted();
+    callback navigate(int);
+    callback drag-requested();
+    forward-focus: input;
+    height: 86px;
+    background: transparent;
+
+    public function focus-input() { input.focus(); }
+    public function focus-input-at-end() {
+        input.focus();
+        input.set-selection-offsets(input.text.character-count, input.text.character-count);
+    }
+
+    WindowDragArea {
+        x: 0px; y: 0px; width: parent.width; height: input.y;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: 0px; y: input.y + input.height; width: parent.width; height: parent.height - self.y;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: 0px; y: input.y; width: input.x; height: input.height;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: input.x + input.width; y: input.y; width: parent.width - self.x; height: input.height;
+        drag-requested => { root.drag-requested(); }
+    }
+
+    Image {
+        x: 28px; y: 31px; width: 24px; height: 24px;
+        source: @image-url("../../../../ui/assets/search.svg");
+    }
+    Text {
+        x: 74px; y: 26px; width: parent.width - 100px; height: 34px;
+        text: I18n.text("search.placeholder"); color: #777777; font-size: 22px;
+        visible: root.query == "";
+    }
+    input := TextInput {
+        x: 74px; y: 26px; width: parent.width - 100px; height: 34px;
+        text <=> root.query;
+        color: Theme.foreground; font-size: 22px;
+        single-line: true;
+        input-type: search;
+        selection-background-color: #37685e;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(); }
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) { root.navigate(-1); return accept; }
+            if (event.text == Key.DownArrow) { root.navigate(1); return accept; }
+            reject
+        }
+    }
+    Rectangle { y: parent.height - 1px; height: 1px; background: Theme.border; }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "process-killer",
+  "name": {
+    "defaultValue": "Process Killer",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-process-killer",
+  "icon": "builtin:monitor",
+  "alias": [
+    "ps",
+    "kill"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list"
+}

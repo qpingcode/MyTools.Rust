@@ -1,0 +1,13 @@
+[package]
+name = "mytools-encode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mytools-plugin-api.workspace = true
+base64 = "0.22"
+percent-encoding = "2"
+sha2 = "0.10"
+sha1 = "0.10"
+md-5 = "0.10"

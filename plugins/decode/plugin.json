@@ -1,0 +1,18 @@
+{
+  "id": "decode",
+  "name": {
+    "defaultValue": "Decode",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-decode",
+  "icon": "builtin:code",
+  "alias": [
+    "decode"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list"
+}

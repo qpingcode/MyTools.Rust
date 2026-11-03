@@ -1,0 +1,6 @@
+{
+  "name": "UUID 生成器",
+  "copy": "Enter 复制；修改查询可重新生成",
+  "usage": "生成 UUID v4 或 v7；批量数量为 1–50",
+  "batch": "复制全部 UUID"
+}

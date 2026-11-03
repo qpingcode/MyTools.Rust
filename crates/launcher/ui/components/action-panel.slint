@@ -1,0 +1,48 @@
+import { Theme } from "../../../../ui/theme.slint";
+import { Icon } from "../../../../ui/components/icon.slint";
+import { ActionData } from "../types.slint";
+
+export component ActionPanel inherits Rectangle {
+    in property <[ActionData]> actions;
+    in property <int> selected;
+    in property <string> target-title;
+    in property <length> available-height;
+    callback execute(int);
+    width: 320px;
+    height: min(root.available-height, root.actions.length * 42px + 52px);
+    background: #292929;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #555555;
+    // This surface consumes clicks so only clicks outside the panel dismiss it.
+    TouchArea {}
+    Text {
+        x: 14px; y: 10px; height: 24px; width: parent.width - 28px;
+        text: root.target-title; color: Theme.muted; font-size: 13px; overflow: elide;
+    }
+    list := Flickable {
+        x: 6px; y: 40px; width: parent.width - 12px; height: parent.height - 46px;
+        content-width: self.width;
+        content-height: root.actions.length * 42px;
+        for action[index] in root.actions: Rectangle {
+            x: 0px; y: index * 42px; width: list.width; height: 40px;
+            border-radius: 5px;
+            background: index == root.selected ? #414141 : (touch.has-hover ? #353535 : transparent);
+            Icon {
+                x: 12px; y: 11px; width: 18px; height: 18px;
+                name: action.icon;
+            }
+            Text { x: 44px; width: parent.width - 56px; height: parent.height; text: action.title; color: Theme.foreground; font-size: 15px; vertical-alignment: center; overflow: elide; }
+            touch := TouchArea { mouse-cursor: pointer; clicked => { root.execute(index); } }
+            accessible-role: button;
+            accessible-label: action.title;
+            accessible-action-default => { root.execute(index); }
+        }
+    }
+    changed selected => {
+        if (root.selected * 42px < -list.content-y) { list.content-y = -root.selected * 42px; }
+        else if ((root.selected + 1) * 42px > -list.content-y + list.height) {
+            list.content-y = min(0px, list.height - (root.selected + 1) * 42px);
+        }
+    }
+}

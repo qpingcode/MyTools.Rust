@@ -1,0 +1,21 @@
+{
+  "name": "剪贴板历史",
+  "capture_failed": "无法读取剪贴板内容：{error}",
+  "image": "图片 {width} × {height}",
+  "files": "{count} 个文件",
+  "paste": "粘贴到原应用",
+  "copy": "复制",
+  "plain": "以纯文本粘贴",
+  "delete": "删除记录",
+  "clear": "清空历史",
+  "empty": "剪贴板历史为空",
+  "empty_detail": "复制文本、图片或文件后，会自动记录在这里。",
+  "copied": "已复制到剪贴板",
+  "deleted": "已删除记录",
+  "cleared": "已清空历史",
+  "missing": "这条剪贴板记录已不存在",
+  "unsupported": "不支持此剪贴板操作",
+  "too_large": "剪贴板内容超过配置的大小限制",
+  "truncated": "预览已截断，复制或粘贴时仍会恢复完整内容。",
+  "meta": "{time} · {size} 字节"
+}

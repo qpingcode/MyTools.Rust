@@ -1,0 +1,15 @@
+{
+  "name": "Translator",
+  "missing": "Translation request expired; search again",
+  "config.error": "Cannot load translator configuration: {error}",
+  "usage.detail": "Automatic Chinese/English translation. Enter starts a DeepSeek API request; configure DEEPSEEK_API_KEY first.",
+  "usage": "tr [en|zh|auto] <text or @file>",
+  "failed": "Translation failed; select Translate to retry",
+  "copy": "Enter to copy the translation",
+  "key.missing": "Set the DEEPSEEK_API_KEY environment variable, then retry",
+  "result": "Translation",
+  "input.error": "Enter nonempty UTF-8 text up to 16 KiB",
+  "translate.detail": "Enter sends this text to DeepSeek for translation",
+  "translate": "Translate",
+  "completed": "Translation completed"
+}

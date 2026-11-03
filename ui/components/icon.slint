@@ -1,0 +1,32 @@
+import { BuiltinIcons } from "../icons.slint";
+import { Theme } from "../theme.slint";
+
+export component Icon inherits Rectangle {
+    in property <string> name;
+    in property <image> source;
+    in property <brush> tint: Theme.accent;
+    private property <image> glyph: BuiltinIcons.lookup(root.name);
+    background: transparent;
+    if root.source.width > 0: Image {
+        width: parent.width; height: parent.height;
+        source: root.source;
+        image-fit: contain;
+        accessible-role: none;
+    }
+    if root.source.width == 0 && root.glyph.width > 0: Image {
+        width: parent.width; height: parent.height;
+        source: root.glyph;
+        image-fit: contain;
+        colorize: root.tint;
+        accessible-role: none;
+    }
+    if root.source.width == 0 && root.glyph.width == 0: Text {
+        width: parent.width; height: parent.height;
+        text: root.name;
+        color: root.tint;
+        font-size: min(root.width, root.height);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        accessible-role: none;
+    }
+}

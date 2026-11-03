@@ -1,0 +1,9 @@
+{
+  "name": "文本格式化",
+  "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
+  "result": "格式化结果",
+  "copy": "详情中预览完整结果；Enter 复制",
+  "invalid": "无法格式化该文本",
+  "formats": "json / xml；Enter 复制格式化结果。",
+  "usage": "fmt <格式> <文本或 @文件路径>"
+}

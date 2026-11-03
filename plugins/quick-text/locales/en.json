@@ -1,0 +1,15 @@
+{
+  "name": "Quick Text",
+  "saved": "Quick text saved",
+  "save.hint": "Enter saves or replaces this trigger",
+  "copy": "Copy text",
+  "deleted": "Quick text deleted",
+  "delete": "Delete quick text",
+  "save": "Save quick text",
+  "copied": "Quick text copied",
+  "missing": "Quick text result expired; search again",
+  "usage.detail": "Enter saves; reuse a trigger to update it. Search by trigger or content; use Actions to delete.",
+  "save.title": "Save quick text: {trigger}",
+  "store.error": "Cannot access quick text storage: {error}",
+  "usage": "qt add <trigger> | <text or @file>"
+}

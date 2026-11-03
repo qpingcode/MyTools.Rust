@@ -1,0 +1,66 @@
+# 实用插件
+
+运行 `./run.ps1 -BuildOnly` 或 `bash run.sh --build-only` 编译并打包全部插件。
+别名后输入空格进入插件作用域。默认 Enter 执行首个动作，Ctrl+K（macOS 为 ⌘K）打开其他动作。
+
+| 插件 | 输入示例 | 交互 |
+| --- | --- | --- |
+| Chrome 书签 | 直接输入书签标题、URL、文件夹关键词 | 全局搜索，不设置 alias；Enter 在系统默认浏览器打开，操作菜单可复制链接 |
+| encode | `encode hello`、`encode base64 hello` | 普通列表展示各格式结果；Enter 复制 |
+| decode | `decode base64 5Lit5paH` | 普通列表展示各格式结果；Enter 复制 |
+| formatter | `fmt json {"a":1}`、`fmt xml @C:\Temp\input.xml` | 详情展示格式化结果；Enter 复制 |
+| process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
+| UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
+| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | Enter 发起翻译；完成后选择译文并 Enter 复制 |
+| quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
+
+encode 按 `base64`、`md5`、`url`、`sha1`、`sha256`、`sha512` 的顺序展示结果。
+decode 按 `base64`、`url` 的顺序展示结果。URL 使用 URI component 编码，`+` 保持加号；
+哈希不能解码。格式名使用这里的小写值。
+decode 严格验证编码与 UTF-8，二进制结果显示错误，不把无效字节替换成乱码。
+
+formatter 仅支持 `json`、`xml`。JSON 保留对象键顺序及数字精度。
+XML 保留文本内容；含混合文本或 `xml:space="preserve"` 的文档保留原格式，避免改变空白语义。
+文本输入上限为 16 KiB，格式化结果上限为 128 KiB。文本工具支持 `@文件路径` 读取多行 UTF-8 输入；
+quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同短语再次执行 add 即可。
+
+## Chrome 数据
+
+自动读取 Windows 的 `%LOCALAPPDATA%\Google\Chrome\User Data`、macOS 的
+`~/Library/Application Support/Google/Chrome` 下 `Default`、`Profile *` 的 `Bookmarks`。
+每 5 秒后发生查询时重读，不修改 Chrome 文件；损坏或不存在的用户配置会跳过。
+可通过 `MYTOOLS_CHROME_DIR` 指定 User Data 根目录。仅展示可打开的 HTTP/HTTPS 书签。
+
+## 翻译配置
+
+密钥只从环境变量 `DEEPSEEK_API_KEY` 读取，配置文件中的 `api_key` 不生效。
+优先读取进程环境变量；Windows 未继承该变量时，依次读取用户环境变量和系统环境变量，
+因此在 Windows 设置用户变量后可直接重试。插件不把密钥写入文件或日志。
+如需修改 API 地址或模型，可将插件目录的 `config.example.json` 复制为 `config.json`；构建脚本保留已有配置。
+`MYTOOLS_TRANSLATOR_CONFIG` 可指定配置文件路径，`DEEPSEEK_MODEL` 可覆盖模型。
+
+```json
+{
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-flash"
+}
+```
+
+默认模型与请求格式参考 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start)。
+配置及环境变量在每次执行翻译时读取；macOS 修改环境变量后需要从带有新环境的进程重新启动 MyTools。
+不带方向时，含汉字的文本译成英文，其他文本译成简体中文；可显式使用 `en` 或 `zh`。
+输入完成后按 Enter 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
+同一时间只执行一个请求，全程不轮询。
+超时、鉴权失败、限流及响应截断会显示失败，选中“翻译”可手动重试。
+
+## 快捷文本数据
+
+数据保存在 Windows 的 `%LOCALAPPDATA%\MyTools\quick-text\phrases.json` 或 macOS 的
+`~/Library/Application Support/MyTools/quick-text/phrases.json`，使用文件锁避免多实例覆盖，
+写入临时文件后替换；`MYTOOLS_QUICK_TEXT_DIR` 可覆盖数据目录。
+文件包含短语及完整文本，重启后保留；数据损坏时报告错误，不自动覆盖。
+
+## 进程查询
+
+Windows 通过 netstat 获取本地 TCP/UDP 端口的进程，macOS 通过系统 lsof 获取。
+显示当前用户可见的信息；结束权限由操作系统决定。终止前校验启动时间，避免 PID 被复用后误杀。

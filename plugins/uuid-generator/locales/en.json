@@ -1,0 +1,6 @@
+{
+  "name": "UUID Generator",
+  "copy": "Enter to copy; change the query to generate again",
+  "usage": "Generate UUID v4 or v7; batch size must be 1–50",
+  "batch": "Copy all UUIDs"
+}

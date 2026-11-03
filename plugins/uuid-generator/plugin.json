@@ -1,0 +1,18 @@
+{
+  "id": "uuid-generator",
+  "name": {
+    "defaultValue": "UUID Generator",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-uuid-generator",
+  "icon": "builtin:file-code",
+  "alias": [
+    "uuid"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list"
+}

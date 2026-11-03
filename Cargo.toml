@@ -1,0 +1,45 @@
+[workspace]
+members = [
+    "crates/launcher",
+    "crates/core",
+    "crates/plugin-api",
+    "plugins/calculator",
+    "plugins/applications",
+    "plugins/clipboard",
+    "plugins/chrome-bookmark",
+    "plugins/encode",
+    "plugins/decode",
+    "plugins/formatter",
+    "plugins/process-killer",
+    "plugins/uuid-generator",
+    "plugins/translator",
+    "plugins/quick-text",
+]
+default-members = ["crates/launcher"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+slint = { version = "=1.18.1", default-features = false, features = [
+    "std",
+    "backend-winit",
+    "renderer-femtovg",
+    "accessibility",
+    "system-tray",
+    "compat-1-2",
+    "unstable-winit-030",
+] }
+slint-build = "=1.18.1"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+mytools-core = { path = "crates/core" }
+mytools-plugin-api = { path = "crates/plugin-api" }
+
+[profile.release]
+strip = true
+lto = "thin"

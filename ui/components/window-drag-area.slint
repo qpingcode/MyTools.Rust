@@ -1,0 +1,6 @@
+export component WindowDragArea inherits TouchArea {
+    callback drag-requested();
+    pointer-event(event) => {
+        if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) { root.drag-requested(); }
+    }
+}

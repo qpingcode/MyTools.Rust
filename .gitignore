@@ -1,0 +1,24 @@
+# Rust build and packaged output
+/target/
+/dist/
+**/*.rs.bk
+
+# Local settings and secrets (keep examples)
+.env
+.env.*
+!.env.example
+config.json
+!config.example.json
+*.local.json
+
+# Runtime data and logs
+*.log
+search-history.json
+search-history.lock
+
+# Editor and OS files
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini

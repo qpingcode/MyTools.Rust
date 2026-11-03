@@ -1,0 +1,19 @@
+{
+  "id": "formatter",
+  "name": {
+    "defaultValue": "Formatter",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-formatter",
+  "icon": "builtin:file-text",
+  "alias": [
+    "fmt",
+    "format"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list-detail"
+}

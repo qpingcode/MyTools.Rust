@@ -1,0 +1,7 @@
+{
+  "name": "编码",
+  "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
+  "invalid": "该格式的输入无效",
+  "usage": "encode [格式] <文本或 @文件路径>",
+  "formats": "Base64、MD5、URL、SHA-1、SHA-256、SHA-512；Enter 复制结果。"
+}

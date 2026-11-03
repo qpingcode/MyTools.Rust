@@ -1,0 +1,10 @@
+{
+  "name": "Process Killer",
+  "port.invalid": "Use a port between 1 and 65535, e.g. ps :8080",
+  "kill": "Kill process",
+  "killed": "Termination requested",
+  "process.description": "PID {pid} · {memory} MiB",
+  "kill.error": "Cannot terminate: process exited, PID changed, or permission denied",
+  "query.error": "Cannot query port owners: {error}",
+  "missing": "Process result expired; search again"
+}

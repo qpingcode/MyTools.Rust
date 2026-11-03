@@ -1,0 +1,21 @@
+{
+  "name": "Clipboard History",
+  "capture_failed": "Could not read clipboard content: {error}",
+  "image": "Image {width} × {height}",
+  "files": "{count} files",
+  "paste": "Paste into Previous App",
+  "copy": "Copy",
+  "plain": "Paste as Plain Text",
+  "delete": "Delete Entry",
+  "clear": "Clear History",
+  "empty": "Clipboard history is empty",
+  "empty_detail": "Copy text, an image or files to start recording history.",
+  "copied": "Copied to clipboard",
+  "deleted": "Entry deleted",
+  "cleared": "History cleared",
+  "missing": "This clipboard entry no longer exists",
+  "unsupported": "This clipboard operation is not supported",
+  "too_large": "Clipboard content exceeds the configured size limit",
+  "truncated": "Preview truncated; copy or paste restores the complete content.",
+  "meta": "{time} · {size} bytes"
+}

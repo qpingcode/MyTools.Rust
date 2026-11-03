@@ -1,0 +1,10 @@
+{
+  "name": "进程管理",
+  "port.invalid": "请输入 1 到 65535 的端口，例如 ps :8080",
+  "kill": "结束进程",
+  "killed": "已请求结束进程",
+  "process.description": "PID {pid} · {memory} MiB",
+  "kill.error": "无法结束：进程已退出、PID 已被复用或权限不足",
+  "query.error": "无法查询端口占用：{error}",
+  "missing": "进程结果已失效，请重新搜索"
+}

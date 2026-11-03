@@ -1,0 +1,11 @@
+[package]
+name = "mytools-applications"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mytools-plugin-api.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

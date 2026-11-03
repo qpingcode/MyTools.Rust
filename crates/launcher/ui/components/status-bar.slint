@@ -1,0 +1,62 @@
+import { I18n } from "../../../../ui/i18n.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { WindowDragArea } from "../../../../ui/components/window-drag-area.slint";
+import { ActionButton } from "../../../../ui/components/action-button.slint";
+
+export component StatusBar inherits Rectangle {
+    in property <string> status;
+    in property <bool> failed;
+    in property <string> primary-title;
+    in property <string> shortcut-label;
+    in property <bool> actions-available;
+    in property <bool> primary-available;
+    in property <bool> busy;
+    callback execute();
+    callback toggle-actions();
+    callback drag-requested();
+    height: 56px;
+    background: Theme.panel;
+    WindowDragArea {
+        x: 0px; y: 0px; width: buttons.x; height: parent.height;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: buttons.x + buttons.width; y: 0px; width: parent.width - self.x; height: parent.height;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: buttons.x; y: 0px; width: buttons.width; height: buttons.y;
+        drag-requested => { root.drag-requested(); }
+    }
+    WindowDragArea {
+        x: buttons.x; y: buttons.y + buttons.height; width: buttons.width; height: parent.height - self.y;
+        drag-requested => { root.drag-requested(); }
+    }
+    Rectangle { x: 20px; y: 24px; width: 8px; height: 8px; border-radius: 4px; background: root.failed ? #e09a53 : #4bb976; }
+    Text {
+        x: 40px; y: 14px; width: max(0px, buttons.x - 52px); height: 28px;
+        text: root.status; color: Theme.muted; font-size: 14px; vertical-alignment: center; overflow: elide;
+    }
+    buttons := Rectangle {
+        x: parent.width - self.width - 20px; y: 11px;
+        width: primary.width + operations.width + 10px; height: 34px;
+        background: transparent;
+        primary := ActionButton {
+            x: 0px; y: 0px;
+            text: root.busy ? I18n.text("actions.busy") : root.primary-title;
+            shortcut: "Enter";
+            enabled: root.primary-available && !root.busy;
+            clicked => { root.execute(); }
+        }
+        WindowDragArea {
+            x: primary.width; y: 0px; width: 10px; height: parent.height;
+            drag-requested => { root.drag-requested(); }
+        }
+        operations := ActionButton {
+            x: primary.width + 10px; y: 0px;
+            text: I18n.text("actions.title"); shortcut: root.shortcut-label;
+            enabled: root.actions-available && !root.busy;
+            clicked => { root.toggle-actions(); }
+        }
+    }
+}

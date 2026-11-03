@@ -1,0 +1,19 @@
+{
+  "id": "quick-text",
+  "name": {
+    "defaultValue": "Quick Text",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-quick-text",
+  "icon": "builtin:text-initial",
+  "alias": [
+    "qt",
+    "quick"
+  ],
+  "search": {
+    "global": true
+  },
+  "view": "list-detail"
+}

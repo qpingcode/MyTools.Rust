@@ -1,0 +1,15 @@
+{
+  "id": "applications",
+  "name": {
+    "key": "Plugin.Applications.Name",
+    "defaultValue": "Applications"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "icon": "builtin:app-window",
+  "entry": "mytools-applications",
+  "alias": [],
+  "search": {
+    "global": true
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Formatter",
+  "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
+  "result": "Formatted text",
+  "copy": "Preview the complete result; Enter to copy",
+  "invalid": "Cannot format this input",
+  "formats": "json / xml; Enter copies the formatted text.",
+  "usage": "fmt <format> <text or @file>"
+}

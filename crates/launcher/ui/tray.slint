@@ -1,0 +1,48 @@
+import { I18n } from "../../../ui/i18n.slint";
+import { BuiltinIcons } from "../../../ui/icons.slint";
+export component AppTray inherits SystemTrayIcon {
+    icon: @image-url("../../../ui/assets/app.png");
+    in property <string> tooltip-text;
+    in property <string> language: "auto";
+    in property <bool> startup-enabled;
+    in property <bool> native-menu-icons;
+    out property <image> menu-check-icon: BuiltinIcons.lookup("builtin:check");
+    // Slint 1.18's Windows tray backend ignores MenuItem.checked when drawing.
+    pure function marked(title: string, selected: bool) -> string {
+        return selected ? title + "  ✓" : title;
+    }
+    tooltip: root.tooltip-text;
+    callback open();
+    callback select-language(string);
+    callback toggle-startup(bool);
+    callback quit();
+    clicked => { root.open(); }
+    Menu {
+        MenuItem { title: I18n.text("tray.show"); activated => { root.open(); } }
+        Menu {
+            title: I18n.text("tray.language");
+            MenuItem {
+                title: root.marked(I18n.text("tray.language_auto"), root.language == "auto" && !root.native-menu-icons);
+                icon: root.language == "auto" ? root.menu-check-icon : BuiltinIcons.lookup("");
+                activated => { root.select-language("auto"); }
+            }
+            MenuItem {
+                title: root.marked(I18n.text("tray.language_chinese"), root.language == "zh-CN" && !root.native-menu-icons);
+                icon: root.language == "zh-CN" ? root.menu-check-icon : BuiltinIcons.lookup("");
+                activated => { root.select-language("zh-CN"); }
+            }
+            MenuItem {
+                title: root.marked(I18n.text("tray.language_english"), root.language == "en" && !root.native-menu-icons);
+                icon: root.language == "en" ? root.menu-check-icon : BuiltinIcons.lookup("");
+                activated => { root.select-language("en"); }
+            }
+        }
+        MenuItem {
+            title: root.marked(I18n.text("tray.startup"), root.startup-enabled && !root.native-menu-icons);
+            icon: root.startup-enabled ? root.menu-check-icon : BuiltinIcons.lookup("");
+            activated => { root.toggle-startup(!root.startup-enabled); }
+        }
+        MenuSeparator {}
+        MenuItem { title: I18n.text("tray.quit"); activated => { root.quit(); } }
+    }
+}

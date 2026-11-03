@@ -1,0 +1,153 @@
+export { I18n } from "../../../ui/i18n.slint";
+import { I18n } from "../../../ui/i18n.slint";
+import { Theme } from "../../../ui/theme.slint";
+import { SearchBar } from "components/search-bar.slint";
+import { ResultRow } from "components/result-row.slint";
+import { DetailPreview } from "components/detail-preview.slint";
+import { StatusBar } from "components/status-bar.slint";
+import { ActionPanel } from "components/action-panel.slint";
+import { AboutSlint } from "std-widgets.slint";
+import { ResultData, ActionData } from "types.slint";
+export { ResultData, ActionData } from "types.slint";
+export { AppTray } from "tray.slint";
+export { RestartDialog } from "restart-dialog.slint";
+
+export component MainWindow inherits Window {
+    title: "MyTools";
+    icon: @image-url("../../../ui/assets/app.png");
+    preferred-width: 860px; preferred-height: 580px;
+    min-width: 640px; min-height: 360px;
+    no-frame: true;
+    background: Theme.background;
+    in property <string> app-font-family;
+    default-font-family: root.app-font-family;
+    in-out property <string> query;
+    in property <[ResultData]> results;
+    in property <int> selected: 0;
+    in property <string> status;
+    in property <bool> failed;
+    in property <bool> searching: true;
+    in property <[ActionData]> actions;
+    in-out property <bool> actions-open;
+    in-out property <int> selected-action: 0;
+    in property <string> action-target;
+    in property <string> primary-title: I18n.text("actions.execute");
+    in property <string> shortcut-label: "Ctrl+K";
+    in property <bool> actions-available;
+    in property <bool> primary-available;
+    in-out property <bool> action-busy;
+    in property <bool> detail-view;
+    in property <string> preview-title;
+    in property <string> preview-text;
+    in property <string> preview-metadata;
+    in property <image> preview-image;
+    callback search(string);
+    callback execute(int);
+    callback select-result(int);
+    callback show-license();
+    callback navigate(int);
+    callback dismiss();
+    callback drag-requested();
+    callback toggle-actions();
+    callback close-actions();
+    callback navigate-action(int);
+    callback execute-action(int);
+    forward-focus: keyboard;
+    public function focus-search() { search-bar.focus-input(); }
+    public function focus-search-at-end() { search-bar.focus-input-at-end(); }
+    public function reset-scroll() { list.content-y = 0px; }
+
+    keyboard := FocusScope {
+        forward-focus: search-bar;
+        KeyBinding { keys: @keys(Control + K); activated => { root.toggle-actions(); } }
+        KeyBinding { keys: @keys(F1); activated => { root.show-license(); } }
+        capture-key-pressed(event) => {
+            if (event.text == Key.Escape) { root.dismiss(); return accept; }
+            if (root.actions-open) {
+                if (event.text == Key.UpArrow) { root.navigate-action(-1); return accept; }
+                if (event.text == Key.DownArrow) { root.navigate-action(1); return accept; }
+                if (event.text == Key.Return) { root.execute-action(root.selected-action); return accept; }
+            }
+            reject
+        }
+        Rectangle {
+            border-width: 1px; border-color: Theme.border; border-radius: 12px;
+            background: Theme.background;
+            search-bar := SearchBar {
+                x: 0px; y: 0px;
+                width: parent.width;
+                query <=> root.query;
+                edited(query) => { root.search(query); }
+                accepted => { root.execute(root.selected); }
+                navigate(delta) => { root.navigate(delta); }
+                drag-requested => { root.drag-requested(); }
+            }
+            list := Flickable {
+                x: 1px; y: 87px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px; height: parent.height - 144px;
+                content-width: self.width;
+                content-height: max(self.height, root.results.length * 80px + 24px);
+                for result[index] in root.results: ResultRow {
+                    x: 12px; y: 12px + index * 80px; width: list.width - 24px;
+                    result: result; selected: index == root.selected;
+                    clicked => { root.select-result(index); }
+                    activated => { root.execute(index); }
+                }
+            }
+            if root.detail-view: DetailPreview {
+                x: list.width + 8px; y: 99px;
+                width: parent.width - self.x - 12px; height: parent.height - 168px;
+                title: root.preview-title; text: root.preview-text;
+                metadata: root.preview-metadata; picture: root.preview-image;
+            }
+            if root.results.length == 0 && !root.searching: Text {
+                x: 36px; y: 112px; text: I18n.text("search.empty");
+                color: Theme.muted; font-size: 15px;
+            }
+            StatusBar {
+                y: parent.height - self.height; width: parent.width;
+                status: root.status; failed: root.failed;
+                primary-title: root.primary-title;
+                shortcut-label: root.shortcut-label;
+                actions-available: root.actions-available && !root.searching;
+                primary-available: root.primary-available && !root.searching;
+                busy: root.action-busy;
+                execute => { root.execute(root.selected); }
+                toggle-actions => { root.toggle-actions(); }
+                drag-requested => { root.drag-requested(); }
+            }
+        }
+        if root.actions-open: Rectangle {
+            background: transparent;
+            TouchArea { clicked => { root.close-actions(); } }
+            ActionPanel {
+                x: parent.width - self.width - 20px;
+                y: parent.height - 64px - self.height;
+                available-height: parent.height - 110px;
+                actions: root.actions;
+                selected: root.selected-action;
+                target-title: root.action-target;
+                execute(index) => { root.execute-action(index); }
+            }
+        }
+    }
+    changed selected => {
+        if (root.selected * 80px + 12px < -list.content-y) {
+            list.content-y = -root.selected * 80px;
+        } else if ((root.selected + 1) * 80px + 12px > -list.content-y + list.height) {
+            list.content-y = min(0px, list.height - (root.selected + 1) * 80px - 12px);
+        }
+    }
+}
+
+export component AboutWindow inherits Window {
+    title: I18n.text("about.title");
+    width: 440px; height: 330px;
+    in property <string> app-font-family;
+    default-font-family: root.app-font-family;
+    VerticalLayout {
+        padding: 24px; spacing: 16px;
+        Text { text: "MyTools"; font-size: 26px; }
+        Text { text: I18n.text("app.description"); }
+        AboutSlint {}
+    }
+}

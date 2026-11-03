@@ -1,0 +1,17 @@
+{
+  "id": "calculator",
+  "name": {
+    "key": "Plugin.Calculator.Name",
+    "defaultValue": "计算器"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "icon": "builtin:calculator",
+  "entry": "mytools-calculator",
+  "alias": [
+    "calc"
+  ],
+  "search": {
+    "global": true
+  }
+}

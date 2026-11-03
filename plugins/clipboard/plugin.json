@@ -1,0 +1,20 @@
+{
+  "id": "clipboard",
+  "name": {
+    "key": "name",
+    "defaultValue": "Clipboard History"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-clipboard",
+  "icon": "builtin:clipboard",
+  "alias": [
+    "clip",
+    "clipboard"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list-detail",
+  "hotkey": "Ctrl+Shift+V"
+}

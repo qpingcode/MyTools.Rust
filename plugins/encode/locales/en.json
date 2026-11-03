@@ -1,0 +1,7 @@
+{
+  "name": "Encode",
+  "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
+  "invalid": "Invalid input for this format",
+  "usage": "encode [format] <text or @file>",
+  "formats": "Base64, MD5, URL, SHA-1, SHA-256, SHA-512; Enter copies the result."
+}

@@ -1,0 +1,305 @@
+use crate::i18n;
+use crate::search_process::SearchProcess;
+use anyhow::{Context, Result, bail};
+use serde::Deserialize;
+use std::{
+    fs,
+    path::{Component, Path, PathBuf},
+    sync::Arc,
+};
+
+#[derive(Debug, Deserialize)]
+struct PluginName {
+    #[serde(default)]
+    key: Option<String>,
+    #[serde(rename = "defaultValue")]
+    default_value: String,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PluginType {
+    #[default]
+    Window,
+    Search,
+}
+
+#[derive(Debug, Deserialize)]
+struct Manifest {
+    id: String,
+    name: PluginName,
+    version: String,
+    #[serde(default, rename = "type")]
+    kind: PluginType,
+    entry: PathBuf,
+    #[serde(default)]
+    icon: Option<mytools_plugin_api::Icon>,
+    #[serde(default)]
+    alias: Vec<String>,
+    #[serde(default)]
+    search: Search,
+    #[serde(default)]
+    view: mytools_plugin_api::View,
+    #[serde(default)]
+    hotkey: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Search {
+    #[serde(default)]
+    global: bool,
+}
+
+#[derive(Clone)]
+pub struct Plugin {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub icon: mytools_plugin_api::Icon,
+    pub aliases: Vec<String>,
+    pub global: bool,
+    pub executable: PathBuf,
+    pub process: Option<Arc<SearchProcess>>,
+    pub view: mytools_plugin_api::View,
+}
+
+impl Plugin {
+    pub fn load(path: &Path) -> Result<Self> {
+        let manifest: Manifest =
+            serde_json::from_slice(&fs::read(path)?).context(i18n::t("error.manifest_invalid"))?;
+        let executable = manifest.validate(path)?;
+        let name = localized_name(&manifest.name, path, mytools_plugin_api::i18n::language())?;
+        let process = if manifest.kind == PluginType::Search {
+            Some(Arc::new(SearchProcess::start(&executable)?))
+        } else {
+            None
+        };
+        Ok(Self {
+            id: manifest.id,
+            name,
+            version: manifest.version,
+            icon: mytools_plugin_api::icons::resolve_reference(
+                manifest.icon.as_ref(),
+                &mytools_plugin_api::icons::DEFAULT_ICON.into(),
+            ),
+            aliases: manifest.alias,
+            global: manifest.search.global,
+            executable,
+            process,
+            view: manifest.view,
+        })
+    }
+}
+
+pub fn directory() -> PathBuf {
+    std::env::var_os("MYTOOLS_PLUGIN_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::current_exe()
+                .unwrap_or_default()
+                .with_file_name("plugins")
+        })
+}
+
+pub struct ActivationShortcut {
+    pub plugin_id: String,
+    pub hotkey: String,
+    pub query: String,
+}
+
+/// Read activation metadata without starting another plugin process.
+pub fn activation_shortcuts() -> Result<Vec<ActivationShortcut>> {
+    let mut shortcuts = Vec::new();
+    for path in manifest_paths(&directory())? {
+        // Catalog reports invalid manifests; other plugins keep their shortcuts.
+        let Ok(bytes) = fs::read(path) else {
+            continue;
+        };
+        let Ok(manifest) = serde_json::from_slice::<Manifest>(&bytes) else {
+            continue;
+        };
+        if manifest.kind == PluginType::Search
+            && let (Some(hotkey), Some(alias)) = (manifest.hotkey, manifest.alias.first())
+        {
+            shortcuts.push(ActivationShortcut {
+                plugin_id: manifest.id,
+                hotkey,
+                query: format!("{alias} "),
+            });
+        }
+    }
+    Ok(shortcuts)
+}
+
+fn localized_name(name: &PluginName, manifest: &Path, language: &str) -> Result<String> {
+    let Some(key) = &name.key else {
+        return Ok(name.default_value.clone());
+    };
+    let directory = manifest
+        .parent()
+        .context(i18n::t("error.manifest_directory"))?
+        .join("locales");
+    let read = |language: &str| -> Result<String> {
+        match fs::read_to_string(directory.join(format!("{language}.json"))) {
+            Ok(json) => Ok(json),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok("{}".into()),
+            Err(error) => Err(error.into()),
+        }
+    };
+    let catalog = mytools_plugin_api::i18n::Catalog::from_json(&read(language)?, &read("en")?)?;
+    Ok(catalog.lookup(key).unwrap_or(&name.default_value).into())
+}
+
+impl Manifest {
+    fn validate(&self, path: &Path) -> Result<PathBuf> {
+        if self.id.trim().is_empty() || self.name.default_value.trim().is_empty() {
+            bail!(i18n::t("error.manifest_name"));
+        }
+        if self
+            .alias
+            .iter()
+            .any(|alias| alias.is_empty() || alias.chars().any(char::is_whitespace))
+        {
+            bail!(i18n::t("error.manifest_alias"));
+        }
+        if self.entry.as_os_str().is_empty()
+            || self
+                .entry
+                .components()
+                .any(|part| !matches!(part, Component::Normal(_)))
+        {
+            bail!(i18n::t("error.manifest_entry"));
+        }
+        let directory = path
+            .parent()
+            .context(i18n::t("error.manifest_directory"))?
+            .canonicalize()?;
+        let mut entry = self.entry.clone();
+        if cfg!(windows) && entry.extension().is_none() {
+            entry.set_extension("exe");
+        }
+        let executable = directory.join(&entry).canonicalize().with_context(|| {
+            i18n::format(
+                "error.entry_missing",
+                &[("path", &entry.display().to_string())],
+            )
+        })?;
+        if !executable.starts_with(&directory) || !executable.is_file() {
+            bail!(i18n::t("error.manifest_program"));
+        }
+        Ok(executable)
+    }
+}
+
+pub fn manifest_paths(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut paths: Vec<_> = fs::read_dir(root)?
+        .flatten()
+        .map(|dir| dir.path().join("plugin.json"))
+        .filter(|path| path.is_file())
+        .collect();
+    paths.sort();
+    Ok(paths)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_both_plugin_types_without_removed_fields() {
+        for (json, kind) in [
+            (
+                r#"{"id":"window-fixture","name":{"defaultValue":"Window fixture"},"version":"0.1.0","type":"window","entry":"fixture"}"#,
+                PluginType::Window,
+            ),
+            (
+                include_str!("../../../plugins/calculator/plugin.json"),
+                PluginType::Search,
+            ),
+            (
+                include_str!("../../../plugins/applications/plugin.json"),
+                PluginType::Search,
+            ),
+            (
+                include_str!("../../../plugins/clipboard/plugin.json"),
+                PluginType::Search,
+            ),
+        ] {
+            let value: serde_json::Value = serde_json::from_str(json).unwrap();
+            assert!(value.get("protocolVersion").is_none());
+            assert!(value.get("capabilities").is_none());
+            let manifest: Manifest = serde_json::from_value(value).unwrap();
+            assert_eq!(manifest.kind, kind);
+        }
+    }
+
+    #[test]
+    fn validates_entry_and_alias() {
+        let path = Path::new("plugin.json");
+        let mut manifest: Manifest =
+            serde_json::from_str(include_str!("../../../plugins/calculator/plugin.json")).unwrap();
+        manifest.entry = "../outside.exe".into();
+        assert!(
+            manifest
+                .validate(path)
+                .unwrap_err()
+                .to_string()
+                .contains(&i18n::t("error.manifest_entry"))
+        );
+        manifest.alias = vec!["two words".into()];
+        assert!(
+            manifest
+                .validate(path)
+                .unwrap_err()
+                .to_string()
+                .contains(&i18n::t("error.manifest_alias"))
+        );
+    }
+
+    #[test]
+    fn resolves_portable_entry_on_the_current_platform() {
+        let directory =
+            std::env::temp_dir().join(format!("mytools-portable-entry-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join(format!(
+            "mytools-calculator{}",
+            std::env::consts::EXE_SUFFIX
+        ));
+        fs::write(&executable, b"fixture").unwrap();
+        let manifest: Manifest =
+            serde_json::from_str(include_str!("../../../plugins/calculator/plugin.json")).unwrap();
+        assert_eq!(
+            manifest.validate(&directory.join("plugin.json")).unwrap(),
+            executable.canonicalize().unwrap()
+        );
+        fs::remove_file(executable).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn plugin_name_uses_own_catalog_then_english_then_default() {
+        let directory =
+            std::env::temp_dir().join(format!("mytools-name-locale-{}", std::process::id()));
+        let locales = directory.join("locales");
+        fs::create_dir_all(&locales).unwrap();
+        fs::write(locales.join("en.json"), r#"{"name":"Calculator"}"#).unwrap();
+        fs::write(locales.join("zh-CN.json"), r#"{"name":"计算器"}"#).unwrap();
+        let name = PluginName {
+            key: Some("name".into()),
+            default_value: "Default".into(),
+        };
+        let manifest = directory.join("plugin.json");
+        assert_eq!(localized_name(&name, &manifest, "zh-CN").unwrap(), "计算器");
+        assert_eq!(
+            localized_name(&name, &manifest, "fr").unwrap(),
+            "Calculator"
+        );
+        fs::write(locales.join("en.json"), "{}").unwrap();
+        assert_eq!(localized_name(&name, &manifest, "fr").unwrap(), "Default");
+        for file in ["en.json", "zh-CN.json"] {
+            fs::remove_file(locales.join(file)).unwrap();
+        }
+        fs::remove_dir(locales).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+}

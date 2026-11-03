@@ -1,0 +1,19 @@
+{
+  "id": "translator",
+  "name": {
+    "defaultValue": "Translator",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-translator",
+  "icon": "builtin:globe",
+  "alias": [
+    "tr",
+    "translate"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list-detail"
+}

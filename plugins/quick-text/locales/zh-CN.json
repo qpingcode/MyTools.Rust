@@ -1,0 +1,15 @@
+{
+  "name": "快捷文本",
+  "saved": "快捷文本已保存",
+  "save.hint": "Enter 保存或替换该短语",
+  "copy": "复制文本",
+  "deleted": "快捷文本已删除",
+  "delete": "删除快捷文本",
+  "save": "保存快捷文本",
+  "copied": "快捷文本已复制",
+  "missing": "快捷文本结果已失效，请重新搜索",
+  "usage.detail": "Enter 保存；使用相同短语可更新内容。按短语或内容搜索，在操作菜单中删除。",
+  "save.title": "保存快捷文本：{trigger}",
+  "store.error": "无法读写快捷文本存储：{error}",
+  "usage": "qt add <短语> | <文本或 @文件路径>"
+}

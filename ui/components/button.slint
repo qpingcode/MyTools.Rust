@@ -1,0 +1,25 @@
+import { Theme } from "../theme.slint";
+
+export component AppButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    callback clicked();
+    height: 44px;
+    min-width: 100px;
+    border-radius: 8px;
+    background: root.primary ? (touch.has-hover ? #427d71 : #37685e) : (touch.has-hover ? #454545 : Theme.selected);
+    Text {
+        text: root.text;
+        color: Theme.foreground;
+        font-size: 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { root.clicked(); }
+}

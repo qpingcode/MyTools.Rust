@@ -1,0 +1,34 @@
+import { Theme } from "../../../../ui/theme.slint";
+import { ResultData } from "../types.slint";
+import { Icon } from "../../../../ui/components/icon.slint";
+
+export component ResultRow inherits Rectangle {
+    in property <ResultData> result;
+    in property <bool> selected;
+    callback clicked();
+    callback activated();
+    height: 76px;
+    border-radius: 8px;
+    background: root.selected ? Theme.selected : (touch.has-hover ? #333333 : transparent);
+    Rectangle {
+        x: 16px; y: 20px; width: 36px; height: 36px;
+        background: #304646; border-radius: 6px;
+        Icon { x: 5px; y: 5px; width: 26px; height: 26px; name: root.result.icon; source: root.result.native-image; }
+    }
+    Text {
+        x: 68px; y: 10px; width: parent.width - 84px; height: 28px;
+        text: root.result.title; color: Theme.foreground; font-size: 19px; overflow: elide;
+    }
+    Text {
+        x: 68px; y: 42px; width: parent.width - 84px; height: 22px;
+        text: root.result.description; color: Theme.muted; font-size: 14px; overflow: elide;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+        double-clicked => { root.activated(); }
+    }
+    accessible-role: list-item;
+    accessible-label: result.title;
+    accessible-action-default => { root.activated(); }
+}

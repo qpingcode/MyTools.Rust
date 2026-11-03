@@ -1,0 +1,16 @@
+{
+  "id": "chrome-bookmark",
+  "name": {
+    "defaultValue": "Chrome Bookmarks",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-chrome-bookmark",
+  "icon": "builtin:bookmark",
+  "alias": [],
+  "search": {
+    "global": true
+  },
+  "view": "list"
+}

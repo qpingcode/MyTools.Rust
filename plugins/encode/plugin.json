@@ -1,0 +1,18 @@
+{
+  "id": "encode",
+  "name": {
+    "defaultValue": "Encode",
+    "key": "name"
+  },
+  "version": "0.1.0",
+  "type": "search",
+  "entry": "mytools-encode",
+  "icon": "builtin:lock",
+  "alias": [
+    "encode"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "解码",
+  "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
+  "invalid": "编码无效，或解码结果不是 UTF-8 文本",
+  "usage": "decode [格式] <文本或 @文件路径>",
+  "formats": "Base64、URL；Enter 复制结果。"
+}
