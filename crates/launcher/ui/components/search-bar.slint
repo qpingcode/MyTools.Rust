@@ -13,6 +13,10 @@ export component SearchBar inherits Rectangle {
     background: transparent;
 
     public function focus-input() { input.focus(); }
+    public function focus-input-select-all() {
+        input.focus();
+        input.select-all();
+    }
     public function focus-input-at-end() {
         input.focus();
         input.set-selection-offsets(input.text.character-count, input.text.character-count);

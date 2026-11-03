@@ -88,7 +88,10 @@ impl Desktop {
                 return;
             }
             if event.id == hotkey.id() && event.state == HotKeyState::Pressed {
-                let _ = weak.upgrade_in_event_loop(|ui| show(&ui));
+                let _ = weak.upgrade_in_event_loop(|ui| {
+                    show(&ui);
+                    ui.invoke_focus_search_select_all();
+                });
             } else if let Some((_, query)) = routes.iter().find(|(id, _)| *id == event.id) {
                 let query = query.clone();
                 let _ = weak.upgrade_in_event_loop(move |ui| {

@@ -54,6 +54,7 @@ export component MainWindow inherits Window {
     callback execute-action(int);
     forward-focus: keyboard;
     public function focus-search() { search-bar.focus-input(); }
+    public function focus-search-select-all() { search-bar.focus-input-select-all(); }
     public function focus-search-at-end() { search-bar.focus-input-at-end(); }
     public function reset-scroll() { list.content-y = 0px; }
 
