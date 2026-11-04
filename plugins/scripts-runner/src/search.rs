@@ -16,7 +16,9 @@ pub fn search(store: &Store, query: &str) -> anyhow::Result<SearchResponse> {
         item.resource = Resource::PluginItem {
             id: "manager".into(),
         };
-        item.actions = Some(vec![text::command("manage", i18n::t("manage"))]);
+        item.actions = Some(vec![
+            text::command("manage", i18n::t("manage")).with_item("manager"),
+        ]);
         items.push(item);
     }
     let mut scripts: Vec<_> = store
@@ -59,23 +61,25 @@ fn item(script: &Script) -> SearchItem {
     item.resource = Resource::PluginItem {
         id: script.id.clone(),
     };
-    let mut actions = vec![text::command("run", i18n::t("run"))];
+    let command = |name: &str| text::command(name, i18n::t(name)).with_item(script.id.clone());
+    let mut actions = vec![command("run")];
     if cfg!(windows) {
-        actions.push(text::command("admin", i18n::t("admin")));
+        actions.push(command("admin"));
     }
-    actions.push(text::command("edit", i18n::t("edit")));
+    actions.push(command("edit"));
     item.actions = Some(actions);
     item
 }
 
 pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<PluginEffect> {
-    if request.command == "manage" && request.item == "manager" {
+    let item = request.item.as_deref().unwrap_or_default();
+    if request.command == "manage" && item == "manager" {
         open_manager(None)?;
     } else {
         let script = store
             .load()?
             .into_iter()
-            .find(|script| script.id == request.item)
+            .find(|script| script.id == item)
             .ok_or_else(|| anyhow::anyhow!(i18n::t("missing")))?;
         match request.command.as_str() {
             "run" | "admin" => runner::run(store, &script, request.command == "admin")?,

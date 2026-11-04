@@ -74,8 +74,10 @@ impl State {
                         ],
                     ),
                     icon: None,
+                    actions: Some(vec![
+                        text::command("kill", catalog.get("kill").into()).with_item(id.clone()),
+                    ]),
                     resource: Resource::PluginItem { id },
-                    actions: Some(vec![text::command("kill", catalog.get("kill").into())]),
                     preview: None,
                 }
             })
@@ -87,7 +89,8 @@ impl State {
     }
 
     fn kill(&mut self, request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
-        let Some(&(pid, start)) = self.issued.get(&request.item) else {
+        let item = request.item.unwrap_or_default();
+        let Some(&(pid, start)) = self.issued.get(&item) else {
             return SearchResponse {
                 error: Some(catalog.get("missing").into()),
                 ..Default::default()
@@ -103,7 +106,7 @@ impl State {
             .filter(|process| valid && process.start_time() == start)
             .is_some_and(|process| process.kill());
         if result {
-            self.issued.remove(&request.item);
+            self.issued.remove(&item);
             SearchResponse {
                 effect: Some(PluginEffect {
                     refresh: true,

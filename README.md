@@ -219,6 +219,8 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 文件列表保存路径，不复制文件本身。退出 MyTools 后停止监听。
 列表图标按内容区分：普通文本 `type`、链接 `link-2`、颜色值 `palette`、路径文本 `folder-search`、
 HTML/代码 `code-xml`、图片 `image`；单个文件或文件夹显示其系统图标（如 Word、PDF 图标），多个文件显示 `files`。
+单个文件或文件夹的记录以真实的 `file`/`folder` 类型返回，因此也会出现其他插件追加的动作（如“用 Rider 打开”）；
+多个文件、文本和图片仍为 `plugin_item`。
 
 - `Ctrl+Shift+V` 打开历史，也可搜索 `clip ` 或 `clipboard `。
 - 左侧搜索和选择历史，右侧预览完整文本、文件路径或图片；进入插件或修改查询时读取历史，
@@ -405,7 +407,7 @@ Windows 使用 Shell 的系统图标列表提取 `.lnk`、程序或文件图标�
 
 省略 `actions` 使用类型默认动作；显式数组完整替换默认动作，`[]` 表示无动作。重复 ID 仅保留第一次，`title` 可覆盖默认名称。不匹配资源类型的动作会使该条结果被拒绝，其他有效结果继续显示。
 
-支持的宿主动作 ID 为 `open`、`open_in_browser`、`copy_text`、`copy_path`、`copy_name`、`reveal`、`run_as_admin`，以及独立可执行程序使用的 `launch`。插件还可使用 `plugin` 动作配合 `command` 声明自己的操作，见视图约定。操作面板绑定打开时的结果快照，新搜索或结果更新会关闭面板。
+支持的宿主动作 ID 为 `open`、`open_in_browser`、`copy_text`、`copy_path`、`copy_name`、`reveal`、`run_as_admin`，以及独立可执行程序使用的 `launch`。插件还可使用 `plugin` 动作配合 `command` 和 `item` 声明自己的操作（`item` 为执行时回传的值，未声明则不回传），见视图约定。操作面板绑定打开时的结果快照，新搜索或结果更新会关闭面板。
 
 Windows 应用结果的 `.exe`、`.com` 和 `.lnk` 默认提供 `run_as_admin`，图标为 Lucide `shield`，
 可在操作面板中选择。宿主使用 `ShellExecuteExW` 的 `runas` 动词，由系统显示 UAC；

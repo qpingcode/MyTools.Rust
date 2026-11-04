@@ -8,7 +8,6 @@
   "failed": "Everything search failed: {error}",
   "no_results": "No files match \"{query}\"",
   "unsupported": "Everything search is only available on Windows",
-  "folder": "Folder",
   "drive": "Drive",
   "incomplete": "Results may be incomplete — press Enter to retry",
   "retry_detail": "Everything answered too slowly, usually while it updates its index after many file changes",

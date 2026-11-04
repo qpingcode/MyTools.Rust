@@ -52,7 +52,9 @@ impl State {
                     catalog.get("save.hint"),
                 );
                 item.resource = Resource::PluginItem { id: id.clone() };
-                item.actions = Some(vec![text::command("save", catalog.get("save").into())]);
+                item.actions = Some(vec![
+                    text::command("save", catalog.get("save").into()).with_item(id.clone()),
+                ]);
                 self.pending = Some((id, phrase));
                 items.push(item);
             }
@@ -81,13 +83,12 @@ impl State {
                 for phrase in phrases.into_iter().take(50) {
                     let summary: String = phrase.content.chars().take(150).collect();
                     let mut item = text::item(&phrase.trigger, phrase.content.clone(), summary);
-                    item.resource = Resource::PluginItem {
-                        id: format!("phrase:{}", phrase.trigger),
-                    };
+                    let id = format!("phrase:{}", phrase.trigger);
                     item.actions = Some(vec![
-                        text::command("copy", catalog.get("copy").into()),
-                        text::command("delete", catalog.get("delete").into()),
+                        text::command("copy", catalog.get("copy").into()).with_item(id.clone()),
+                        text::command("delete", catalog.get("delete").into()).with_item(id.clone()),
                     ]);
+                    item.resource = Resource::PluginItem { id };
                     items.push(item);
                 }
                 // This hint is only returned for an empty query; ordinary global searches stay clean.
@@ -119,12 +120,13 @@ impl State {
         catalog: &Catalog,
     ) -> Result<PluginEffect, String> {
         let mut phrases = self.store.phrases.clone();
+        let item = request.item.as_deref().unwrap_or_default();
         let message = match request.command.as_str() {
             "save" => {
                 let phrase = self
                     .pending
                     .as_ref()
-                    .filter(|(id, _)| *id == request.item)
+                    .filter(|(id, _)| id == item)
                     .map(|(_, phrase)| phrase.clone())
                     .ok_or_else(|| catalog.get("missing").to_owned())?;
                 phrases.retain(|saved| saved.trigger != phrase.trigger);
@@ -132,8 +134,7 @@ impl State {
                 "saved"
             }
             "copy" | "delete" => {
-                let trigger = request
-                    .item
+                let trigger = item
                     .strip_prefix("phrase:")
                     .ok_or_else(|| catalog.get("missing").to_owned())?;
                 let phrase = phrases
@@ -212,7 +213,7 @@ mod tests {
     fn action(command: &str, item: &str) -> PluginActionRequest {
         PluginActionRequest {
             command: command.into(),
-            item: item.into(),
+            item: Some(item.into()),
         }
     }
 

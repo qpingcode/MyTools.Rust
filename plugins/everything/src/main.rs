@@ -146,6 +146,7 @@ fn retry_hint(title: &str, catalog: &Catalog) -> SearchItem {
         id: ActionId::Plugin,
         title: Some(catalog.get("retry").into()),
         command: Some(RETRY.into()),
+        item: None,
     }]);
     item
 }
@@ -178,10 +179,11 @@ fn item(hit: Hit, catalog: &Catalog) -> SearchItem {
         .parent()
         .map(mytools_plugin_api::paths::display)
         .unwrap_or_default();
-    let description = match (hit.drive, hit.folder) {
-        (true, _) => catalog.get("drive").to_owned(),
-        (false, true) => format!("{} · {parent}", catalog.get("folder")),
-        _ => parent,
+    // The native icon already tells folders from files, so both show only the parent.
+    let description = if hit.drive {
+        catalog.get("drive").to_owned()
+    } else {
+        parent
     };
     let resource = if hit.folder || hit.drive {
         Resource::Folder {
@@ -312,6 +314,6 @@ mod tests {
             &catalog(),
         );
         assert!(matches!(folder.resource, Resource::Folder { .. }));
-        assert!(folder.description.starts_with("Folder"));
+        assert_eq!(folder.description, r"C:\work");
     }
 }

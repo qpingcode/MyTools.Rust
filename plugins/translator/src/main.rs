@@ -78,11 +78,10 @@ fn search(state: &Mutex<State>, query: &str, catalog: &Catalog) -> SearchRespons
             query.into(),
             catalog.get("translate.detail"),
         );
+        item.actions = Some(vec![
+            text::command("translate", catalog.get("translate").into()).with_item(id.clone()),
+        ]);
         item.resource = Resource::PluginItem { id };
-        item.actions = Some(vec![text::command(
-            "translate",
-            catalog.get("translate").into(),
-        )]);
         items.push(item);
     }
     SearchResponse {
@@ -102,10 +101,11 @@ fn start(
     if config.api_key.trim().is_empty() {
         return Err(catalog.get("key.missing").into());
     }
+    let item = action.item.unwrap_or_default();
     let locked = state.lock().unwrap();
     let request = locked
         .candidates
-        .get(&action.item)
+        .get(&item)
         .filter(|_| action.command == "translate")
         .cloned()
         .ok_or_else(|| catalog.get("missing").to_owned())?;
@@ -122,7 +122,7 @@ fn start(
     if state.results.len() >= 32 {
         state.results.clear();
     }
-    state.results.insert(action.item, result);
+    state.results.insert(item, result);
     state.revision += 1;
     Ok(PluginEffect {
         refresh: true,

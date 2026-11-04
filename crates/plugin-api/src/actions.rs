@@ -34,6 +34,18 @@ pub struct ActionSpec {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
+    /// For `plugin` actions: the value sent back as `item` when the action runs. The host
+    /// sends nothing when it is omitted, so plugins set whatever they need to identify it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<String>,
+}
+
+impl ActionSpec {
+    /// Sets the value sent back as `item` when this plugin action runs.
+    pub fn with_item(mut self, item: impl Into<String>) -> Self {
+        self.item = Some(item.into());
+        self
+    }
 }
 
 impl From<ActionId> for ActionSpec {
@@ -42,6 +54,7 @@ impl From<ActionId> for ActionSpec {
             id,
             title: None,
             command: None,
+            item: None,
         }
     }
 }

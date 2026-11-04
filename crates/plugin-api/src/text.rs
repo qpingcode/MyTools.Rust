@@ -52,6 +52,7 @@ pub fn command(command: &str, title: String) -> ActionSpec {
         id: ActionId::Plugin,
         command: Some(command.into()),
         title: Some(title),
+        item: None,
     }
 }
 

@@ -76,6 +76,7 @@ fn search(query: &str, catalog: &Catalog) -> SearchResponse {
                     id: ActionId::Plugin,
                     title: Some(title(ide, catalog)),
                     command: Some(ide.command().into()),
+                    item: Some(paths::display(&path)),
                 }]),
                 preview: None,
             }
@@ -118,7 +119,10 @@ fn open(ide: Ide, path: &Path, catalog: &Catalog) -> Result<String, String> {
 fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
     let result = Ide::from_command(&request.command)
         .ok_or_else(|| format!("unknown command {}", request.command))
-        .and_then(|ide| open(ide, Path::new(request.item.trim()), catalog));
+        .and_then(|ide| {
+            let path = request.item.as_deref().unwrap_or_default().trim();
+            open(ide, Path::new(path), catalog)
+        });
     match result {
         Ok(message) => SearchResponse {
             effect: Some(PluginEffect {
@@ -179,7 +183,7 @@ mod tests {
         let unknown = action(
             PluginActionRequest {
                 command: "emacs".into(),
-                item: "C:\\".into(),
+                item: Some("C:\\".into()),
             },
             &catalog(),
         );
@@ -187,7 +191,7 @@ mod tests {
         let missing = action(
             PluginActionRequest {
                 command: "rider".into(),
-                item: r"Z:\missing\App.sln".into(),
+                item: Some(r"Z:\missing\App.sln".into()),
             },
             &catalog(),
         );

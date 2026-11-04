@@ -48,9 +48,10 @@ fn execute(
     request: PluginActionRequest,
 ) -> anyhow::Result<PluginEffect> {
     let mut state = store.lock().unwrap_or_else(|error| error.into_inner());
+    let item = request.item.as_deref().unwrap_or_default();
     match request.command.as_str() {
         "delete" => {
-            state.delete(&request.item)?;
+            state.delete(item)?;
             Ok(PluginEffect {
                 refresh: true,
                 message: i18n::text("deleted"),
@@ -69,7 +70,7 @@ fn execute(
             let entry = state
                 .entries
                 .iter()
-                .find(|entry| entry.id == request.item)
+                .find(|entry| entry.id == item)
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!(i18n::text("missing")))?;
             anyhow::ensure!(

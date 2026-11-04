@@ -7,11 +7,42 @@ use mytools_plugin_api::{
 };
 use std::path::Path;
 
-fn action(command: &str) -> ActionSpec {
+/// Every action names its history entry: the result's resource may be a real file.
+fn action(command: &str, id: &str) -> ActionSpec {
     ActionSpec {
         id: ActionId::Plugin,
         command: Some(command.into()),
         title: Some(i18n::text(command)),
+        item: Some(id.into()),
+    }
+}
+
+/// A single absolute file or folder is exposed as what it is, so the host and other
+/// plugins (for example "Open in Rider") can act on it. Several files, text and images
+/// stay opaque history items.
+fn resource(entry: &Entry) -> Resource {
+    match &entry.content {
+        Content::Files { paths } => match paths.as_slice() {
+            [path] if path.is_absolute() => {
+                let folder = if path.exists() {
+                    path.is_dir()
+                } else {
+                    path.extension().is_none()
+                };
+                let path = path.clone();
+                if folder {
+                    Resource::Folder { path }
+                } else {
+                    Resource::File { path }
+                }
+            }
+            _ => Resource::PluginItem {
+                id: entry.id.clone(),
+            },
+        },
+        _ => Resource::PluginItem {
+            id: entry.id.clone(),
+        },
     }
 }
 
@@ -153,19 +184,17 @@ pub fn search(store: &Store, query: &str) -> SearchResponse {
             if text.chars().count() > 2048 {
                 preview.push_str(&format!("\n\n{}", i18n::text("truncated")));
             }
-            let mut actions = vec![action("paste")];
+            let mut actions = vec![action("paste", &entry.id)];
             if matches!(entry.content, Content::Text { .. }) {
-                actions.push(action("plain"));
+                actions.push(action("plain", &entry.id));
             }
-            actions.extend([action("copy"), action("delete"), action("clear")]);
+            actions.extend(["copy", "delete", "clear"].map(|command| action(command, &entry.id)));
             SearchItem {
                 intent_match: false,
                 title,
                 description: metadata.clone(),
                 icon: Some(icon),
-                resource: Resource::PluginItem {
-                    id: entry.id.clone(),
-                },
+                resource: resource(entry),
                 actions: Some(actions),
                 preview: Some(Preview {
                     title: String::new(),
@@ -214,6 +243,40 @@ mod tests {
         assert_eq!(text_icon(r#"{"a":1}"#, false), "builtin:code-xml");
         assert_eq!(text_icon("hello", true), "builtin:code-xml");
         assert_eq!(text_icon("hello world", false), "builtin:type");
+    }
+
+    #[test]
+    fn single_files_and_folders_expose_their_real_type() {
+        let entry = |content| Entry {
+            id: "e1".into(),
+            timestamp: 0,
+            bytes: 0,
+            content,
+        };
+        let files = |paths: Vec<std::path::PathBuf>| resource(&entry(Content::Files { paths }));
+        let folder = std::env::temp_dir();
+        assert_eq!(
+            files(vec![folder.clone()]),
+            Resource::Folder {
+                path: folder.clone()
+            }
+        );
+        assert_eq!(
+            files(vec![r"Z:\missing\report.pdf".into()]),
+            Resource::File {
+                path: r"Z:\missing\report.pdf".into()
+            }
+        );
+        let opaque = Resource::PluginItem { id: "e1".into() };
+        assert_eq!(files(vec![folder.clone(), folder]), opaque);
+        assert_eq!(files(vec!["relative.txt".into()]), opaque);
+        assert_eq!(
+            resource(&entry(Content::Text {
+                text: "C:\\a.txt".into(),
+                html: None
+            })),
+            opaque
+        );
     }
 
     #[test]

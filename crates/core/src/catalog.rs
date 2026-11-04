@@ -527,6 +527,7 @@ mod tests {
                 id: ActionId::Plugin,
                 title: None,
                 command: Some("copy".into()),
+                item: Some(name.into()),
             }]),
         )
         .unwrap();

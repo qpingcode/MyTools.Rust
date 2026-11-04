@@ -46,8 +46,8 @@
       "text_file": "C:\\plugin-data\\full-text.txt"
     },
     "actions": [
-      { "id": "plugin", "command": "paste", "title": "粘贴到原应用" },
-      { "id": "plugin", "command": "delete", "title": "删除记录" }
+      { "id": "plugin", "command": "paste", "title": "粘贴到原应用", "item": "opaque-stable-id" },
+      { "id": "plugin", "command": "delete", "title": "删除记录", "item": "opaque-stable-id" }
     ]
   }]
 }
@@ -72,6 +72,10 @@
 ```json
 {"query":"","action":{"command":"paste","item":"opaque-stable-id"}}
 ```
+
+`item` 原样取自该动作声明的 `item`，宿主不从 `resource` 推断：动作未声明 `item` 时请求中也不带该字段。
+因此 `plugin` 动作可以挂在任何类型的结果上，例如结果是真实的 `file`（供宿主和其他插件的
+`contributes.actions` 识别），动作仍通过 `item` 指向插件自己的记录 id。插件需自行处理缺失或过期的 `item`。
 
 成功响应：
 

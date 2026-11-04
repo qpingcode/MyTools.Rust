@@ -27,7 +27,9 @@ pub struct Preview {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PluginActionRequest {
     pub command: String,
-    pub item: String,
+    /// The `item` the action declared; absent when it declared none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

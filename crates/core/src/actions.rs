@@ -28,7 +28,8 @@ enum Operation {
     RunAsAdmin(PathBuf),
     Plugin {
         command: String,
-        item: String,
+        /// Sent only when the action declared one; plugins identify their own targets.
+        item: Option<String>,
         process: Option<std::sync::Arc<crate::search_process::SearchProcess>>,
     },
     /// Runs the current query again with a longer timeout.
@@ -82,7 +83,9 @@ impl Action {
                 let process = process
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!(i18n::t("error.process_stopped")))?;
-                return Ok(ActionEffect::Plugin(process.execute(command, item)?));
+                return Ok(ActionEffect::Plugin(
+                    process.execute(command, item.as_deref())?,
+                ));
             }
             Operation::Launch(path) => {
                 std::process::Command::new(path)
@@ -119,7 +122,7 @@ impl Action {
             icon: action.icon.clone(),
             operation: Operation::Plugin {
                 command: action.command.clone(),
-                item,
+                item: Some(item),
                 process: Some(process.clone()),
             },
             selection: None,
@@ -161,24 +164,25 @@ pub fn resolve_actions(
         if !seen.insert((spec.id, spec.command.clone())) {
             continue;
         }
-        let (title_key, operation) =
-            if let (ActionId::Plugin, Resource::PluginItem { id }) = (spec.id, resource) {
-                let command = spec
-                    .command
-                    .as_ref()
-                    .filter(|command| !command.is_empty())
-                    .ok_or_else(|| anyhow::anyhow!(i18n::t("error.response_invalid")))?;
-                (
-                    "actions.execute",
-                    Operation::Plugin {
-                        command: command.clone(),
-                        item: id.clone(),
-                        process: None,
-                    },
-                )
-            } else {
-                resolve(resource, spec.id)?
-            };
+        // Plugin commands work on any result type; the result's own resource stays what the
+        // host and other plugins see, and the action carries its own `item`.
+        let (title_key, operation) = if spec.id == ActionId::Plugin {
+            let command = spec
+                .command
+                .as_ref()
+                .filter(|command| !command.is_empty())
+                .ok_or_else(|| anyhow::anyhow!(i18n::t("error.response_invalid")))?;
+            (
+                "actions.execute",
+                Operation::Plugin {
+                    command: command.clone(),
+                    item: spec.item.clone(),
+                    process: None,
+                },
+            )
+        } else {
+            resolve(resource, spec.id)?
+        };
         let icon = match operation {
             Operation::Copy(_) => "builtin:copy",
             Operation::Reveal(_) => "builtin:folder-open",
@@ -338,6 +342,7 @@ mod tests {
             id: ActionId::Plugin,
             title: Some(command.into()),
             command: Some(command.into()),
+            item: Some("entry-1".into()),
         });
         let resource = Resource::PluginItem {
             id: "entry-1".into(),
@@ -347,7 +352,23 @@ mod tests {
         assert_eq!(actions[0].title.as_deref(), Some("paste"));
         assert_eq!(actions[2].icon, "builtin:trash");
         assert!(resolve_actions(&resource, Some(&[ActionId::Plugin.into()])).is_err());
-        assert!(resolve_actions(&file(), Some(&specs)).is_err());
+    }
+
+    #[test]
+    fn plugin_actions_send_only_their_declared_item_on_any_resource() {
+        let declared = mytools_plugin_api::text::command("paste", "Paste".into()).with_item("e1");
+        let bare = mytools_plugin_api::text::command("clear", "Clear".into());
+        let actions = resolve_actions(&file(), Some(&[declared, bare])).unwrap();
+        let items: Vec<_> = actions
+            .iter()
+            .map(|action| match &action.operation {
+                Operation::Plugin { item, .. } => item.clone(),
+                _ => panic!("expected a plugin operation"),
+            })
+            .collect();
+        // No fallback to the resource: a file result does not leak its path, and an
+        // undeclared item is simply absent.
+        assert_eq!(items, [Some("e1".to_owned()), None]);
     }
 
     fn file() -> Resource {
@@ -440,6 +461,7 @@ mod tests {
                 id: ActionId::CopyName,
                 title: Some("复制报告名称".into()),
                 command: None,
+                item: None,
             },
             ActionId::Open.into(),
             ActionId::CopyName.into(),
