@@ -114,7 +114,7 @@ ui/
   components/         共享按键提示、按钮等基础组件
   assets/             SVG 图标，构建时嵌入
 run.ps1 / run.sh       编译、放置插件、运行
-.github/workflows/    Windows/macOS 构建和测试配置
+.github/workflows/    Windows 构建、测试和发布配置
 ```
 
 依赖方向为 `launcher → core → plugin-api`；UI 不参与插件计算或搜索路由。
@@ -450,7 +450,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ## Windows 便携版打包
 
-GitHub Actions 分为 **Windows** 和 **macOS** 两个独立工作流，均在推送和 Pull Request 时运行，也可手动 **Run workflow**。两个平台分别检查格式、Clippy 并执行测试；Windows 检查通过后构建 Release 便携包，macOS 构建 Release 应用并打包 DMG。下载便携版请进入 **Windows** 工作流。
+GitHub Actions 目前只有 **Windows** 工作流，在推送和 Pull Request 时运行，也可手动 **Run workflow**。它检查格式、Clippy 并执行测试，通过后构建 Release 便携包。macOS 工作流已暂时移除，macOS 版本需在 Mac 上本地构建（见下文）。
 完成后进入该次运行的 **Artifacts**，下载 `MyTools-windows-x64-portable`，其中包含便携版 ZIP 和 SHA256 校验文件。
 解压 ZIP 后直接运行 `MyTools/mytools.exe`，通过托盘或 `Alt+空格` 打开窗口，无需安装 Rust。
 请保留整个目录结构：程序依赖旁边的 `plugins/`，不能只复制主程序。
@@ -467,10 +467,9 @@ GitHub Actions 分为 **Windows** 和 **macOS** 两个独立工作流，均在�
 
 ## GitHub Releases 与 macOS DMG
 
-推送 `v*` 版本标签后，Windows 和 macOS 各自检查通过后，会自动创建或更新同一 GitHub Release 并上传产物：
-
-- Windows：`MyTools-windows-x64-portable.zip` 及 SHA256。
-- macOS：`MyTools-macos-<架构>.dmg` 及 SHA256，架构取决于 macOS runner。
+推送 `v*` 版本标签后，Windows 检查通过后会自动创建或更新对应的 GitHub Release，并上传
+`MyTools-windows-x64-portable.zip` 及 SHA256。macOS DMG 目前不由 CI 生成，需在 Mac 上运行
+`python3 scripts/package-macos.py` 本地打包。
 
 打开 DMG，把 `MyTools.app` 拖到“应用程序”目录，再双击运行。应用包已包含全部插件和图标。
 macOS 配置保存到 `~/Library/Application Support/MyTools/config.json`，避免写入应用包而破坏签名。

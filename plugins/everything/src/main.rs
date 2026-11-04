@@ -7,8 +7,11 @@ use std::path::PathBuf;
 
 #[cfg(windows)]
 mod ipc;
+// Only the Windows search path ranks results; elsewhere the module is kept for its tests.
+#[cfg_attr(not(windows), allow(dead_code))]
 mod relevance;
 
+#[cfg(windows)]
 const MAX_RESULTS: usize = 50;
 /// Used when the host does not say how long it waits (`timeoutMs`).
 #[cfg(windows)]
