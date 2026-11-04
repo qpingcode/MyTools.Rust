@@ -56,7 +56,11 @@ fn item(script: &Script) -> SearchItem {
     let mut item = text::item(
         &script.name,
         script.content.clone(),
-        format!("{} · {}", script.kind.extension(), script.alias),
+        // Scripts without an alias show only their type, without a dangling separator.
+        match script.alias.as_str() {
+            "" => script.kind.extension().to_owned(),
+            alias => format!("{} · {alias}", script.kind.extension()),
+        },
     );
     item.resource = Resource::PluginItem {
         id: script.id.clone(),

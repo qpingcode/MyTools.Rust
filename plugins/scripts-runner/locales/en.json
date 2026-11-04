@@ -13,6 +13,7 @@
   "field.directory": "Working directory",
   "field.content": "Script content",
   "alias.hint": "Optional search alias",
+  "browse": "Choose folder",
   "directory.hint": "Optional absolute path; defaults to your home directory",
   "save": "Save",
   "discard": "Discard changes",

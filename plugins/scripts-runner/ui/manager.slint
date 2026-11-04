@@ -191,11 +191,19 @@ export component ScriptManager inherits Window {
     callback discard();
     callback remove();
     callback execute(bool);
+    /// Opens the folder picker for the working directory.
+    callback browse();
     // Editing cancels a pending "confirm delete".
     changed dirty => { root.deleting = false; }
     // Standard text widgets follow the dark launcher theme instead of the light default.
     init => { Palette.color-scheme = ColorScheme.dark; }
     private property <bool> runnable: root.saved && !root.dirty && !root.busy && root.windows;
+    /// The form's values as a sidebar row; an empty name shows as "New script".
+    private property <ScriptRow> current-row: {
+        name: root.script-name.is-empty ? I18n.text("new") : root.script-name,
+        alias: root.alias,
+        kind: root.kind == 1 ? "cmd" : "ps1",
+    };
 
     FocusScope {
         capture-key-pressed(event) => {
@@ -242,13 +250,20 @@ export component ScriptManager inherits Window {
                         vertical-stretch: 1;
                         VerticalLayout {
                             alignment: start; spacing: 2px;
+                            // The selected row mirrors the form as it is edited, before saving.
                             for row[index] in root.scripts: ScriptItem {
-                                script: row;
+                                script: index == root.selected ? root.current-row : row;
                                 selected: index == root.selected;
                                 enabled: !root.busy;
                                 clicked => { root.choose(index); }
                             }
-                            if root.scripts.length == 0: Text {
+                            // A new, unsaved script appears as its own row until it is saved.
+                            if !root.saved: ScriptItem {
+                                script: root.current-row;
+                                selected: true;
+                                enabled: !root.busy;
+                            }
+                            if root.scripts.length == 0 && root.saved: Text {
                                 text: I18n.text("empty"); color: Theme.muted;
                                 font-size: Theme.font-small; wrap: word-wrap;
                                 horizontal-alignment: center;
@@ -326,7 +341,15 @@ export component ScriptManager inherits Window {
                     VerticalLayout {
                         row: 1; col: 1; spacing: 6px;
                         FieldLabel { text: I18n.text("field.directory"); }
-                        LineEdit { text <=> root.directory; placeholder-text: I18n.text("directory.hint"); enabled: !root.busy; }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            LineEdit { text <=> root.directory; placeholder-text: I18n.text("directory.hint"); enabled: !root.busy; }
+                            if root.windows: ToolButton {
+                                height: 32px; icon: "builtin:folder-open"; enabled: !root.busy;
+                                accessible-label: I18n.text("browse");
+                                clicked => { root.browse(); }
+                            }
+                        }
                     }
                 }
 

@@ -13,6 +13,7 @@
   "field.directory": "工作目录",
   "field.content": "脚本内容",
   "alias.hint": "可选，用于快速搜索",
+  "browse": "选择文件夹",
   "directory.hint": "可选绝对路径，留空使用用户主目录",
   "save": "保存",
   "discard": "放弃修改",

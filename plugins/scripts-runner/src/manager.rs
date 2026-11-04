@@ -23,7 +23,13 @@ pub fn run(id: Option<String>) -> anyhow::Result<()> {
         original: None,
     }));
     refresh(&ui, &state.borrow());
-    let initial = id.and_then(|id| state.borrow().scripts.iter().find(|s| s.id == id).cloned());
+    // Open the requested script, else the first one; an empty store starts a new script.
+    let initial = {
+        let scripts = &state.borrow().scripts;
+        id.and_then(|id| scripts.iter().find(|s| s.id == id))
+            .or_else(|| scripts.first())
+            .cloned()
+    };
     load(&ui, &mut state.borrow_mut(), initial);
     ui.set_status(
         i18n::t(if cfg!(windows) {
@@ -156,6 +162,13 @@ pub fn run(id: Option<String>) -> anyhow::Result<()> {
                 );
             });
         });
+    });
+    let weak = ui.as_weak();
+    ui.on_browse(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        if let Some(folder) = crate::dialog::pick_folder(&ui.get_directory()) {
+            ui.set_directory(folder.to_string_lossy().as_ref().into());
+        }
     });
     let weak = ui.as_weak();
     ui.window().on_close_requested(move || {
