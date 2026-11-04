@@ -21,6 +21,15 @@ pub struct Completed {
     pub results: SearchResults,
 }
 
+/// What the worker reports back to the UI thread.
+pub enum Event {
+    /// Input has settled and plugins are being queried; typing alone never sends this.
+    Started {
+        generation: u64,
+    },
+    Completed(Completed),
+}
+
 /// The retry attempt for the next search the UI starts; consumed by that search.
 static NEXT_ATTEMPT: AtomicU32 = AtomicU32::new(0);
 
@@ -45,9 +54,9 @@ pub struct SearchWorker {
 }
 
 impl SearchWorker {
-    pub fn start() -> (Self, async_channel::Receiver<Completed>) {
+    pub fn start() -> (Self, async_channel::Receiver<Event>) {
         let (requests, receiver) = mpsc::channel::<Option<Query>>();
-        let (completed, results) = async_channel::unbounded();
+        let (events, results) = async_channel::unbounded();
         let latest = Arc::new(AtomicU64::new(0));
         let worker_latest = latest.clone();
         let aliases = Arc::new(OnceLock::new());
@@ -65,6 +74,9 @@ impl SearchWorker {
                     }
                 }
                 let generation = query.generation;
+                if events.send_blocking(Event::Started { generation }).is_err() {
+                    break;
+                }
                 let is_stale = || worker_latest.load(Ordering::SeqCst) != generation;
                 let results = catalog.search_with(
                     &query.text,
@@ -76,11 +88,11 @@ impl SearchWorker {
                 if results.cancelled {
                     continue; // The newer query is already queued.
                 }
-                if completed
-                    .send_blocking(Completed {
+                if events
+                    .send_blocking(Event::Completed(Completed {
                         generation,
                         results,
-                    })
+                    }))
                     .is_err()
                 {
                     break;

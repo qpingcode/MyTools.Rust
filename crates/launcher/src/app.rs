@@ -1,7 +1,7 @@
 use crate::{
     AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, config, desktop,
     i18n, icons,
-    search::{Query, SearchWorker},
+    search::{Event, Query, SearchWorker},
     theme, tray,
 };
 use mytools_core::{Action, Entry, SearchResults};
@@ -103,11 +103,18 @@ pub fn run() -> anyhow::Result<()> {
     let weak = ui.as_weak();
     let response_state = state.clone();
     let _responses = slint::spawn_local(async move {
-        while let Ok(completed) = responses.recv().await {
+        while let Ok(event) = responses.recv().await {
             let Some(ui) = weak.upgrade() else { break };
             let mut state = response_state.borrow_mut();
-            if completed.generation == state.generation {
-                apply_results(&ui, &mut state, completed.results, &icons);
+            match event {
+                // The loading delay counts from here, not from the keystroke.
+                Event::Started { generation } if generation == state.generation => {
+                    ui.set_search_running(true);
+                }
+                Event::Completed(completed) if completed.generation == state.generation => {
+                    apply_results(&ui, &mut state, completed.results, &icons);
+                }
+                _ => {} // Superseded by newer input.
             }
         }
     })?;
@@ -163,6 +170,10 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
         };
         ui.set_searching_status(searching.into());
         ui.set_searching(true);
+        // Typing never starts the indicator, but one already showing stays until results.
+        if !ui.get_show_loading() {
+            ui.set_search_running(false);
+        }
         requests.send(Query {
             generation: state.generation,
             text: text.into(),
@@ -226,6 +237,7 @@ fn apply_results(
     ui.set_failed(!errors.is_empty());
     ui.set_status(status.into());
     ui.set_searching(false);
+    ui.set_search_running(false);
 }
 
 /// Refreshes of the same query keep the selected resource; new queries select the first result.

@@ -31,8 +31,12 @@ export component MainWindow inherits Window {
     in property <bool> searching: true;
     /// Status text while a search runs, e.g. "Searching Everything…".
     in property <string> searching-status: I18n.text("search.loading");
-    /// Searches that finish quickly never show the indicator, so typing does not flicker.
-    private property <bool> show-loading;
+    /// The worker is querying plugins (set when input has settled, not on each keystroke).
+    /// Startup counts as running while plugins load.
+    in property <bool> search-running: true;
+    /// Searches that finish quickly never show the indicator; once shown it stays until
+    /// results arrive, even while the user keeps typing.
+    out property <bool> show-loading;
     in property <[ActionData]> actions;
     in-out property <bool> actions-open;
     in-out property <int> selected-action: 0;
@@ -63,7 +67,7 @@ export component MainWindow inherits Window {
     changed searching => { if (!self.searching) { self.show-loading = false; } }
     loading-delay := Timer {
         interval: 150ms;
-        running: root.searching && !root.show-loading;
+        running: root.searching && root.search-running && !root.show-loading;
         triggered => { root.show-loading = true; }
     }
     public function focus-search() { search-bar.focus-input(); }
