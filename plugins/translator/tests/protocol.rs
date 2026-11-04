@@ -19,6 +19,10 @@ impl Drop for Fixture {
     }
 }
 
+fn fixture_cache(directory: &std::path::Path) -> std::path::PathBuf {
+    directory.join("cache.json")
+}
+
 #[test]
 fn action_waits_for_translation_then_one_search_reads_the_completed_result() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -83,6 +87,8 @@ fn action_waits_for_translation_then_one_search_reads_the_completed_result() {
     .unwrap();
     let child = Command::new(env!("CARGO_BIN_EXE_mytools-translator"))
         .env("MYTOOLS_TRANSLATOR_CONFIG", config)
+        // Never touch the real per-user cache.
+        .env("MYTOOLS_TRANSLATOR_CACHE", fixture_cache(&directory))
         .env("DEEPSEEK_API_KEY", "test-key")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -140,4 +146,5 @@ fn action_waits_for_translation_then_one_search_reads_the_completed_result() {
         let result = request(serde_json::json!({"query":"Hello"}));
         assert!(matches!(&result.items[0].resource, Resource::Text { text } if text == "你好"));
     }
+    assert!(fixture_cache(&fixture.directory).is_file());
 }

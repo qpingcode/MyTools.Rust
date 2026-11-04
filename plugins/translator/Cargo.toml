@@ -12,3 +12,4 @@ serde.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_Registry"] }
+windows = { version = "0.61", features = ["Win32_Media_Speech", "Win32_System_Com"] }

@@ -11,7 +11,7 @@
 | formatter | `fmt json {"a":1}`、`fmt xml @C:\Temp\input.xml` | 详情展示格式化结果；Enter 复制 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
-| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | Enter 发起翻译；完成后选择译文并 Enter 复制 |
+| translator | `tr hello`、`tr en 你好`、`tr zh Hello`、`tr` | Enter 发起翻译，完成后 Enter 复制译文；单词另有音标（Enter 朗读）、英文释义和例句；只输入 `tr` 列出最近翻译 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 
 encode 按 `base64`、`md5`、`url`、`sha1`、`sha256`、`sha512` 的顺序展示结果。
@@ -36,22 +36,44 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 密钥只从环境变量 `DEEPSEEK_API_KEY` 读取，配置文件中的 `api_key` 不生效。
 优先读取进程环境变量；Windows 未继承该变量时，依次读取用户环境变量和系统环境变量，
 因此在 Windows 设置用户变量后可直接重试。插件不把密钥写入文件或日志。
-如需修改 API 地址或模型，可将插件目录的 `config.example.json` 复制为 `config.json`；构建脚本保留已有配置。
+如需修改 API 地址、模型、缓存条数或朗读语音，可将插件目录的 `config.example.json` 复制为 `config.json`；
+构建脚本保留已有配置。`config.json` 支持 `//` 和 `/* */` 注释，示例中逐项列出了可选值。
 `MYTOOLS_TRANSLATOR_CONFIG` 可指定配置文件路径，`DEEPSEEK_MODEL` 可覆盖模型。
 
-```json
-{
-  "base_url": "https://api.deepseek.com",
-  "model": "deepseek-flash"
-}
-```
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `base_url` | `"https://api.deepseek.com"` | OpenAI 兼容接口根地址，请求 `<base_url>/chat/completions` |
+| `model` | `"deepseek-flash"` | 模型名称 |
+| `cache_size` | `100` | 本地保存的最近翻译条数，`0` 关闭缓存和历史 |
+| `speech.voice` | `"auto"` | `"auto"` 自动选美式英语语音，或填写语音名称，如 `"Microsoft Zira Desktop"`、macOS 的 `"Samantha"` |
+| `speech.rate` | `0` | 语速，`-10`（最慢）到 `10`（最快） |
 
 默认模型与请求格式参考 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start)。
 配置及环境变量在每次执行翻译时读取；macOS 修改环境变量后需要从带有新环境的进程重新启动 MyTools。
 不带方向时，含汉字的文本译成英文，其他文本译成简体中文；可显式使用 `en` 或 `zh`。
 输入完成后按 Enter 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
 同一时间只执行一个请求，全程不轮询。
-超时、鉴权失败、限流及响应截断会显示失败，选中“翻译”可手动重试。
+超时、鉴权失败、限流及响应截断会显示“翻译失败，按 Enter 重试”，副标题和详情面板显示完整错误原因（含所用代理）。
+
+### 缓存与最近记录
+
+翻译成功后保存到 `%LOCALAPPDATA%\MyTools	ranslator\cache.json`（macOS 为
+`~/Library/Application Support/MyTools/translator/cache.json`，可用 `MYTOOLS_TRANSLATOR_CACHE` 指定），
+保留最近 `cache_size` 条，满了删除最早翻译的一条。再次输入相同内容时直接显示译文，不再请求 API；
+`Ctrl+K` →“重新翻译”会重新请求并覆盖缓存。失败结果只保存在内存中。只输入 `tr` 时按时间倒序列出最近的翻译。
+
+### 单词：音标、朗读、释义与例句
+
+输入单个英文单词（如 `tr hello`），或输入简短中文且译文是单个英文单词（如 `tr 苹果` → apple）时，
+同一次请求额外返回该英文单词的信息，依次显示：
+
+1. 译文 — Enter 复制；`Ctrl+K` 可朗读或重新翻译
+2. 音标，如 `/həˈləʊ/` — Enter 用系统语音朗读（Windows SAPI / macOS `say`，离线）
+3. 英文释义 — Enter 复制
+4. 两三条例句及中文翻译 — Enter 复制例句，`Ctrl+K` 可朗读
+
+DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包裹后再解析，仍不合格时自动重试一次，
+再失败则只显示译文。
 
 ## 快捷文本数据
 

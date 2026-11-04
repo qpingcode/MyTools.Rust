@@ -69,5 +69,6 @@ type
 upload
 user
 video
+volume-2
 x
 zap
