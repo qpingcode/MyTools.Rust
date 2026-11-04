@@ -2,7 +2,10 @@ use crate::{
     i18n,
     store::{Content, Entry, Store},
 };
-use mytools_plugin_api::{ActionId, ActionSpec, Preview, Resource, SearchItem, SearchResponse};
+use mytools_plugin_api::{
+    ActionId, ActionSpec, Icon, Preview, Resource, SearchItem, SearchResponse,
+};
+use std::path::Path;
 
 fn action(command: &str) -> ActionSpec {
     ActionSpec {
@@ -30,6 +33,68 @@ fn title(entry: &Entry) -> String {
         ),
         Content::Files { paths } => i18n::format("files", &[("count", &paths.len().to_string())]),
     }
+}
+
+/// Picks an icon describing what was copied rather than a generic document glyph.
+fn icon(content: &Content) -> Icon {
+    match content {
+        Content::Text { text, html } => text_icon(text, html.is_some()).into(),
+        Content::Image { .. } => "builtin:image".into(),
+        Content::Files { paths } => match paths.as_slice() {
+            [path] => file_icon(path),
+            _ => "builtin:files".into(),
+        },
+    }
+}
+
+/// A single existing file or folder shows its real system icon (for example the .docx icon).
+fn file_icon(path: &Path) -> Icon {
+    if path.is_absolute() && path.exists() {
+        Icon::Native {
+            native: path.to_path_buf(),
+        }
+    } else if path.extension().is_none() {
+        "builtin:folder".into()
+    } else {
+        "builtin:file".into()
+    }
+}
+
+fn text_icon(text: &str, has_html: bool) -> &'static str {
+    let trimmed = text.trim();
+    let single_line = !trimmed.contains('\n');
+    let lower = trimmed.to_ascii_lowercase();
+    if single_line && (lower.starts_with("http://") || lower.starts_with("https://")) {
+        "builtin:link-2"
+    } else if single_line && is_color(trimmed) {
+        "builtin:palette"
+    } else if single_line && looks_like_path(trimmed) {
+        "builtin:folder-search"
+    } else if has_html || looks_like_code(trimmed) {
+        "builtin:code-xml"
+    } else {
+        "builtin:type"
+    }
+}
+
+fn is_color(text: &str) -> bool {
+    text.strip_prefix('#').is_some_and(|hex| {
+        matches!(hex.len(), 3 | 6 | 8) && hex.chars().all(|c| c.is_ascii_hexdigit())
+    })
+}
+
+fn looks_like_path(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let drive = bytes.len() > 2 && bytes[0].is_ascii_alphabetic() && &bytes[1..3] == b":\\";
+    drive || text.starts_with("\\\\")
+}
+
+fn looks_like_code(text: &str) -> bool {
+    let structured = matches!(
+        (text.chars().next(), text.chars().last()),
+        (Some('{'), Some('}')) | (Some('['), Some(']')) | (Some('<'), Some('>'))
+    );
+    structured || (text.lines().count() > 1 && text.contains(';') && text.contains('{'))
 }
 
 pub fn search(store: &Store, query: &str) -> SearchResponse {
@@ -71,8 +136,9 @@ pub fn search(store: &Store, query: &str) -> SearchResponse {
                 "meta",
                 &[("time", &time), ("size", &entry.bytes.to_string())],
             );
-            let (text, image, icon) = match &entry.content {
-                Content::Text { text, .. } => (text.clone(), None, "builtin:file-text"),
+            let icon = icon(&entry.content);
+            let (text, image) = match &entry.content {
+                Content::Text { text, .. } => (text.clone(), None),
                 Content::Files { paths } => (
                     paths
                         .iter()
@@ -80,13 +146,8 @@ pub fn search(store: &Store, query: &str) -> SearchResponse {
                         .collect::<Vec<_>>()
                         .join("\n"),
                     None,
-                    "builtin:folder",
                 ),
-                Content::Image { .. } => (
-                    String::new(),
-                    Some(store.image_path(&entry.id, true)),
-                    "builtin:image",
-                ),
+                Content::Image { .. } => (String::new(), Some(store.image_path(&entry.id, true))),
             };
             let mut preview: String = text.chars().take(2048).collect();
             if text.chars().count() > 2048 {
@@ -101,7 +162,7 @@ pub fn search(store: &Store, query: &str) -> SearchResponse {
                 intent_match: false,
                 title,
                 description: metadata.clone(),
-                icon: Some(icon.into()),
+                icon: Some(icon),
                 resource: Resource::PluginItem {
                     id: entry.id.clone(),
                 },
@@ -138,5 +199,40 @@ pub fn search(store: &Store, query: &str) -> SearchResponse {
         revision: Some(store.revision),
         error: store.last_error.clone(),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_icons_describe_the_content() {
+        assert_eq!(text_icon("https://example.com/a", false), "builtin:link-2");
+        assert_eq!(text_icon("#94ded1", false), "builtin:palette");
+        assert_eq!(text_icon(r"C:\git\repo", false), "builtin:folder-search");
+        assert_eq!(text_icon(r#"{"a":1}"#, false), "builtin:code-xml");
+        assert_eq!(text_icon("hello", true), "builtin:code-xml");
+        assert_eq!(text_icon("hello world", false), "builtin:type");
+    }
+
+    #[test]
+    fn file_icons_use_native_icon_for_one_existing_path() {
+        let existing = std::env::temp_dir();
+        let files = |paths: Vec<std::path::PathBuf>| icon(&Content::Files { paths });
+        assert_eq!(
+            files(vec![existing.clone()]),
+            Icon::Native {
+                native: existing.clone()
+            }
+        );
+        assert_eq!(
+            files(vec![existing.clone(), existing]),
+            "builtin:files".into()
+        );
+        assert_eq!(
+            files(vec![r"Z:\missing\nothing.txt".into()]),
+            "builtin:file".into()
+        );
     }
 }

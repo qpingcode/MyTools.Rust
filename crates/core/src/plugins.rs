@@ -42,6 +42,25 @@ struct Manifest {
     view: mytools_plugin_api::View,
     #[serde(default)]
     hotkey: Option<String>,
+    /// Extra actions this plugin offers for every file/folder result, e.g. "Open in Rider".
+    #[serde(default, rename = "pathActions")]
+    path_actions: Vec<PathActionManifest>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PathActionManifest {
+    command: String,
+    title: PluginName,
+    #[serde(default)]
+    icon: Option<String>,
+}
+
+/// A plugin command offered on file and folder results; the path is sent as the item.
+#[derive(Clone, Debug)]
+pub struct PathAction {
+    pub command: String,
+    pub title: String,
+    pub icon: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -61,6 +80,7 @@ pub struct Plugin {
     pub executable: PathBuf,
     pub process: Option<Arc<SearchProcess>>,
     pub view: mytools_plugin_api::View,
+    pub path_actions: Vec<PathAction>,
 }
 
 impl Plugin {
@@ -68,7 +88,28 @@ impl Plugin {
         let manifest: Manifest =
             serde_json::from_slice(&fs::read(path)?).context(i18n::t("error.manifest_invalid"))?;
         let executable = manifest.validate(path)?;
-        let name = localized_name(&manifest.name, path, mytools_plugin_api::i18n::language())?;
+        let language = mytools_plugin_api::i18n::language();
+        let name = localized_name(&manifest.name, path, language)?;
+        let path_actions = if manifest.kind == PluginType::Search {
+            manifest
+                .path_actions
+                .iter()
+                .filter(|action| !action.command.trim().is_empty())
+                .map(|action| {
+                    Ok(PathAction {
+                        command: action.command.clone(),
+                        title: localized_name(&action.title, path, language)?,
+                        icon: action
+                            .icon
+                            .clone()
+                            .filter(|icon| icon.starts_with("builtin:"))
+                            .unwrap_or_else(|| "builtin:external-link".into()),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            Vec::new()
+        };
         let process = if manifest.kind == PluginType::Search {
             Some(Arc::new(SearchProcess::start(&executable)?))
         } else {
@@ -87,6 +128,7 @@ impl Plugin {
             executable,
             process,
             view: manifest.view,
+            path_actions,
         })
     }
 }

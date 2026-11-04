@@ -5,22 +5,22 @@ export component ActionButton inherits Rectangle {
     in property <string> shortcut;
     in property <bool> enabled: true;
     callback clicked();
-    width: min(200px, max(72px, label.preferred-width + 28px + (root.shortcut == "" ? 0px : shortcut-label.preferred-width + 12px)));
-    height: 34px;
+    width: min(200px, max(64px, label.preferred-width + 24px + (root.shortcut == "" ? 0px : shortcut-label.preferred-width + 10px)));
+    height: Theme.button-height;
     border-radius: 5px;
     border-width: 1px;
-    border-color: root.enabled ? #555555 : #3b3b3b;
+    border-color: root.enabled ? Theme.control-border : Theme.control-border-disabled;
     background: touch.has-hover && root.enabled ? Theme.selected : transparent;
     label := Text {
         x: 12px; height: parent.height;
-        width: parent.width - 24px - (root.shortcut == "" ? 0px : shortcut-label.preferred-width + 12px);
-        text: root.text; font-size: 15px;
-        color: root.enabled ? Theme.foreground : #707070;
+        width: parent.width - 24px - (root.shortcut == "" ? 0px : shortcut-label.preferred-width + 10px);
+        text: root.text; font-size: Theme.font-body;
+        color: root.enabled ? Theme.foreground : Theme.disabled;
         vertical-alignment: center; horizontal-alignment: center; overflow: elide;
     }
     shortcut-label := Text {
         x: parent.width - self.preferred-width - 12px; width: self.preferred-width; height: parent.height;
-        text: root.shortcut; font-size: 12px; color: root.enabled ? Theme.muted : #666666;
+        text: root.shortcut; font-size: Theme.font-caption; color: root.enabled ? Theme.muted : Theme.disabled;
         vertical-alignment: center;
         visible: root.shortcut != "";
     }

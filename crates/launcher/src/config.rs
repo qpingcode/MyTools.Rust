@@ -6,6 +6,8 @@ use std::path::PathBuf;
 pub struct Config {
     pub language: String,
     pub plugin_shortcuts: std::collections::HashMap<String, String>,
+    /// Optional overrides for `ui/theme.slint` (colors, font sizes, metrics).
+    pub theme: crate::theme::Overrides,
 }
 
 impl Default for Config {
@@ -13,6 +15,7 @@ impl Default for Config {
         Self {
             language: "auto".into(),
             plugin_shortcuts: Default::default(),
+            theme: Default::default(),
         }
     }
 }

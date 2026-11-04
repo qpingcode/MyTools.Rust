@@ -9,7 +9,7 @@ export component SearchBar inherits Rectangle {
     callback navigate(int);
     callback drag-requested();
     forward-focus: input;
-    height: 86px;
+    height: Theme.search-height;
     background: transparent;
 
     public function focus-input() { input.focus(); }
@@ -40,21 +40,25 @@ export component SearchBar inherits Rectangle {
     }
 
     Image {
-        x: 28px; y: 31px; width: 24px; height: 24px;
+        x: 22px; y: (parent.height - self.height) / 2;
+        width: Theme.font-search; height: Theme.font-search;
         source: @image-url("../../../../ui/assets/search.svg");
     }
     Text {
-        x: 74px; y: 26px; width: parent.width - 100px; height: 34px;
-        text: I18n.text("search.placeholder"); color: #777777; font-size: 22px;
+        x: input.x; y: input.y; width: input.width; height: input.height;
+        text: I18n.text("search.placeholder"); color: Theme.placeholder; font-size: Theme.font-search;
+        vertical-alignment: center;
         visible: root.query == "";
     }
     input := TextInput {
-        x: 74px; y: 26px; width: parent.width - 100px; height: 34px;
+        x: 22px + Theme.font-search + 16px; y: (parent.height - self.height) / 2;
+        width: parent.width - self.x - 22px; height: Theme.font-search * 1.6;
         text <=> root.query;
-        color: Theme.foreground; font-size: 22px;
+        color: Theme.foreground; font-size: Theme.font-search;
+        vertical-alignment: center;
         single-line: true;
         input-type: search;
-        selection-background-color: #37685e;
+        selection-background-color: Theme.selection;
         edited => { root.edited(self.text); }
         accepted => { root.accepted(); }
         key-pressed(event) => {

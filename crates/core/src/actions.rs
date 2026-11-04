@@ -89,6 +89,26 @@ impl Action {
         Ok(ActionEffect::Completed)
     }
 
+    /// A plugin-provided command acting on a file or folder path.
+    pub(crate) fn for_path(
+        action: &crate::plugins::PathAction,
+        path: &Path,
+        process: &std::sync::Arc<crate::search_process::SearchProcess>,
+    ) -> Self {
+        Self {
+            id: ActionId::Plugin,
+            title: Some(action.title.clone()),
+            title_key: "actions.execute",
+            icon: action.icon.clone(),
+            operation: Operation::Plugin {
+                command: action.command.clone(),
+                item: mytools_plugin_api::paths::display(path),
+                process: Some(process.clone()),
+            },
+            selection: None,
+        }
+    }
+
     pub(crate) fn bind_plugin(
         &mut self,
         process: &std::sync::Arc<crate::search_process::SearchProcess>,

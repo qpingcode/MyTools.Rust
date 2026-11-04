@@ -14,7 +14,7 @@ export component StatusBar inherits Rectangle {
     callback execute();
     callback toggle-actions();
     callback drag-requested();
-    height: 56px;
+    height: Theme.status-height;
     background: Theme.panel;
     WindowDragArea {
         x: 0px; y: 0px; width: buttons.x; height: parent.height;
@@ -32,14 +32,17 @@ export component StatusBar inherits Rectangle {
         x: buttons.x; y: buttons.y + buttons.height; width: buttons.width; height: parent.height - self.y;
         drag-requested => { root.drag-requested(); }
     }
-    Rectangle { x: 20px; y: 24px; width: 8px; height: 8px; border-radius: 4px; background: root.failed ? #e09a53 : #4bb976; }
+    Rectangle {
+        x: 18px; y: (parent.height - self.height) / 2; width: 7px; height: 7px; border-radius: 3.5px;
+        background: root.failed ? Theme.warning : Theme.success;
+    }
     Text {
-        x: 40px; y: 14px; width: max(0px, buttons.x - 52px); height: 28px;
-        text: root.status; color: Theme.muted; font-size: 14px; vertical-alignment: center; overflow: elide;
+        x: 34px; y: 0px; width: max(0px, buttons.x - 46px); height: parent.height;
+        text: root.status; color: Theme.muted; font-size: Theme.font-small; vertical-alignment: center; overflow: elide;
     }
     buttons := Rectangle {
-        x: parent.width - self.width - 20px; y: 11px;
-        width: primary.width + operations.width + 10px; height: 34px;
+        x: parent.width - self.width - 16px; y: (parent.height - self.height) / 2;
+        width: primary.width + operations.width + 10px; height: Theme.button-height;
         background: transparent;
         primary := ActionButton {
             x: 0px; y: 0px;

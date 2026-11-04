@@ -36,7 +36,7 @@ export component ScriptManager inherits Window {
     VerticalBox {
         padding: 22px; spacing: 14px;
         HorizontalBox {
-            Text { text: I18n.text("manage"); color: Theme.foreground; font-size: 24px; }
+            Text { text: I18n.text("manage"); color: Theme.foreground; font-size: Theme.font-heading + 4px; }
             Button { text: I18n.text("new"); enabled: !root.busy; clicked => { root.create(); } }
         }
         HorizontalBox {

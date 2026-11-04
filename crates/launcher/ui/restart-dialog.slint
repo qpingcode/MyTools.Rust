@@ -4,7 +4,7 @@ import { AppButton } from "../../../ui/components/button.slint";
 
 export component RestartDialog inherits Window {
     title: I18n.text("restart.title");
-    width: 440px; height: 220px;
+    width: 400px; height: 190px;
     background: Theme.background;
     in property <string> app-font-family;
     default-font-family: root.app-font-family;
@@ -17,9 +17,9 @@ export component RestartDialog inherits Window {
             reject
         }
         VerticalLayout {
-            padding: 24px; spacing: 18px;
-            Text { text: I18n.text("restart.title"); color: Theme.foreground; font-size: 20px; }
-            Text { text: I18n.text("restart.message"); color: Theme.muted; font-size: 15px; wrap: word-wrap; }
+            padding: 20px; spacing: 14px;
+            Text { text: I18n.text("restart.title"); color: Theme.foreground; font-size: Theme.font-heading; }
+            Text { text: I18n.text("restart.message"); color: Theme.muted; font-size: Theme.font-body; wrap: word-wrap; }
             Rectangle { vertical-stretch: 1; background: transparent; }
             HorizontalLayout {
                 spacing: 12px;

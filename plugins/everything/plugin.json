@@ -1,0 +1,17 @@
+{
+  "id": "everything",
+  "name": {
+    "key": "name",
+    "defaultValue": "Everything File Search"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-everything",
+  "icon": "builtin:file-search",
+  "alias": [
+    "file"
+  ],
+  "search": {
+    "global": false
+  }
+}

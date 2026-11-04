@@ -41,4 +41,7 @@ pub struct PluginEffect {
     pub paste: bool,
     #[serde(default)]
     pub message: String,
+    /// Hide the launcher after the action succeeded (e.g. an external editor was opened).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dismiss: bool,
 }

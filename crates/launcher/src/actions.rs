@@ -249,6 +249,9 @@ fn start_action(ui: &MainWindow, action: Action) {
                     if effect.refresh {
                         ui.invoke_search(ui.get_query());
                     }
+                    if effect.dismiss && ui.get_query() == query {
+                        ui.hide()?;
+                    }
                     Ok(effect.message)
                 }
             });

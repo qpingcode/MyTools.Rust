@@ -7,21 +7,31 @@ export component ResultRow inherits Rectangle {
     in property <bool> selected;
     callback clicked();
     callback activated();
-    height: 76px;
-    border-radius: 8px;
-    background: root.selected ? Theme.selected : (touch.has-hover ? #333333 : transparent);
+    private property <length> text-x: 14px + Theme.icon-box + 12px;
+    height: Theme.row-height;
+    border-radius: Theme.radius;
+    background: root.selected ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
     Rectangle {
-        x: 16px; y: 20px; width: 36px; height: 36px;
-        background: #304646; border-radius: 6px;
-        Icon { x: 5px; y: 5px; width: 26px; height: 26px; name: root.result.icon; source: root.result.native-image; }
+        x: 14px; y: (parent.height - self.height) / 2;
+        width: Theme.icon-box; height: Theme.icon-box;
+        background: Theme.icon-background; border-radius: 6px;
+        Icon {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: Theme.icon-size; height: Theme.icon-size;
+            name: root.result.icon; source: root.result.native-image;
+        }
     }
     Text {
-        x: 68px; y: 10px; width: parent.width - 84px; height: 28px;
-        text: root.result.title; color: Theme.foreground; font-size: 19px; overflow: elide;
+        x: root.text-x; y: parent.height / 2 - self.height; width: parent.width - root.text-x - 14px;
+        height: Theme.font-title * 1.5;
+        text: root.result.title; color: Theme.foreground; font-size: Theme.font-title;
+        vertical-alignment: bottom; overflow: elide;
     }
     Text {
-        x: 68px; y: 42px; width: parent.width - 84px; height: 22px;
-        text: root.result.description; color: Theme.muted; font-size: 14px; overflow: elide;
+        x: root.text-x; y: parent.height / 2 + 1px; width: parent.width - root.text-x - 14px;
+        height: Theme.font-small * 1.5;
+        text: root.result.description; color: Theme.muted; font-size: Theme.font-small;
+        vertical-alignment: top; overflow: elide;
     }
     touch := TouchArea {
         mouse-cursor: pointer;

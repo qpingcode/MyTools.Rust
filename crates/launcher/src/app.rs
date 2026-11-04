@@ -1,7 +1,8 @@
 use crate::{
-    AboutWindow, AppTray, I18n, MainWindow, ResultData, actions, config, desktop, i18n, icons,
+    AboutWindow, AppTray, I18n, MainWindow, ResultData, Theme, actions, config, desktop, i18n,
+    icons,
     search::{Query, SearchWorker},
-    tray,
+    theme, tray,
 };
 use mytools_core::{Action, Entry, SearchResults};
 use slint::{ComponentHandle, VecModel};
@@ -27,11 +28,19 @@ pub fn run() -> anyhow::Result<()> {
         .map(|config| config.language.as_str())
         .unwrap_or("auto");
     mytools_plugin_api::i18n::initialize(requested);
+    let theme_errors = theme::configure(
+        config
+            .as_ref()
+            .map(|config| config.theme.clone())
+            .unwrap_or_default(),
+    );
     desktop::configure_backend()?;
     let ui = MainWindow::new()?;
+    theme::apply_configured(&ui.global::<Theme>());
     let position_tracker = crate::window_position::Tracker::new(&ui);
     let tray = AppTray::new()?;
     let about = AboutWindow::new()?;
+    theme::apply_configured(&about.global::<Theme>());
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
     tray.global::<I18n>().on_text(|key| i18n::t(&key).into());
     about.global::<I18n>().on_text(|key| i18n::t(&key).into());
@@ -69,6 +78,11 @@ pub fn run() -> anyhow::Result<()> {
         initial.desktop_error = Some(i18n::format(
             "config.invalid",
             &[("error", &error.to_string())],
+        ));
+    } else if !theme_errors.is_empty() {
+        initial.desktop_error = Some(i18n::format(
+            "config.invalid",
+            &[("error", &theme_errors.join("; "))],
         ));
     }
     let state = Rc::new(RefCell::new(initial));

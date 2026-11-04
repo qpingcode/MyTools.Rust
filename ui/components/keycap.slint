@@ -2,16 +2,16 @@ import { Theme } from "../theme.slint";
 
 export component Keycap inherits Rectangle {
     in property <string> text;
-    width: label.preferred-width + 16px;
-    height: 27px;
+    width: label.preferred-width + 14px;
+    height: Theme.font-caption * 2.2;
     border-radius: 5px;
     border-width: 1px;
-    border-color: #555555;
+    border-color: Theme.control-border;
     background: transparent;
     label := Text {
         text: root.text;
         color: Theme.muted;
-        font-size: 13px;
+        font-size: Theme.font-caption;
         horizontal-alignment: center;
         vertical-alignment: center;
     }

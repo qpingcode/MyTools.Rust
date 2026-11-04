@@ -1,0 +1,12 @@
+{
+  "name": "Everything 文件搜索",
+  "usage": "输入文件或文件夹名称，支持 Everything 搜索语法",
+  "usage_detail": "file <关键字>，例如 file *.sln、file 报告 ext:pdf",
+  "not_running": "Everything 未运行",
+  "not_running_detail": "请先启动 Everything（voidtools）；已安装时按 Enter 启动",
+  "failed": "Everything 搜索失败：{error}",
+  "no_results": "没有匹配“{query}”的文件",
+  "unsupported": "Everything 搜索仅支持 Windows",
+  "folder": "文件夹",
+  "drive": "驱动器"
+}

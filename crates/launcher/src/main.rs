@@ -8,6 +8,7 @@ mod desktop;
 mod i18n;
 mod icons;
 mod search;
+mod theme;
 mod tray;
 mod window_position;
 

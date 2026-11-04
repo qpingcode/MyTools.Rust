@@ -4,14 +4,14 @@ export component AppButton inherits Rectangle {
     in property <string> text;
     in property <bool> primary: false;
     callback clicked();
-    height: 44px;
-    min-width: 100px;
-    border-radius: 8px;
-    background: root.primary ? (touch.has-hover ? #427d71 : #37685e) : (touch.has-hover ? #454545 : Theme.selected);
+    height: Theme.button-height + 8px;
+    min-width: 88px;
+    border-radius: Theme.radius;
+    background: root.primary ? (touch.has-hover ? Theme.primary-hover : Theme.primary) : (touch.has-hover ? Theme.button-hover : Theme.selected);
     Text {
         text: root.text;
         color: Theme.foreground;
-        font-size: 16px;
+        font-size: Theme.font-body;
         horizontal-alignment: center;
         vertical-alignment: center;
     }

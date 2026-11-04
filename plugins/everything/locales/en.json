@@ -1,0 +1,12 @@
+{
+  "name": "Everything File Search",
+  "usage": "Type a file or folder name; Everything search syntax is supported",
+  "usage_detail": "file <keywords>, e.g. file *.sln, file report ext:pdf",
+  "not_running": "Everything is not running",
+  "not_running_detail": "Start Everything (voidtools) to search files; Enter launches it when installed",
+  "failed": "Everything search failed: {error}",
+  "no_results": "No files match \"{query}\"",
+  "unsupported": "Everything search is only available on Windows",
+  "folder": "Folder",
+  "drive": "Drive"
+}

@@ -18,7 +18,7 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $output 'config.json'))) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'config.example.json') -Destination (Join-Path $output 'config.json')
     }
-    foreach ($plugin in @('calculator', 'applications', 'clipboard', 'chrome-bookmark', 'encode', 'decode', 'formatter', 'process-killer', 'uuid-generator', 'translator', 'quick-text', 'scripts-runner')) {
+    foreach ($plugin in @('calculator', 'applications', 'clipboard', 'chrome-bookmark', 'encode', 'decode', 'formatter', 'process-killer', 'uuid-generator', 'translator', 'quick-text', 'scripts-runner', 'everything', 'dev-open')) {
         $pluginDirectory = Join-Path $output "plugins/$plugin"
         New-Item -ItemType Directory -Force -Path $pluginDirectory | Out-Null
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot "plugins/$plugin/plugin.json") -Destination $pluginDirectory

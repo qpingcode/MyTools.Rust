@@ -1,0 +1,34 @@
+{
+  "id": "dev-open",
+  "name": {
+    "key": "name",
+    "defaultValue": "Open in IDE"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-dev-open",
+  "icon": "builtin:square-code",
+  "alias": [
+    "ide"
+  ],
+  "search": {
+    "global": true
+  },
+  "pathActions": [
+    {
+      "command": "rider",
+      "title": { "key": "action.rider", "defaultValue": "Open in Rider" },
+      "icon": "builtin:square-code"
+    },
+    {
+      "command": "vscode",
+      "title": { "key": "action.vscode", "defaultValue": "Open in VS Code" },
+      "icon": "builtin:code-xml"
+    },
+    {
+      "command": "visualstudio",
+      "title": { "key": "action.visualstudio", "defaultValue": "Open in Visual Studio" },
+      "icon": "builtin:code"
+    }
+  ]
+}

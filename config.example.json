@@ -3,5 +3,13 @@
   "plugin_shortcuts": {
     "clipboard": "Ctrl+Shift+V",
     "translator": "Alt+V"
+  },
+  "theme": {
+    "font-search": 18,
+    "font-title": 14,
+    "font-body": 13,
+    "font-small": 12,
+    "row-height": 52,
+    "accent": "#94ded1"
   }
 }

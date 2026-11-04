@@ -140,10 +140,51 @@ run.ps1 / run.sh       编译、放置插件、运行
 | `search.global` | `true` 时参与主列表普通搜索；`false` 时普通搜索不调用该插件，只能通过别名进入 |
 | `view` | `list`（默认）或 `list-detail`；详情布局只在该插件的搜索作用域内启用 |
 | `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；可通过宿主配置覆盖 |
+| `pathActions` | 可选，为所有文件/文件夹结果追加的插件动作，见“IDE 打开” |
 
 启动器读取自身目录下 `plugins/*/plugin.json`，也可通过 `MYTOOLS_PLUGIN_DIR` 指定插件根目录。
 添加插件只需在该目录中新建文件夹，放入配置和编译后的程序，然后重启启动器。
 插件以自己的文件夹为工作目录启动。配置中的其他字段目前会被忽略。
+
+## 界面配置
+
+所有颜色、字号和尺寸集中在 [ui/theme.slint](ui/theme.slint) 的 `Theme` 全局中，默认值比早期版本整体缩小
+（搜索框 18px、标题 14px、正文 13px、说明 12px、结果行高 52px）。可在 `config.json` 的 `theme` 中按属性名覆盖，
+颜色用 `#rrggbb` / `#rrggbbaa`，尺寸为逻辑像素，修改后重启生效；未知键或无效值会在状态栏提示：
+
+```json
+{
+  "theme": {
+    "font-search": 18, "font-title": 14, "font-body": 13, "font-small": 12, "font-caption": 11,
+    "row-height": 52, "icon-box": 30, "icon-size": 20,
+    "accent": "#94ded1", "background": "#1f1f1f"
+  }
+}
+```
+
+## Everything 文件搜索
+
+`everything` 插件通过 Everything 1.4 的 IPC（WM_COPYDATA）直接查询正在运行的 Everything，无需 SDK DLL 或 `es.exe`。
+输入 `file 关键字` 搜索（`global: false`，不参与普通搜索），支持 Everything 搜索语法，例如 `file *.sln`、`file 报告 ext:pdf`。
+结果为文件/文件夹资源，使用系统图标，提供打开、复制路径、在文件夹中显示，以及下面 IDE 插件的额外动作。
+Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
+
+## IDE 打开（dev-open）
+
+`dev-open` 插件在 `plugin.json` 中声明 `pathActions`，宿主会把这些动作追加到**所有**文件/文件夹结果的操作面板（`Ctrl+K`）：
+
+- **用 Rider 打开**：从当前目录向上递归查找 `.sln` / `.slnx` / `.slnf`；整条路径都找不到解决方案时，再向上查找
+  `.csproj` / `.fsproj` / `.vbproj` / `.vcxproj` / `.esproj` / `.proj`；仍找不到则提示无法打开。同一目录有多个时优先 `.sln`、
+  与目录同名者，再按名称排序。
+- **用 VS Code 打开**：打开当前目录；若是文件，则打开其所在目录并定位到该文件。
+- **用 Visual Studio 打开**：查找逻辑同 Rider，通过 `vswhere` 选择版本最高的 `devenv.exe`。
+
+在搜索框直接输入一个已存在的绝对路径（或 `ide 路径`）也会列出这三个动作。Rider 依次从 JetBrains Toolbox 脚本、
+`%LOCALAPPDATA%\JetBrains\Installations`、`%LOCALAPPDATA%\Programs`、`%ProgramFiles%\JetBrains` 和 PATH 查找；
+自动检测失败时可在 `plugins/dev-open/config.json` 中填写 `rider`、`vscode`、`visualstudio` 的程序绝对路径。
+
+其他插件也可声明 `pathActions`（`command`、`title.key/defaultValue`、`icon`），宿主执行时向该插件发送
+`{"action":{"command":"<command>","item":"<路径>"}}`；插件返回的 `effect.dismiss: true` 表示成功后隐藏启动器。
 
 ## 剪贴板历史
 
@@ -151,6 +192,8 @@ run.ps1 / run.sh       编译、放置插件、运行
 运行期间自动记录文本（包含可读取的 HTML 格式）、图片以及文件列表。
 相同内容与格式只保留一条并置顶；图片保存原始分辨率 PNG，额外生成缩略图预览；
 文件列表保存路径，不复制文件本身。退出 MyTools 后停止监听。
+列表图标按内容区分：普通文本 `type`、链接 `link-2`、颜色值 `palette`、路径文本 `folder-search`、
+HTML/代码 `code-xml`、图片 `image`；单个文件或文件夹显示其系统图标（如 Word、PDF 图标），多个文件显示 `files`。
 
 - `Ctrl+Shift+V` 打开历史，也可搜索 `clip ` 或 `clipboard `。
 - 左侧搜索和选择历史，右侧预览完整文本、文件路径或图片；进入插件或修改查询时读取历史，
@@ -254,7 +297,7 @@ MyTools 启动时运行每个 `search` 插件一次，后续搜索复用进程�
 
 ### 内置图标
 
-宿主内置 64 个 Lucide SVG，随程序编译打包，运行时无需联网或额外字体。
+宿主内置 73 个 Lucide SVG，随程序编译打包，运行时无需联网或额外字体。
 插件在 `plugin.json` 中设置默认图标：
 
 ```json
@@ -303,8 +346,8 @@ Windows 使用 Shell 的系统图标列表提取 `.lnk`、程序或文件图标�
 `NSWorkspace.iconForFile` 获取 `.app` 应用包或文件图标。原生图标保留原始颜色和透明度，
 内置 Lucide 图标继续跟随主题着色。
 
-图标在独立工作线程读取，主线程只更新仍引用同一路径的结果行；缓存最多 256 项，
-5 分钟后在下次显示时重新加载。加载中、文件缺失或提取失败时显示 Lucide `app-window`，
+图标在独立工作线程读取，主线程只更新仍引用同一路径的结果行；缓存最多 1024 项，
+6 小时后在下次显示时后台重新加载（期间继续显示旧图标），提取失败的路径 1 分钟后重试。加载中、文件缺失或提取失败时显示 Lucide `app-window`，
 不会阻塞搜索、清空结果或导致插件停止。
 
 ### 结果与操作
@@ -349,7 +392,9 @@ macOS 没有通用的 GUI 应用管理员启动语义，不显示该动作；显
 
 Rust 插件可复用 `mytools-plugin-api::serve`，只需实现 `query -> Vec<SearchItem>`。
 标准输出只用于响应，日志写入标准错误；宿主当前丢弃标准错误。
-搜索在后台并行执行，输入有 80ms 防抖；每次聚合最多等候 1 秒。超时或返回无效响应的插件会被停止，重启 MyTools 后重新加载。
+搜索在后台并行执行，输入有 80ms 防抖；每次聚合最多等候 1 秒。超时、返回无效响应、崩溃或被意外关闭的插件会被自动重启：下一次请求立即拉起新进程，
+后台看门狗每 3 秒检查一次进程是否存活，并对空闲超过 45 秒的插件发送心跳（空查询），
+5 秒无响应视为卡死并重启。同一插件 60 秒内最多重启 5 次，防止崩溃循环；超过后稍后再试。
 从托盘退出 MyTools 时同时关闭搜索插件；隐藏启动器不会停止插件，已经打开的独立窗口插件继续独立运行。
 
 计算器支持 `+ - * /`、括号、正负号和小数。表达式不完整、无效或除零时不返回结果，数值使用 `f64`。

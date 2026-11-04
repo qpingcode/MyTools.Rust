@@ -23,6 +23,7 @@ impl Controller {
         tray.set_language(selected.into());
         let dialog = RestartDialog::new()?;
         dialog.global::<I18n>().on_text(|key| i18n::t(&key).into());
+        crate::theme::apply_configured(&dialog.global::<crate::Theme>());
         dialog.set_app_font_family(ui.get_app_font_family());
         match autostart::enabled() {
             Ok(enabled) => tray.set_startup_enabled(enabled),

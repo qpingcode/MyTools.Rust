@@ -11,12 +11,13 @@ import { ResultData, ActionData } from "types.slint";
 export { ResultData, ActionData } from "types.slint";
 export { AppTray } from "tray.slint";
 export { RestartDialog } from "restart-dialog.slint";
+export { Theme } from "../../../ui/theme.slint";
 
 export component MainWindow inherits Window {
     title: "MyTools";
     icon: @image-url("../../../ui/assets/app.png");
-    preferred-width: 860px; preferred-height: 580px;
-    min-width: 640px; min-height: 360px;
+    preferred-width: 780px; preferred-height: 520px;
+    min-width: 560px; min-height: 320px;
     no-frame: true;
     background: Theme.background;
     in property <string> app-font-family;
@@ -52,6 +53,7 @@ export component MainWindow inherits Window {
     callback close-actions();
     callback navigate-action(int);
     callback execute-action(int);
+    private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
     public function focus-search() { search-bar.focus-input(); }
     public function focus-search-select-all() { search-bar.focus-input-select-all(); }
@@ -72,7 +74,7 @@ export component MainWindow inherits Window {
             reject
         }
         Rectangle {
-            border-width: 1px; border-color: Theme.border; border-radius: 12px;
+            border-width: 1px; border-color: Theme.border; border-radius: Theme.radius + 4px;
             background: Theme.background;
             search-bar := SearchBar {
                 x: 0px; y: 0px;
@@ -84,25 +86,26 @@ export component MainWindow inherits Window {
                 drag-requested => { root.drag-requested(); }
             }
             list := Flickable {
-                x: 1px; y: 87px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px; height: parent.height - 144px;
+                x: 1px; y: Theme.search-height + 1px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px;
+                height: parent.height - Theme.search-height - Theme.status-height - 2px;
                 content-width: self.width;
-                content-height: max(self.height, root.results.length * 80px + 24px);
+                content-height: max(self.height, root.results.length * root.row-pitch + 16px);
                 for result[index] in root.results: ResultRow {
-                    x: 12px; y: 12px + index * 80px; width: list.width - 24px;
+                    x: 8px; y: 8px + index * root.row-pitch; width: list.width - 16px;
                     result: result; selected: index == root.selected;
                     clicked => { root.select-result(index); }
                     activated => { root.execute(index); }
                 }
             }
             if root.detail-view: DetailPreview {
-                x: list.width + 8px; y: 99px;
-                width: parent.width - self.x - 12px; height: parent.height - 168px;
+                x: list.width + 8px; y: Theme.search-height + 9px;
+                width: parent.width - self.x - 10px; height: parent.height - Theme.search-height - Theme.status-height - 18px;
                 title: root.preview-title; text: root.preview-text;
                 metadata: root.preview-metadata; picture: root.preview-image;
             }
             if root.results.length == 0 && !root.searching: Text {
-                x: 36px; y: 112px; text: I18n.text("search.empty");
-                color: Theme.muted; font-size: 15px;
+                x: 28px; y: Theme.search-height + 20px; text: I18n.text("search.empty");
+                color: Theme.muted; font-size: Theme.font-body;
             }
             StatusBar {
                 y: parent.height - self.height; width: parent.width;
@@ -121,9 +124,9 @@ export component MainWindow inherits Window {
             background: transparent;
             TouchArea { clicked => { root.close-actions(); } }
             ActionPanel {
-                x: parent.width - self.width - 20px;
-                y: parent.height - 64px - self.height;
-                available-height: parent.height - 110px;
+                x: parent.width - self.width - 16px;
+                y: parent.height - Theme.status-height - 8px - self.height;
+                available-height: parent.height - Theme.status-height - Theme.search-height - 16px;
                 actions: root.actions;
                 selected: root.selected-action;
                 target-title: root.action-target;
@@ -132,10 +135,10 @@ export component MainWindow inherits Window {
         }
     }
     changed selected => {
-        if (root.selected * 80px + 12px < -list.content-y) {
-            list.content-y = -root.selected * 80px;
-        } else if ((root.selected + 1) * 80px + 12px > -list.content-y + list.height) {
-            list.content-y = min(0px, list.height - (root.selected + 1) * 80px - 12px);
+        if (root.selected * root.row-pitch + 8px < -list.content-y) {
+            list.content-y = -root.selected * root.row-pitch;
+        } else if ((root.selected + 1) * root.row-pitch + 8px > -list.content-y + list.height) {
+            list.content-y = min(0px, list.height - (root.selected + 1) * root.row-pitch - 8px);
         }
     }
 }
@@ -147,7 +150,7 @@ export component AboutWindow inherits Window {
     default-font-family: root.app-font-family;
     VerticalLayout {
         padding: 24px; spacing: 16px;
-        Text { text: "MyTools"; font-size: 26px; }
+        Text { text: "MyTools"; font-size: Theme.font-heading + 6px; }
         Text { text: I18n.text("app.description"); }
         AboutSlint {}
     }

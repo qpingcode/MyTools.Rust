@@ -1,0 +1,14 @@
+{
+  "name": "Open in IDE",
+  "action.rider": "Open in Rider",
+  "action.vscode": "Open in VS Code",
+  "action.visualstudio": "Open in Visual Studio",
+  "usage": "Type a file or folder path to open it in Rider, VS Code or Visual Studio",
+  "usage_detail": "ide <path>, e.g. ide D:\\repo\\MyApp",
+  "missing_path": "Path does not exist: {path}",
+  "will_open": "Opens {target}",
+  "opened": "Opened {target} in {ide}",
+  "no_project": "Cannot open in {ide}: no .sln/.slnx/.slnf or project file (.csproj/.fsproj/.vbproj) found in {path} or its parent folders",
+  "not_installed": "{ide} was not found; set its executable path in plugins/dev-open/config.json",
+  "launch_failed": "Failed to start {ide}: {error}"
+}

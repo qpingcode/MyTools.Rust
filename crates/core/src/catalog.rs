@@ -109,13 +109,21 @@ impl Catalog {
                 &[("error", &err.to_string())],
             )),
         }
+        // Crashed, hung or killed resident plugins are restarted in the background.
+        crate::search_process::watch(
+            catalog
+                .plugins
+                .iter()
+                .filter_map(|plugin| plugin.process.as_ref().map(std::sync::Arc::downgrade))
+                .collect(),
+        );
         catalog
     }
 
     pub fn shutdown(&self) {
         for plugin in &self.plugins {
             if let Some(process) = &plugin.process {
-                process.stop();
+                process.shutdown();
             }
         }
     }
@@ -202,7 +210,28 @@ impl Catalog {
             );
         }
         output.entries.truncate(50);
+        self.attach_path_actions(&mut output.entries);
         output
+    }
+
+    /// Appends actions such as "Open in Rider" that plugins offer for any file or folder.
+    fn attach_path_actions(&self, entries: &mut [Entry]) {
+        for entry in entries {
+            let (Resource::File { path } | Resource::Folder { path }) = &entry.resource else {
+                continue;
+            };
+            if entry.actions.is_empty() {
+                continue; // An explicit `[]` means the result is informational only.
+            }
+            for plugin in &self.plugins {
+                let Some(process) = &plugin.process else {
+                    continue;
+                };
+                for action in &plugin.path_actions {
+                    entry.actions.push(Action::for_path(action, path, process));
+                }
+            }
+        }
     }
 }
 
@@ -448,6 +477,7 @@ mod tests {
             executable: std::env::temp_dir().join("mytools-fixture.exe"),
             process: None,
             view: Default::default(),
+            path_actions: vec![],
         }
     }
 

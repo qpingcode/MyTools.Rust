@@ -6,16 +6,16 @@ export component DetailPreview inherits Rectangle {
     in property <string> text;
     in property <string> metadata;
     in property <image> picture;
-    background: #242424;
-    border-radius: 8px;
+    background: Theme.preview;
+    border-radius: Theme.radius;
     VerticalLayout {
-        padding: 18px; spacing: 12px;
-        if root.title != "": Text { text: root.title; color: Theme.foreground; font-size: 18px; wrap: word-wrap; }
-        Text { text: root.metadata; color: Theme.muted; font-size: 12px; wrap: word-wrap; visible: root.metadata != ""; }
+        padding: 14px; spacing: 10px;
+        if root.title != "": Text { text: root.title; color: Theme.foreground; font-size: Theme.font-heading; wrap: word-wrap; }
+        Text { text: root.metadata; color: Theme.muted; font-size: Theme.font-caption; wrap: word-wrap; visible: root.metadata != ""; }
         if root.picture.width > 0: Image { source: root.picture; image-fit: contain; min-height: 100px; vertical-stretch: 1; }
         if root.picture.width == 0: ScrollView {
             content-width: self.visible-width;
-            Text { width: parent.width; text: root.text; color: Theme.foreground; font-size: 14px; wrap: word-wrap; vertical-alignment: top; }
+            Text { width: parent.width; text: root.text; color: Theme.foreground; font-size: Theme.font-body; wrap: word-wrap; vertical-alignment: top; }
         }
     }
 }
