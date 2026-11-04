@@ -71,14 +71,13 @@ struct ContributedActionManifest {
     icon: Option<String>,
 }
 
-/// Result types a rule can match; `path` is shorthand for `file` plus `folder`.
+/// Result types a rule can match, named like `Resource`'s `type` tag.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceKind {
     Url,
     File,
     Folder,
-    Path,
     Text,
     Application,
     PluginItem,
@@ -90,8 +89,8 @@ impl ResourceKind {
         matches!(
             (self, resource),
             (Self::Url, R::Url { .. })
-                | (Self::File | Self::Path, R::File { .. })
-                | (Self::Folder | Self::Path, R::Folder { .. })
+                | (Self::File, R::File { .. })
+                | (Self::Folder, R::Folder { .. })
                 | (Self::Text, R::Text { .. })
                 | (Self::Application, R::Application { .. })
                 | (Self::PluginItem, R::PluginItem { .. })
@@ -383,7 +382,7 @@ mod tests {
 
     #[test]
     fn action_rules_reject_unknown_types_and_fields() {
-        assert!(serde_json::from_str::<When>(r#"{"type":["paths"]}"#).is_err());
+        assert!(serde_json::from_str::<When>(r#"{"type":["path"]}"#).is_err());
         assert!(serde_json::from_str::<When>(r#"{"from":["clipboard"]}"#).is_err());
     }
 

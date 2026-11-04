@@ -17,7 +17,7 @@
   "contributes": {
     "actions": [
       {
-        "when": { "type": ["path"] },
+        "when": { "type": ["file", "folder"] },
         "actions": [
           {
             "command": "rider",

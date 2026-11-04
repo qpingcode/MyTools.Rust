@@ -174,7 +174,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 
 ## IDE 打开（dev-open）
 
-`dev-open` 插件在 `plugin.json` 中声明 `contributes.actions`（`when.type: ["path"]`），宿主会把这些动作追加到**所有**文件/文件夹结果的操作面板（`Ctrl+K`）：
+`dev-open` 插件在 `plugin.json` 中声明 `contributes.actions`（`when.type: ["file", "folder"]`），宿主会把这些动作追加到**所有**文件/文件夹结果的操作面板（`Ctrl+K`）：
 
 - **用 Rider 打开**：从当前目录向上递归查找 `.sln` / `.slnx` / `.slnf`；整条路径都找不到解决方案时，再向上查找
   `.csproj` / `.fsproj` / `.vbproj` / `.vcxproj` / `.esproj` / `.proj`；仍找不到则提示无法打开。同一目录有多个时优先 `.sln`、
@@ -194,7 +194,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 "contributes": {
   "actions": [
     {
-      "when": { "type": ["path"], "source": ["everything", "clipboard"] },
+      "when": { "type": ["file", "folder"], "source": ["everything", "clipboard"] },
       "actions": [
         { "command": "rider", "title": { "key": "action.rider", "defaultValue": "Open in Rider" }, "icon": "builtin:square-code" }
       ]
@@ -203,7 +203,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 }
 ```
 
-- `when.type`：结果类型 `url`、`file`、`folder`、`text`、`application`、`plugin_item`；`path` 等同 `file` + `folder`。
+- `when.type`：结果类型 `url`、`file`、`folder`、`text`、`application`、`plugin_item`，与结果的 `type` 一致。
 - `when.source`：产生该结果的插件 id。
 - 字段之间为“且”，列表内为“或”；省略或为空表示不限。多条规则分别匹配，命中的动作按插件加载顺序追加到结果自身动作之后。
 - 未知字段或类型值会使 manifest 加载失败，错误显示在状态栏。`actions: []` 的提示类结果不追加任何动作。
