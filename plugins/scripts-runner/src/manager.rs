@@ -1,5 +1,5 @@
 use crate::{
-    I18n, ScriptManager, i18n, runner,
+    I18n, ScriptManager, ScriptRow, i18n, runner,
     store::{Kind, Script, Store},
 };
 use slint::{ComponentHandle, ModelRc, VecModel};
@@ -183,8 +183,12 @@ fn refresh(ui: &ScriptManager, state: &State) {
         state
             .scripts
             .iter()
-            .map(|s| s.name.clone().into())
-            .collect::<Vec<slint::SharedString>>(),
+            .map(|s| ScriptRow {
+                name: s.name.clone().into(),
+                alias: s.alias.clone().into(),
+                kind: s.kind.extension().into(),
+            })
+            .collect::<Vec<_>>(),
     )));
 }
 fn load(ui: &ScriptManager, state: &mut State, script: Option<Script>) {
@@ -195,39 +199,28 @@ fn load(ui: &ScriptManager, state: &mut State, script: Option<Script>) {
             .map(|i| i as i32)
             .unwrap_or(-1),
     );
-    ui.set_script_name(
-        script
-            .as_ref()
-            .map(|s| s.name.as_str())
-            .unwrap_or("")
-            .into(),
+    let field = |value: fn(&Script) -> &str| -> slint::SharedString {
+        script.as_ref().map(value).unwrap_or("").into()
+    };
+    let (name, alias, content, directory) = (
+        field(|s| &s.name),
+        field(|s| &s.alias),
+        field(|s| &s.content),
+        field(|s| &s.directory),
     );
-    ui.set_alias(
-        script
-            .as_ref()
-            .map(|s| s.alias.as_str())
-            .unwrap_or("")
-            .into(),
-    );
-    ui.set_kind(i32::from(
-        script.as_ref().is_some_and(|s| s.kind == Kind::Cmd),
-    ));
-    ui.set_content(
-        script
-            .as_ref()
-            .map(|s| s.content.as_str())
-            .unwrap_or("")
-            .into(),
-    );
-    ui.set_directory(
-        script
-            .as_ref()
-            .map(|s| s.directory.as_str())
-            .unwrap_or("")
-            .into(),
-    );
+    let kind = i32::from(script.as_ref().is_some_and(|s| s.kind == Kind::Cmd));
+    // The saved copies define "unchanged"; the form is dirty once it differs from them.
+    ui.set_saved_name(name.clone());
+    ui.set_saved_alias(alias.clone());
+    ui.set_saved_kind(kind);
+    ui.set_saved_content(content.clone());
+    ui.set_saved_directory(directory.clone());
+    ui.set_script_name(name);
+    ui.set_alias(alias);
+    ui.set_kind(kind);
+    ui.set_content(content);
+    ui.set_directory(directory);
     ui.set_saved(script.is_some());
     ui.set_deleting(false);
-    ui.set_dirty(false);
     state.original = script;
 }
