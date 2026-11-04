@@ -1,12 +1,16 @@
 {
-  "name": "Everything File Search",
+  "name": "Everything",
   "usage": "Type a file or folder name; Everything search syntax is supported",
   "usage_detail": "file <keywords>, e.g. file *.sln, file report ext:pdf",
   "not_running": "Everything is not running",
   "not_running_detail": "Start Everything (voidtools) to search files; Enter launches it when installed",
+  "busy": "Everything is busy — press Enter to retry",
   "failed": "Everything search failed: {error}",
   "no_results": "No files match \"{query}\"",
   "unsupported": "Everything search is only available on Windows",
   "folder": "Folder",
-  "drive": "Drive"
+  "drive": "Drive",
+  "incomplete": "Results may be incomplete — press Enter to retry",
+  "retry_detail": "Everything answered too slowly, usually while it updates its index after many file changes",
+  "retry": "Retry"
 }

@@ -124,7 +124,10 @@ pub fn search(query: &str, max_results: u32, deadline: Instant) -> Result<Vec<Hi
             &mut accepted,
         )
     };
-    if sent == 0 || accepted == 0 {
+    if sent == 0 {
+        return Err(SearchError::Busy); // Everything did not accept the query in time.
+    }
+    if accepted == 0 {
         return Err(SearchError::Failed("Everything rejected the query".into()));
     }
     let bytes = wait_reply(reply_id as usize, deadline)?;
@@ -135,7 +138,7 @@ fn remaining(deadline: Instant) -> Result<Duration, SearchError> {
     deadline
         .checked_duration_since(Instant::now())
         .filter(|left| !left.is_zero())
-        .ok_or_else(|| SearchError::Failed("timeout".into()))
+        .ok_or(SearchError::Busy)
 }
 
 fn wait_reply(reply_id: usize, deadline: Instant) -> Result<Vec<u8>, SearchError> {
@@ -157,8 +160,12 @@ fn wait_reply(reply_id: usize, deadline: Instant) -> Result<Vec<u8>, SearchError
         if let Some(bytes) = reply {
             return Ok(bytes);
         }
+        // A newer query is waiting; Everything finishes this one, but we stop waiting.
+        if mytools_plugin_api::cancelled() {
+            return Err(SearchError::Cancelled);
+        }
         if Instant::now() >= deadline {
-            return Err(SearchError::Failed("timeout".into()));
+            return Err(SearchError::Busy);
         }
         std::thread::sleep(Duration::from_millis(2));
     }
@@ -248,6 +255,23 @@ mod tests {
         bytes.extend(units.iter().flat_map(|unit| unit.to_le_bytes()));
         bytes.extend([0, 0]);
         bytes
+    }
+
+    /// Run with `--ignored --nocapture` while Everything is running to time each tier.
+    #[test]
+    #[ignore]
+    fn prints_tier_timings() {
+        for query in ["c", "ca", "car", "my", "cargo", "readme"] {
+            for (text, limit) in crate::relevance::tiers(query) {
+                let start = Instant::now();
+                let result = search(&text, limit, start + Duration::from_secs(10));
+                println!(
+                    "{text:>20} limit {limit:>3}: {:>5} ms, {:?}",
+                    start.elapsed().as_millis(),
+                    result.map(|hits| hits.len())
+                );
+            }
+        }
     }
 
     #[test]

@@ -30,11 +30,14 @@
   "error.duplicate_id": "Duplicate plugin ID: {id}",
   "error.duplicate_alias": "Duplicate plugin alias: {name}",
   "error.read_plugins": "Cannot read plugin directory; run the project launcher script first: {error}",
-  "error.timeout": "Plugin timed out or exited; restart MyTools",
+  "error.timeout": "Plugin did not answer in time",
   "error.incompatible": "Action {id} is not compatible with this resource type",
   "error.path_missing": "Path does not exist: {path}",
   "error.open_windows": "Windows could not open the target (error {code})",
   "error.parse_windows": "Cannot parse item location (HRESULT {code})",
   "error.reveal_windows": "Cannot show item location (HRESULT {code})",
-  "error.history_directory": "Search history directory is unavailable"
+  "error.history_directory": "Search history directory is unavailable",
+  "search.timed_out": "Search timed out after {seconds}s — press Enter to retry",
+  "search.timed_out_detail": "{name} did not answer in time; the retry waits up to {seconds}s",
+  "actions.retry": "Retry"
 }

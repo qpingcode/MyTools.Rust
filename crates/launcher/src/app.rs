@@ -147,7 +147,7 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorker) {
-    let requests = worker.requests.clone();
+    let requests = worker.sender();
     let weak = ui.as_weak();
     let state = state.clone();
     ui.on_search(move |text| {
@@ -156,10 +156,11 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
         actions::close_panel(&ui, &mut state);
         state.generation += 1;
         ui.set_searching(true);
-        let _ = requests.send(Some(Query {
+        requests.send(Query {
             generation: state.generation,
             text: text.into(),
-        }));
+            attempt: crate::search::take_retry_attempt(),
+        });
     });
 }
 

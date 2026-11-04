@@ -29,6 +29,7 @@
   "status.plugin": "{name} · {count} 条结果",
   "status.copied": "已复制 {text}",
   "status.completed": "{action}成功",
+  "status.retrying": "正在重试（延长等待时间）…",
   "status.failed": "操作失败：{error}",
   "tray.show": "显示 MyTools",
   "tray.quit": "退出",

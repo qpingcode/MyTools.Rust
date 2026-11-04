@@ -239,6 +239,11 @@ fn start_action(ui: &MainWindow, action: Action) {
                         &[("action", &i18n::action_title(&action))],
                     ))
                 }
+                ActionEffect::Retry(attempt) => {
+                    crate::search::request_retry(attempt);
+                    ui.invoke_search(ui.get_query());
+                    Ok(i18n::t("status.retrying"))
+                }
                 ActionEffect::Plugin(effect) => {
                     if let Some(text) = effect.copy_text {
                         arboard::Clipboard::new()?.set_text(text)?;

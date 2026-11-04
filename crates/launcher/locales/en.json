@@ -29,6 +29,7 @@
   "status.plugin": "{name} · {count} results",
   "status.copied": "Copied {text}",
   "status.completed": "{action} succeeded",
+  "status.retrying": "Retrying with a longer timeout…",
   "status.failed": "Action failed: {error}",
   "tray.show": "Show MyTools",
   "tray.quit": "Quit",

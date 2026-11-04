@@ -5,11 +5,11 @@ use std::{
     collections::VecDeque,
     io::{BufRead, BufReader, Read, Write},
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{Child, ChildStdin, Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, SyncSender},
+        mpsc::{self, Receiver},
     },
     time::{Duration, Instant},
 };
@@ -19,28 +19,134 @@ const ACTION_TIMEOUT: Duration = Duration::from_secs(60);
 /// A plugin that crashes repeatedly is restarted at most this often per window.
 const RESTART_LIMIT: usize = 5;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
-/// Idle plugins are probed so a hung process is replaced before the user needs it.
-const HEARTBEAT_IDLE: Duration = Duration::from_secs(45);
-const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
+/// Heartbeats are separate `ping` messages answered by the plugin transport even while
+/// a request runs, so they measure whether the process responds, not how slow a search is.
+const PING_INTERVAL: Duration = Duration::from_secs(10);
+const PONG_TIMEOUT: Duration = Duration::from_secs(3);
+/// A process that has not answered anything yet may still be initialising.
+const STARTUP_GRACE: Duration = Duration::from_secs(30);
+/// A search still running this long (the longest alias timeout plus slack) is stuck.
+const SEARCH_HUNG: Duration = Duration::from_secs(20);
+/// Searches abandoned by the host stay queued until the plugin answers or skips them.
+const MAX_PENDING: usize = 8;
 type Reply = Receiver<Result<SearchResponse>>;
 type Factory = Box<dyn Fn() -> Command + Send + Sync>;
 
-struct Request {
-    wire: SearchRequest,
+#[derive(Clone, Copy, PartialEq)]
+enum Kind {
+    Search,
+    Action,
+}
+
+struct Pending {
     reply: mpsc::Sender<Result<SearchResponse>>,
+    kind: Kind,
+}
+
+#[derive(Default)]
+struct Heartbeat {
+    sequence: u64,
+    /// When the unanswered ping was sent.
+    outstanding: Option<Instant>,
+    last_sent: Option<Instant>,
+}
+
+/// State shared by the requesting threads, the reader thread and the watchdog.
+struct Shared {
+    stdin: Mutex<ChildStdin>,
+    /// Responses arrive in request order; `pong` lines are not requests.
+    pending: Mutex<VecDeque<Pending>>,
+    /// Cleared when the pipe breaks, a response is invalid or the plugin is stuck.
+    healthy: AtomicBool,
+    /// Set by the first line from the plugin: it has finished starting.
+    responsive: AtomicBool,
+    started: Instant,
+    heartbeat: Mutex<Heartbeat>,
+}
+
+impl Shared {
+    fn write(&self, wire: &SearchRequest) -> Result<()> {
+        let mut stdin = self.stdin.lock().unwrap();
+        let written = (|| -> std::io::Result<()> {
+            serde_json::to_writer(&mut *stdin, wire)?;
+            writeln!(stdin)?;
+            stdin.flush()
+        })();
+        if written.is_err() {
+            self.healthy.store(false, Ordering::Relaxed);
+        }
+        Ok(written?)
+    }
+
+    /// Sends a ping when one is due; marks the plugin unhealthy when a ping went unanswered.
+    fn heartbeat(&self) {
+        let now = Instant::now();
+        let mut heartbeat = self.heartbeat.lock().unwrap();
+        if let Some(sent) = heartbeat.outstanding {
+            let starting = !self.responsive.load(Ordering::Relaxed)
+                && now.duration_since(self.started) < STARTUP_GRACE;
+            if now.duration_since(sent) > PONG_TIMEOUT && !starting {
+                self.healthy.store(false, Ordering::Relaxed);
+            }
+            return;
+        }
+        if heartbeat
+            .last_sent
+            .is_some_and(|last| now.duration_since(last) < PING_INTERVAL)
+        {
+            return;
+        }
+        heartbeat.sequence += 1;
+        heartbeat.outstanding = Some(now);
+        heartbeat.last_sent = Some(now);
+        let ping = SearchRequest {
+            query: String::new(),
+            action: None,
+            timeout_ms: None,
+            ping: Some(heartbeat.sequence),
+        };
+        drop(heartbeat);
+        let _ = self.write(&ping);
+    }
+
+    /// Handles a `pong`: clears the outstanding ping and flags a request that is stuck.
+    fn pong(&self, sequence: u64, busy_ms: u64) {
+        let mut heartbeat = self.heartbeat.lock().unwrap();
+        if heartbeat.sequence == sequence {
+            heartbeat.outstanding = None;
+        }
+        drop(heartbeat);
+        let front = self
+            .pending
+            .lock()
+            .unwrap()
+            .front()
+            .map(|pending| pending.kind);
+        let limit = match front {
+            Some(Kind::Action) => ACTION_TIMEOUT,
+            _ => SEARCH_HUNG,
+        };
+        if Duration::from_millis(busy_ms) > limit {
+            self.healthy.store(false, Ordering::Relaxed);
+        }
+    }
+
+    fn fail_pending(&self, error: &anyhow::Error) {
+        for pending in self.pending.lock().unwrap().drain(..) {
+            let _ = pending.reply.send(Err(anyhow!("{error:#}")));
+        }
+    }
 }
 
 /// One spawned plugin process and its ordered request transport.
 struct Running {
     child: Child,
-    requests: SyncSender<Request>,
-    /// Cleared by the transport thread when the pipe breaks or a response is invalid.
-    healthy: Arc<AtomicBool>,
+    shared: Arc<Shared>,
 }
 
 impl Running {
     fn is_alive(&mut self) -> bool {
-        self.healthy.load(Ordering::Relaxed) && matches!(self.child.try_wait(), Ok(None))
+        self.shared.healthy.load(Ordering::Relaxed) && matches!(self.child.try_wait(), Ok(None))
     }
 
     fn kill(mut self) {
@@ -49,15 +155,15 @@ impl Running {
     }
 }
 
-/// A resident search plugin. It restarts itself when the process exits, stops responding
-/// or returns an invalid response, so references held by actions stay valid.
+/// A resident search plugin. It restarts itself when the process exits, stops answering
+/// heartbeats, stays stuck on a request or returns an invalid response, so references
+/// held by actions stay valid.
 pub struct SearchProcess {
     factory: Factory,
     running: Mutex<Option<Running>>,
     shutdown: AtomicBool,
     action_busy: Mutex<bool>,
     restarts: Mutex<VecDeque<Instant>>,
-    last_activity: Mutex<Instant>,
 }
 
 impl std::fmt::Debug for SearchProcess {
@@ -93,43 +199,56 @@ impl SearchProcess {
             shutdown: AtomicBool::new(false),
             action_busy: Mutex::new(false),
             restarts: Mutex::new(VecDeque::new()),
-            last_activity: Mutex::new(Instant::now()),
         })
     }
 
-    pub fn begin(&self, query: &str) -> Result<Reply> {
-        // Do not queue a 1-second search behind a long-running action on the same
-        // ordered transport. The action's completion may request a fresh search.
+    /// Starts a search; `timeout` tells the plugin how long the host will wait for it.
+    /// A search the host stops waiting for is not killed: the plugin skips or finishes it.
+    pub fn begin(&self, query: &str, timeout: Duration) -> Result<Reply> {
+        // Do not queue a search behind a long-running action on the same ordered
+        // transport. The action's completion may request a fresh search.
         let busy = self.action_busy.lock().unwrap();
         if *busy {
             bail!(i18n::t("error.action_in_progress"));
         }
-        self.request(SearchRequest {
-            query: query.into(),
-            action: None,
-        })
+        self.request(
+            SearchRequest {
+                query: query.into(),
+                action: None,
+                timeout_ms: Some(timeout.as_millis() as u64),
+                ping: None,
+            },
+            Kind::Search,
+        )
     }
 
-    fn request(&self, wire: SearchRequest) -> Result<Reply> {
+    fn request(&self, wire: SearchRequest, kind: Kind) -> Result<Reply> {
         let mut running = self.running.lock().unwrap();
-        let requests = self.ensure_running(&mut running)?;
-        *self.last_activity.lock().unwrap() = Instant::now();
+        let shared = self.ensure_running(&mut running)?;
+        drop(running);
         let (reply, receiver) = mpsc::channel();
-        requests
-            .try_send(Request { wire, reply })
-            .map_err(|err| anyhow!(i18n::format("error.busy", &[("error", &err.to_string())])))?;
+        // Queue and write under one lock so responses match requests in order.
+        let mut pending = shared.pending.lock().unwrap();
+        if pending.len() >= MAX_PENDING {
+            bail!(i18n::format("error.busy", &[("error", "queue full")]));
+        }
+        pending.push_back(Pending { reply, kind });
+        if let Err(error) = shared.write(&wire) {
+            pending.pop_back();
+            return Err(error);
+        }
         Ok(receiver)
     }
 
     /// Returns the live transport, restarting a dead process within the restart budget.
-    fn ensure_running(&self, running: &mut Option<Running>) -> Result<SyncSender<Request>> {
+    fn ensure_running(&self, running: &mut Option<Running>) -> Result<Arc<Shared>> {
         if self.shutdown.load(Ordering::Relaxed) {
             bail!(i18n::t("error.process_stopped"));
         }
         if let Some(current) = running.as_mut()
             && current.is_alive()
         {
-            return Ok(current.requests.clone());
+            return Ok(current.shared.clone());
         }
         if let Some(dead) = running.take() {
             dead.kill();
@@ -138,9 +257,9 @@ impl SearchProcess {
             bail!(i18n::t("error.process_stopped"));
         }
         let fresh = spawn((self.factory)())?;
-        let requests = fresh.requests.clone();
+        let shared = fresh.shared.clone();
         *running = Some(fresh);
-        Ok(requests)
+        Ok(shared)
     }
 
     fn allow_restart(&self) -> bool {
@@ -165,13 +284,18 @@ impl SearchProcess {
             bail!(i18n::t("error.action_in_progress"));
         }
         *busy = true;
-        let reply = self.request(SearchRequest {
-            query: String::new(),
-            action: Some(PluginActionRequest {
-                command: command.into(),
-                item: item.into(),
-            }),
-        });
+        let reply = self.request(
+            SearchRequest {
+                query: String::new(),
+                action: Some(PluginActionRequest {
+                    command: command.into(),
+                    item: item.into(),
+                }),
+                timeout_ms: None,
+                ping: None,
+            },
+            Kind::Action,
+        );
         drop(busy);
         let result = self.wait_action(reply);
         *self.action_busy.lock().unwrap() = false;
@@ -207,39 +331,23 @@ impl SearchProcess {
         self.stop();
     }
 
-    /// Restarts a crashed process, and starts a heartbeat probe if it has been idle.
-    /// Returns a pending probe; the caller waits for it with `finish_probe`.
-    pub(crate) fn check(&self) -> Option<Reply> {
-        if self.shutdown.load(Ordering::Relaxed) || *self.action_busy.lock().unwrap() {
-            return None;
+    /// One watchdog tick: restarts a dead, unresponsive or stuck process and sends a
+    /// heartbeat when one is due.
+    pub(crate) fn check(&self) {
+        if self.shutdown.load(Ordering::Relaxed) {
+            return;
         }
-        {
-            let mut running = self.running.lock().unwrap();
-            let alive = running.as_mut().is_some_and(Running::is_alive);
-            if !alive {
-                // Errors (restart budget exhausted, spawn failure) are retried next tick.
-                let _ = self.ensure_running(&mut running);
-                return None;
-            }
-        }
-        if self.last_activity.lock().unwrap().elapsed() < HEARTBEAT_IDLE {
-            return None;
-        }
-        self.request(SearchRequest {
-            query: String::new(),
-            action: None,
-        })
-        .ok()
-    }
-
-    pub(crate) fn finish_probe(&self, probe: Reply, deadline: Instant) {
-        let answered = probe
-            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-            .is_ok_and(|response| response.is_ok());
-        if !answered && !self.shutdown.load(Ordering::Relaxed) {
-            self.stop();
-            let mut running = self.running.lock().unwrap();
+        let mut running = self.running.lock().unwrap();
+        let alive = running.as_mut().is_some_and(Running::is_alive);
+        if !alive {
+            // Errors (restart budget exhausted, spawn failure) are retried next tick.
             let _ = self.ensure_running(&mut running);
+            return;
+        }
+        let shared = running.as_ref().map(|running| running.shared.clone());
+        drop(running);
+        if let Some(shared) = shared {
+            shared.heartbeat();
         }
     }
 }
@@ -251,7 +359,7 @@ pub(crate) fn watch(processes: Vec<std::sync::Weak<SearchProcess>>) {
     }
     std::thread::spawn(move || {
         loop {
-            std::thread::sleep(Duration::from_secs(3));
+            std::thread::sleep(Duration::from_secs(1));
             let live: Vec<_> = processes.iter().filter_map(|weak| weak.upgrade()).collect();
             if live.is_empty()
                 || live
@@ -260,13 +368,8 @@ pub(crate) fn watch(processes: Vec<std::sync::Weak<SearchProcess>>) {
             {
                 break;
             }
-            let probes: Vec<_> = live
-                .iter()
-                .filter_map(|process| process.check().map(|probe| (process, probe)))
-                .collect();
-            let deadline = Instant::now() + HEARTBEAT_TIMEOUT;
-            for (process, probe) in probes {
-                process.finish_probe(probe, deadline);
+            for process in live {
+                process.check();
             }
         }
     });
@@ -283,43 +386,55 @@ fn spawn(mut command: Command) -> Result<Running> {
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW: headless plugin.
     }
     let mut child = command.spawn().context(i18n::t("error.process_start"))?;
-    let mut stdin = child.stdin.take().context(i18n::t("error.stdin"))?;
-    let mut stdout = BufReader::new(child.stdout.take().context(i18n::t("error.stdout"))?);
-    let (requests, receiver) = mpsc::sync_channel::<Request>(1);
-    let healthy = Arc::new(AtomicBool::new(true));
-    let transport_health = healthy.clone();
-    std::thread::spawn(move || {
-        for request in receiver {
-            let response = (|| -> Result<SearchResponse> {
-                serde_json::to_writer(&mut stdin, &request.wire)?;
-                writeln!(stdin)?;
-                stdin.flush()?;
-                let mut line = Vec::new();
-                let read = Read::take(&mut stdout, 1_048_577).read_until(b'\n', &mut line)?;
-                if read == 0 {
-                    bail!(i18n::t("error.process_exited"));
-                }
-                if read > 1_048_576 || !line.ends_with(b"\n") {
-                    bail!(i18n::t("error.response_limit"));
-                }
-                let mut response: SearchResponse =
-                    serde_json::from_slice(&line).context(i18n::t("error.response_invalid"))?;
-                response.items.truncate(50);
-                Ok(response)
-            })();
-            let failed = response.is_err();
-            let _ = request.reply.send(response);
-            if failed {
-                transport_health.store(false, Ordering::Relaxed);
-                break;
-            }
-        }
+    let stdin = child.stdin.take().context(i18n::t("error.stdin"))?;
+    let stdout = BufReader::new(child.stdout.take().context(i18n::t("error.stdout"))?);
+    let shared = Arc::new(Shared {
+        stdin: Mutex::new(stdin),
+        pending: Mutex::new(VecDeque::new()),
+        healthy: AtomicBool::new(true),
+        responsive: AtomicBool::new(false),
+        started: Instant::now(),
+        heartbeat: Mutex::new(Heartbeat::default()),
     });
-    Ok(Running {
-        child,
-        requests,
-        healthy,
-    })
+    let reader = shared.clone();
+    std::thread::spawn(move || {
+        let error = read_responses(stdout, &reader);
+        reader.healthy.store(false, Ordering::Relaxed);
+        reader.fail_pending(&error);
+    });
+    Ok(Running { child, shared })
+}
+
+/// Routes plugin output until the pipe closes or a line is invalid; returns why it stopped.
+fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
+    loop {
+        let mut line = Vec::new();
+        let read = match Read::take(&mut stdout, 1_048_577).read_until(b'\n', &mut line) {
+            Ok(read) => read,
+            Err(error) => return error.into(),
+        };
+        if read == 0 {
+            return anyhow!(i18n::t("error.process_exited"));
+        }
+        if read > 1_048_576 || !line.ends_with(b"\n") {
+            return anyhow!(i18n::t("error.response_limit"));
+        }
+        let mut response: SearchResponse = match serde_json::from_slice(&line) {
+            Ok(response) => response,
+            Err(error) => return anyhow!(error).context(i18n::t("error.response_invalid")),
+        };
+        shared.responsive.store(true, Ordering::Relaxed);
+        if let Some(sequence) = response.pong {
+            shared.pong(sequence, response.busy_ms.unwrap_or(0));
+            continue;
+        }
+        response.items.truncate(50);
+        // The receiver may be gone when the host stopped waiting; that is fine.
+        let next = shared.pending.lock().unwrap().pop_front();
+        if let Some(pending) = next {
+            let _ = pending.reply.send(Ok(response));
+        }
+    }
 }
 
 impl Drop for SearchProcess {
@@ -346,11 +461,11 @@ impl SearchProcess {
 
     pub(crate) fn fixture() -> Self {
         let process = Self::start_factory(Self::powershell(
-            "$count=0; while ($null -ne ($line=[Console]::ReadLine())) { $q=($line|ConvertFrom-Json).query; $count++; @{items=@(@{title=$q;description=[string]$count;resource=@{type='text';text=$q}})}|ConvertTo-Json -Compress -Depth 5 }",
+            "$count=0; while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.ping) { continue }; $q=$r.query; if ($q -eq 'slow') { Start-Sleep -Milliseconds 1500 }; $count++; @{items=@(@{title=$q;description=[string]$count;resource=@{type='text';text=$q}})}|ConvertTo-Json -Compress -Depth 5 }",
         ))
         .unwrap();
         process
-            .begin("warmup")
+            .begin("warmup", SEARCH_TIMEOUT)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -369,7 +484,7 @@ mod tests {
             "while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.action) { Start-Sleep -Milliseconds 1200; '{\"items\":[],\"effect\":{\"refresh\":true}}' } else { '{\"items\":[]}' } }",
         )).unwrap());
         process
-            .begin("warmup")
+            .begin("warmup", SEARCH_TIMEOUT)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -381,11 +496,11 @@ mod tests {
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(Duration::from_millis(5));
         }
-        assert!(process.begin("changed input").is_err());
+        assert!(process.begin("changed input", SEARCH_TIMEOUT).is_err());
         assert!(action.join().unwrap().unwrap().refresh);
         assert!(
             process
-                .begin("completed")
+                .begin("completed", SEARCH_TIMEOUT)
                 .unwrap()
                 .recv_timeout(SEARCH_TIMEOUT)
                 .unwrap()
@@ -398,7 +513,7 @@ mod tests {
         let process = SearchProcess::fixture();
         process.stop();
         let response = process
-            .begin("after stop")
+            .begin("after stop", SEARCH_TIMEOUT)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -409,16 +524,72 @@ mod tests {
             let _ = running.child.kill();
             let _ = running.child.wait();
         }
-        assert!(process.check().is_none());
+        process.check();
         let response = process
-            .begin("after crash")
+            .begin("after crash", SEARCH_TIMEOUT)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
             .unwrap();
         assert_eq!(response.items[0].title, "after crash");
         process.shutdown();
-        assert!(process.begin("after shutdown").is_err());
+        assert!(process.begin("after shutdown", SEARCH_TIMEOUT).is_err());
+    }
+
+    #[test]
+    fn abandoned_search_does_not_shift_later_responses() {
+        let process = SearchProcess::fixture();
+        let slow = process.begin("slow", SEARCH_TIMEOUT).unwrap();
+        assert!(slow.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(slow); // The host stopped waiting; the process must not be killed.
+        let next = process
+            .begin("next", SEARCH_TIMEOUT)
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap()
+            .unwrap();
+        assert_eq!(next.items[0].title, "next");
+        // Same process: the counter continues instead of restarting at one.
+        assert_eq!(next.items[0].description, "3");
+    }
+
+    #[test]
+    fn unanswered_heartbeat_or_stuck_request_restarts_plugin() {
+        let process = SearchProcess::fixture();
+        process.check(); // Sends the first ping, which this fixture ignores.
+        let shared = process
+            .running
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .shared
+            .clone();
+        let sent = shared.heartbeat.lock().unwrap().outstanding.unwrap();
+        shared.heartbeat.lock().unwrap().outstanding = Some(sent - PONG_TIMEOUT * 2);
+        process.check(); // Ping overdue: unhealthy.
+        assert!(!shared.healthy.load(Ordering::Relaxed));
+        process.check(); // Restarted.
+        let restarted = process
+            .begin("after restart", SEARCH_TIMEOUT)
+            .unwrap()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap()
+            .unwrap();
+        assert_eq!(restarted.items[0].description, "1");
+
+        let shared = process
+            .running
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .shared
+            .clone();
+        shared.pong(0, 1000);
+        assert!(shared.healthy.load(Ordering::Relaxed));
+        shared.pong(0, SEARCH_HUNG.as_millis() as u64 + 1);
+        assert!(!shared.healthy.load(Ordering::Relaxed));
     }
 
     #[test]

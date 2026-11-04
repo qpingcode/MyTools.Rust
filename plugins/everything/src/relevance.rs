@@ -9,17 +9,25 @@ use std::collections::HashSet;
 /// several terms); such queries are sent unchanged instead of being tiered.
 const SYNTAX: &[char] = &[' ', '"', ':', '*', '?', '|', '<', '>', '!', '\\', '/'];
 
+/// Queries up to this many characters only look for exact and prefix matches.
+const SHORT_QUERY: usize = 2;
+
 /// The Everything queries to run, strongest tier first, with each tier's result limit.
 pub fn tiers(query: &str) -> Vec<(String, u32)> {
     let query = query.trim();
     if query.is_empty() || query.contains(SYNTAX) {
-        return vec![(query.to_owned(), 300)];
+        return vec![(query.to_owned(), 150)];
     }
-    vec![
+    let mut tiers = vec![
         (format!("wfn:\"{query}\""), 20),
-        (format!("startwith:\"{query}\""), 100),
-        (query.to_owned(), 300),
-    ]
+        (format!("startwith:\"{query}\""), 60),
+    ];
+    // One or two characters are contained in nearly every path: the full scan is the
+    // slowest query yet adds nothing a prefix match does not, so it is left out.
+    if query.chars().count() > SHORT_QUERY {
+        tiers.push((query.to_owned(), 150));
+    }
+    tiers
 }
 
 /// Removes duplicates across tiers and orders by match quality, then shorter names, then
@@ -88,6 +96,7 @@ mod tests {
         assert_eq!(tiers.len(), 3);
         assert_eq!(tiers[0].0, "wfn:\"app\"");
         assert_eq!(tiers[2].0, "app");
+        assert_eq!(super::tiers("ab").len(), 2);
         assert_eq!(super::tiers("*.sln").len(), 1);
         assert_eq!(super::tiers("app config").len(), 1);
         assert_eq!(super::tiers(r"src\app").len(), 1);

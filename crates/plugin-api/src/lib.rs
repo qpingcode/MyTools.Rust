@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
+mod transport;
+pub use transport::{cancelled, deadline};
+
 mod actions;
 pub use actions::{ActionId, ActionSpec, Resource};
 pub use icons::Icon;
@@ -13,6 +16,12 @@ pub struct SearchRequest {
     pub query: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<PluginActionRequest>,
+    /// How long the host waits for this search; see [`deadline`].
+    #[serde(default, rename = "timeoutMs", skip_serializing_if = "Option::is_none")]
+    pub timeout_ms: Option<u64>,
+    /// Heartbeat: answered at once with `pong` by the transport, never by the plugin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ping: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -44,32 +53,30 @@ pub struct SearchResponse {
     pub effect: Option<PluginEffect>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Heartbeat reply carrying the `ping` value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pong: Option<u64>,
+    /// With `pong`: how long the current request has been running, 0 when idle.
+    #[serde(default, rename = "busyMs", skip_serializing_if = "Option::is_none")]
+    pub busy_ms: Option<u64>,
 }
 
 /// A search plugin stays alive and handles one JSON request per line.
 /// stdout is reserved for responses; diagnostics should use stderr.
+/// Heartbeats and cancellation are handled by the transport (see [`cancelled`]).
 pub fn serve(search: impl Fn(&str) -> Vec<SearchItem>) -> io::Result<()> {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    serve_io(stdin.lock(), stdout.lock(), search)
+    serve_io(io::BufReader::new(io::stdin()), io::stdout(), search)
 }
 
 fn serve_io(
-    input: impl BufRead,
-    mut output: impl Write,
+    input: impl BufRead + Send + 'static,
+    output: impl Write + Send + 'static,
     search: impl Fn(&str) -> Vec<SearchItem>,
 ) -> io::Result<()> {
-    for line in input.lines() {
-        let request: SearchRequest = serde_json::from_str(&line?)?;
-        let response = SearchResponse {
-            items: search(&request.query),
-            ..Default::default()
-        };
-        serde_json::to_writer(&mut output, &response)?;
-        writeln!(output)?;
-        output.flush()?;
-    }
-    Ok(())
+    transport::run(input, output, |request| SearchResponse {
+        items: search(&request.query),
+        ..Default::default()
+    })
 }
 
 pub mod i18n;
@@ -87,57 +94,65 @@ pub fn serve_interactive(
     search: impl Fn(&str) -> SearchResponse,
     action: impl Fn(PluginActionRequest) -> SearchResponse,
 ) -> io::Result<()> {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let request: SearchRequest = serde_json::from_str(&line?)?;
-        let response = match request.action {
-            Some(command) => action(command),
-            None => search(&request.query),
-        };
-        serde_json::to_writer(&mut stdout, &response)?;
-        writeln!(stdout)?;
-        stdout.flush()?;
-    }
-    Ok(())
+    transport::run(io::BufReader::new(io::stdin()), io::stdout(), |request| {
+        transport::dispatch(request, &search, &action)
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    struct SharedSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl Write for SharedSink {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn handles_multiple_queries_in_one_session() {
-        let input = b"{\"query\":\"1 + 1\"}\n{\"query\":\"\"}\n";
-        let mut output = Vec::new();
-        serve_io(&input[..], &mut output, |query| {
-            if query.is_empty() {
-                vec![]
-            } else {
-                vec![SearchItem {
-                    intent_match: false,
-                    title: query.into(),
-                    icon: None,
-                    description: String::new(),
-                    resource: Resource::Text { text: "2".into() },
-                    actions: None,
-                    preview: None,
-                }]
-            }
-        })
+        // Every request gets one response, in order. A search queued behind a newer one
+        // is cancelled (empty), so the newest query is sent last.
+        let input = b"{\"query\":\"\"}\n{\"query\":\"1 + 1\"}\n";
+        let sink = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        serve_io(
+            std::io::Cursor::new(input.to_vec()),
+            SharedSink(sink.clone()),
+            |query| {
+                if query.is_empty() {
+                    vec![]
+                } else {
+                    vec![SearchItem {
+                        intent_match: false,
+                        title: query.into(),
+                        icon: None,
+                        description: String::new(),
+                        resource: Resource::Text { text: "2".into() },
+                        actions: None,
+                        preview: None,
+                    }]
+                }
+            },
+        )
         .unwrap();
+        let output = sink.lock().unwrap();
         let lines: Vec<SearchResponse> = output
             .split(|byte| *byte == b'\n')
             .filter(|line| !line.is_empty())
             .map(|line| serde_json::from_slice(line).unwrap())
             .collect();
         assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0].items[0].title, "1 + 1");
+        assert!(lines[0].items.is_empty());
+        assert_eq!(lines[1].items[0].title, "1 + 1");
         assert_eq!(
-            lines[0].items[0].resource,
+            lines[1].items[0].resource,
             Resource::Text { text: "2".into() }
         );
-        assert!(lines[1].items.is_empty());
     }
 
     #[test]

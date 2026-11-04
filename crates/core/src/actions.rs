@@ -31,12 +31,16 @@ enum Operation {
         item: String,
         process: Option<std::sync::Arc<crate::search_process::SearchProcess>>,
     },
+    /// Runs the current query again with a longer timeout.
+    Retry(u32),
 }
 
 pub enum ActionEffect {
     CopyText(String),
     Completed,
     Plugin(mytools_plugin_api::PluginEffect),
+    /// Search the current query again as this retry attempt.
+    Retry(u32),
 }
 
 impl Action {
@@ -63,6 +67,7 @@ impl Action {
     pub fn execute(&self) -> Result<ActionEffect> {
         match &self.operation {
             Operation::Copy(text) => return Ok(ActionEffect::CopyText(text.clone())),
+            Operation::Retry(attempt) => return Ok(ActionEffect::Retry(*attempt)),
             Operation::Open(path) | Operation::OpenApplication(path) => {
                 platform::open_application(path)?
             }
@@ -87,6 +92,18 @@ impl Action {
             }
         }
         Ok(ActionEffect::Completed)
+    }
+
+    /// Retries a search whose plugin did not answer in time.
+    pub(crate) fn retry(attempt: u32) -> Self {
+        Self {
+            id: ActionId::Plugin,
+            title: Some(i18n::t("actions.retry")),
+            title_key: "actions.execute",
+            icon: "builtin:refresh-cw".into(),
+            operation: Operation::Retry(attempt),
+            selection: None,
+        }
     }
 
     /// A plugin-provided command acting on a file or folder path.

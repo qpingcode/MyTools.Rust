@@ -2,7 +2,7 @@
   "id": "everything",
   "name": {
     "key": "name",
-    "defaultValue": "Everything File Search"
+    "defaultValue": "Everything"
   },
   "version": "0.0.1",
   "type": "search",
@@ -12,6 +12,7 @@
     "file"
   ],
   "search": {
-    "global": false
+    "global": false,
+    "aliasTimeoutMs": 5000
   }
 }

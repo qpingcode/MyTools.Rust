@@ -63,6 +63,87 @@ pub struct SearchResults {
     pub plugin_name: Option<String>,
     pub view: mytools_plugin_api::View,
     pub revision: Option<u64>,
+    /// A newer query arrived while waiting; the results are incomplete and stale.
+    pub cancelled: bool,
+}
+
+/// How one search runs: retries wait longer, and a newer query cancels the wait.
+pub struct SearchOptions<'a> {
+    /// 0 for a normal search; each retry doubles the alias timeout (capped).
+    pub attempt: u32,
+    pub cancelled: &'a dyn Fn() -> bool,
+}
+
+impl Default for SearchOptions<'_> {
+    fn default() -> Self {
+        Self {
+            attempt: 0,
+            cancelled: &|| false,
+        }
+    }
+}
+
+/// Global searches share one second; a search through an alias uses that plugin's own
+/// limit, doubled per retry, never above the maximum.
+fn search_timeout(plugin: &Plugin, targeted: bool, attempt: u32) -> std::time::Duration {
+    if !targeted {
+        return SEARCH_TIMEOUT;
+    }
+    plugin
+        .alias_timeout
+        .saturating_mul(1 << attempt.min(4))
+        .min(crate::plugins::MAX_ALIAS_TIMEOUT)
+}
+
+enum Waited {
+    Response(Result<mytools_plugin_api::SearchResponse>),
+    TimedOut,
+    Cancelled,
+}
+
+/// Waits in short slices so a newer query can stop the wait early.
+fn wait(
+    reply: &std::sync::mpsc::Receiver<Result<mytools_plugin_api::SearchResponse>>,
+    deadline: Instant,
+    cancelled: &dyn Fn() -> bool,
+) -> Waited {
+    use std::sync::mpsc::RecvTimeoutError;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Waited::TimedOut;
+        }
+        match reply.recv_timeout(left.min(std::time::Duration::from_millis(50))) {
+            Ok(response) => return Waited::Response(response),
+            Err(RecvTimeoutError::Timeout) if cancelled() => return Waited::Cancelled,
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                return Waited::Response(Err(anyhow::anyhow!(i18n::t("error.process_exited"))));
+            }
+        }
+    }
+}
+
+fn seconds(duration: std::time::Duration) -> String {
+    format!("{}", duration.as_millis() as f64 / 1000.0)
+}
+
+fn retry_entry(plugin: &Plugin, input: &str, waited: std::time::Duration, attempt: u32) -> Entry {
+    let next = search_timeout(plugin, true, attempt + 1);
+    let mut entry = Entry::new(
+        i18n::format("search.timed_out", &[("seconds", &seconds(waited))]),
+        i18n::format(
+            "search.timed_out_detail",
+            &[("name", &plugin.name), ("seconds", &seconds(next))],
+        ),
+        "builtin:refresh-cw".into(),
+        Resource::Text { text: input.into() },
+        Some(&[]),
+    )
+    .expect("an empty action list fits every resource");
+    entry.source_id = plugin.id.clone();
+    entry.actions.push(Action::retry(attempt + 1));
+    entry
 }
 
 impl Catalog {
@@ -129,6 +210,10 @@ impl Catalog {
     }
 
     pub fn search(&self, input: &str) -> SearchResults {
+        self.search_with(input, &SearchOptions::default())
+    }
+
+    pub fn search_with(&self, input: &str, options: &SearchOptions) -> SearchResults {
         let (target, query) = route(&self.plugins, input);
         let mut output = SearchResults {
             entries: vec![],
@@ -136,7 +221,9 @@ impl Catalog {
             plugin_name: target.map(|i| self.plugins[i].name.clone()),
             view: target.map(|i| self.plugins[i].view).unwrap_or_default(),
             revision: None,
+            cancelled: false,
         };
+        let timeout = |plugin: &Plugin| search_timeout(plugin, target.is_some(), options.attempt);
         let mut pending = vec![];
         // Submit to every eligible plugin before waiting, so plugins run concurrently.
         for (index, plugin) in self.plugins.iter().enumerate() {
@@ -144,8 +231,8 @@ impl Catalog {
                 continue;
             }
             if let Some(process) = &plugin.process {
-                match process.begin(query) {
-                    Ok(reply) => pending.push((plugin, process, reply)),
+                match process.begin(query, timeout(plugin)) {
+                    Ok(reply) => pending.push((plugin, reply)),
                     Err(err) => output.errors.push(format!("{}：{err}", plugin.name)),
                 }
             } else if target.is_some() || matches_query(&plugin.name, &plugin.aliases, query) {
@@ -170,10 +257,14 @@ impl Catalog {
                 }
             }
         }
-        let deadline = Instant::now() + SEARCH_TIMEOUT;
-        for (plugin, process, reply) in pending {
-            match reply.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-                Ok(Ok(response)) => {
+        let started = Instant::now();
+        for (plugin, reply) in pending {
+            match wait(&reply, started + timeout(plugin), options.cancelled) {
+                Waited::Cancelled => {
+                    output.cancelled = true;
+                    return output;
+                }
+                Waited::Response(Ok(response)) => {
                     if target.is_some() {
                         output.revision = response.revision;
                     }
@@ -190,14 +281,21 @@ impl Catalog {
                         }
                     }
                 }
-                error => {
-                    process.stop();
-                    let message = match error {
-                        Ok(Err(err)) => err.to_string(),
-                        Err(_) => i18n::t("error.timeout"),
-                        _ => unreachable!(),
-                    };
-                    output.errors.push(format!("{}：{message}", plugin.name));
+                // The plugin is not killed: it skips or finishes the abandoned search, and
+                // the heartbeat restarts it only if it really stops responding.
+                Waited::TimedOut if target.is_some() => output.entries.push(retry_entry(
+                    plugin,
+                    input,
+                    timeout(plugin),
+                    options.attempt,
+                )),
+                Waited::TimedOut => {
+                    output
+                        .errors
+                        .push(format!("{}：{}", plugin.name, i18n::t("error.timeout")))
+                }
+                Waited::Response(Err(error)) => {
+                    output.errors.push(format!("{}：{error}", plugin.name));
                 }
             }
         }
@@ -474,6 +572,7 @@ mod tests {
             icon: "=".into(),
             aliases: vec!["calc".into(), "计算".into()],
             global: false,
+            alias_timeout: crate::plugins::ALIAS_TIMEOUT,
             executable: std::env::temp_dir().join("mytools-fixture.exe"),
             process: None,
             view: Default::default(),
