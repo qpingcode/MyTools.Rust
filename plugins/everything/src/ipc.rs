@@ -25,9 +25,8 @@ const REQUEST_NAME: u32 = 0x0000_0001;
 const REQUEST_PATH: u32 = 0x0000_0002;
 const ITEM_FOLDER: u32 = 0x0000_0001;
 const ITEM_DRIVE: u32 = 0x0000_0002;
-const SORT_NAME_ASCENDING: u32 = 1;
-/// The host waits one second for a search; answer well before that.
-const REPLY_TIMEOUT: Duration = Duration::from_millis(700);
+/// Recently modified first: the tie-breaker after local relevance ranking.
+const SORT_DATE_MODIFIED_DESCENDING: u32 = 14;
 const REPLY_BASE: u32 = 0x4D59_0000;
 
 static SEQUENCE: AtomicU32 = AtomicU32::new(0);
@@ -98,7 +97,8 @@ fn reply_window() -> Result<HWND, SearchError> {
     })
 }
 
-pub fn search(query: &str, max_results: u32) -> Result<Vec<Hit>, SearchError> {
+/// Runs one query; `deadline` bounds both sending and waiting for the reply.
+pub fn search(query: &str, max_results: u32, deadline: Instant) -> Result<Vec<Hit>, SearchError> {
     let everything = unsafe { FindWindowW(wide(EVERYTHING_WINDOW).as_ptr(), ptr::null()) };
     if everything.is_null() {
         return Err(SearchError::NotRunning);
@@ -120,19 +120,25 @@ pub fn search(query: &str, max_results: u32) -> Result<Vec<Hit>, SearchError> {
             window as WPARAM,
             &data as *const COPYDATASTRUCT as LPARAM,
             SMTO_ABORTIFHUNG,
-            REPLY_TIMEOUT.as_millis() as u32,
+            remaining(deadline)?.as_millis().max(1) as u32,
             &mut accepted,
         )
     };
     if sent == 0 || accepted == 0 {
         return Err(SearchError::Failed("Everything rejected the query".into()));
     }
-    let bytes = wait_reply(reply_id as usize)?;
+    let bytes = wait_reply(reply_id as usize, deadline)?;
     decode_list(&bytes)
 }
 
-fn wait_reply(reply_id: usize) -> Result<Vec<u8>, SearchError> {
-    let deadline = Instant::now() + REPLY_TIMEOUT;
+fn remaining(deadline: Instant) -> Result<Duration, SearchError> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|left| !left.is_zero())
+        .ok_or_else(|| SearchError::Failed("timeout".into()))
+}
+
+fn wait_reply(reply_id: usize, deadline: Instant) -> Result<Vec<u8>, SearchError> {
     loop {
         let mut message: MSG = unsafe { std::mem::zeroed() };
         while unsafe { PeekMessageW(&mut message, ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
@@ -166,7 +172,7 @@ fn encode_query(reply_window: u32, reply_id: u32, query: &str, max_results: u32)
         0, // offset
         max_results,
         REQUEST_NAME | REQUEST_PATH,
-        SORT_NAME_ASCENDING,
+        SORT_DATE_MODIFIED_DESCENDING,
     ];
     let mut bytes: Vec<u8> = header
         .iter()

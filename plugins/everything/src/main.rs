@@ -4,8 +4,12 @@ use std::path::PathBuf;
 
 #[cfg(windows)]
 mod ipc;
+mod relevance;
 
-const MAX_RESULTS: u32 = 50;
+const MAX_RESULTS: usize = 50;
+/// The host waits one second for a search; all tiered queries share this budget.
+#[cfg(windows)]
+const SEARCH_BUDGET: std::time::Duration = std::time::Duration::from_millis(800);
 
 /// One Everything result: a file, folder or drive.
 #[derive(Debug, PartialEq)]
@@ -23,7 +27,21 @@ pub enum SearchError {
 
 #[cfg(windows)]
 fn query_everything(query: &str) -> Result<Vec<Hit>, SearchError> {
-    ipc::search(query, MAX_RESULTS)
+    let deadline = std::time::Instant::now() + SEARCH_BUDGET;
+    let mut hits = Vec::new();
+    let mut last_error = None;
+    for (text, limit) in relevance::tiers(query) {
+        match ipc::search(&text, limit, deadline) {
+            Ok(found) => hits.extend(found),
+            Err(SearchError::NotRunning) => return Err(SearchError::NotRunning),
+            // A slow later tier still leaves the stronger tiers' results to show.
+            Err(error) => last_error = Some(error),
+        }
+    }
+    match last_error {
+        Some(error) if hits.is_empty() => Err(error),
+        _ => Ok(relevance::rank_hits(hits, query, MAX_RESULTS)),
+    }
 }
 
 #[cfg(not(windows))]
