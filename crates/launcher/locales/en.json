@@ -13,6 +13,7 @@
   "paste.permission": "Enable Accessibility access for MyTools in System Settings to paste into other applications",
   "actions.execute": "Execute",
   "actions.busy": "Running…",
+  "actions.running": "{action}…",
   "actions.copy": "Copy",
   "actions.copy_link": "Copy Link",
   "actions.open_browser": "Open in Browser",

@@ -13,6 +13,7 @@
   "paste.permission": "请在系统设置中为 MyTools 开启辅助功能权限，以粘贴到其他应用",
   "actions.execute": "执行",
   "actions.busy": "执行中…",
+  "actions.running": "正在{action}…",
   "actions.copy": "复制",
   "actions.copy_link": "复制链接",
   "actions.open_browser": "在浏览器中打开",

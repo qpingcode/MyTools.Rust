@@ -219,6 +219,13 @@ pub fn sync_selection(ui: &MainWindow, state: &State) {
 }
 
 fn start_action(ui: &MainWindow, action: Action) {
+    ui.set_action_status(
+        i18n::format(
+            "actions.running",
+            &[("action", &i18n::action_title(&action))],
+        )
+        .into(),
+    );
     ui.set_action_busy(true);
     let query = ui.get_query();
     let weak = ui.as_weak();

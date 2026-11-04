@@ -34,8 +34,10 @@ export component MainWindow inherits Window {
     /// The worker is querying plugins (set when input has settled, not on each keystroke).
     /// Startup counts as running while plugins load.
     in property <bool> search-running: true;
-    /// Searches that finish quickly never show the indicator; once shown it stays until
-    /// results arrive, even while the user keeps typing.
+    /// Status text while an action runs, e.g. "Translating…".
+    in property <string> action-status;
+    /// Searches and actions that finish quickly never show the indicator; once shown it
+    /// stays until both are done, even while the user keeps typing.
     out property <bool> show-loading;
     in property <[ActionData]> actions;
     in-out property <bool> actions-open;
@@ -64,10 +66,11 @@ export component MainWindow inherits Window {
     callback execute-action(int);
     private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
-    changed searching => { if (!self.searching) { self.show-loading = false; } }
+    changed searching => { if (!self.searching && !self.action-busy) { self.show-loading = false; } }
+    changed action-busy => { if (!self.action-busy && !self.searching) { self.show-loading = false; } }
     loading-delay := Timer {
         interval: 150ms;
-        running: root.searching && root.search-running && !root.show-loading;
+        running: (root.action-busy || (root.searching && root.search-running)) && !root.show-loading;
         triggered => { root.show-loading = true; }
     }
     public function focus-search() { search-bar.focus-input(); }
@@ -125,7 +128,9 @@ export component MainWindow inherits Window {
             }
             StatusBar {
                 y: parent.height - self.height; width: parent.width;
-                status: root.show-loading && root.searching-status != "" ? root.searching-status : root.status;
+                status: !root.show-loading ? root.status
+                    : root.action-busy && root.action-status != "" ? root.action-status
+                    : root.searching-status != "" ? root.searching-status : root.status;
                 failed: root.failed && !root.show-loading;
                 loading: root.show-loading;
                 primary-title: root.primary-title;
