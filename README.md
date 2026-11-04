@@ -141,7 +141,7 @@ run.ps1 / run.sh       编译、放置插件、运行
 | `search.aliasTimeoutMs` | 可选，通过别名单独搜索该插件时的等待上限（毫秒），默认 3000，范围 1000–15000。普通（全局）搜索固定 1 秒，不受此值影响 |
 | `view` | `list`（默认）或 `list-detail`；详情布局只在该插件的搜索作用域内启用 |
 | `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；可通过宿主配置覆盖 |
-| `pathActions` | 可选，为所有文件/文件夹结果追加的插件动作，见“IDE 打开” |
+| `contributes.actions` | 可选，按规则为其他结果追加本插件的动作，见“为其他结果追加动作” |
 
 启动器读取自身目录下 `plugins/*/plugin.json`，也可通过 `MYTOOLS_PLUGIN_DIR` 指定插件根目录。
 添加插件只需在该目录中新建文件夹，放入配置和编译后的程序，然后重启启动器。
@@ -174,7 +174,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 
 ## IDE 打开（dev-open）
 
-`dev-open` 插件在 `plugin.json` 中声明 `pathActions`，宿主会把这些动作追加到**所有**文件/文件夹结果的操作面板（`Ctrl+K`）：
+`dev-open` 插件在 `plugin.json` 中声明 `contributes.actions`（`when.type: ["path"]`），宿主会把这些动作追加到**所有**文件/文件夹结果的操作面板（`Ctrl+K`）：
 
 - **用 Rider 打开**：从当前目录向上递归查找 `.sln` / `.slnx` / `.slnf`；整条路径都找不到解决方案时，再向上查找
   `.csproj` / `.fsproj` / `.vbproj` / `.vcxproj` / `.esproj` / `.proj`；仍找不到则提示无法打开。同一目录有多个时优先 `.sln`、
@@ -186,8 +186,30 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 `%LOCALAPPDATA%\JetBrains\Installations`、`%LOCALAPPDATA%\Programs`、`%ProgramFiles%\JetBrains` 和 PATH 查找；
 自动检测失败时可在 `plugins/dev-open/config.json` 中填写 `rider`、`vscode`、`visualstudio` 的程序绝对路径。
 
-其他插件也可声明 `pathActions`（`command`、`title.key/defaultValue`、`icon`），宿主执行时向该插件发送
-`{"action":{"command":"<command>","item":"<路径>"}}`；插件返回的 `effect.dismiss: true` 表示成功后隐藏启动器。
+### 为其他结果追加动作
+
+任何 `search` 类型插件都可以在 `plugin.json` 中用规则把自己的动作追加到其他结果上：
+
+```json
+"contributes": {
+  "actions": [
+    {
+      "when": { "type": ["path"], "source": ["everything", "clipboard"] },
+      "actions": [
+        { "command": "rider", "title": { "key": "action.rider", "defaultValue": "Open in Rider" }, "icon": "builtin:square-code" }
+      ]
+    }
+  ]
+}
+```
+
+- `when.type`：结果类型 `url`、`file`、`folder`、`text`、`application`、`plugin_item`；`path` 等同 `file` + `folder`。
+- `when.source`：产生该结果的插件 id。
+- 字段之间为“且”，列表内为“或”；省略或为空表示不限。多条规则分别匹配，命中的动作按插件加载顺序追加到结果自身动作之后。
+- 未知字段或类型值会使 manifest 加载失败，错误显示在状态栏。`actions: []` 的提示类结果不追加任何动作。
+
+执行时宿主向贡献动作的插件发送 `{"action":{"command":"<command>","item":"<值>"}}`，`item` 为结果的主值：
+文件/文件夹/应用为路径，`url` 为链接，`text` 为文本，`plugin_item` 为其 `id`。插件返回 `effect.dismiss: true` 表示成功后隐藏启动器。
 
 ## 剪贴板历史
 

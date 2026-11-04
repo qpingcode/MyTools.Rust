@@ -1,6 +1,6 @@
 //! Opens files and folders in Rider, VS Code or Visual Studio.
-//! The host offers these commands on every file/folder result (see `pathActions` in
-//! plugin.json); typing an existing path also lists them directly.
+//! The host offers these commands on every file/folder result (see `contributes.actions`
+//! in plugin.json); typing an existing path also lists them directly.
 use ides::Ide;
 use mytools_plugin_api::{
     ActionId, ActionSpec, PluginActionRequest, PluginEffect, Resource, SearchItem, SearchResponse,

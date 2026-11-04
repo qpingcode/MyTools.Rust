@@ -42,25 +42,94 @@ struct Manifest {
     view: mytools_plugin_api::View,
     #[serde(default)]
     hotkey: Option<String>,
-    /// Extra actions this plugin offers for every file/folder result, e.g. "Open in Rider".
-    #[serde(default, rename = "pathActions")]
-    path_actions: Vec<PathActionManifest>,
+    #[serde(default)]
+    contributes: Contributes,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Contributes {
+    /// Extra actions this plugin adds to other results, e.g. "Open in Rider" on paths.
+    #[serde(default)]
+    actions: Vec<ActionRuleManifest>,
 }
 
 #[derive(Debug, Deserialize)]
-struct PathActionManifest {
+#[serde(deny_unknown_fields)]
+struct ActionRuleManifest {
+    #[serde(default)]
+    when: When,
+    actions: Vec<ContributedActionManifest>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ContributedActionManifest {
     command: String,
     title: PluginName,
     #[serde(default)]
     icon: Option<String>,
 }
 
-/// A plugin command offered on file and folder results; the path is sent as the item.
+/// Result types a rule can match; `path` is shorthand for `file` plus `folder`.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceKind {
+    Url,
+    File,
+    Folder,
+    Path,
+    Text,
+    Application,
+    PluginItem,
+}
+
+impl ResourceKind {
+    fn matches(self, resource: &mytools_plugin_api::Resource) -> bool {
+        use mytools_plugin_api::Resource as R;
+        matches!(
+            (self, resource),
+            (Self::Url, R::Url { .. })
+                | (Self::File | Self::Path, R::File { .. })
+                | (Self::Folder | Self::Path, R::Folder { .. })
+                | (Self::Text, R::Text { .. })
+                | (Self::Application, R::Application { .. })
+                | (Self::PluginItem, R::PluginItem { .. })
+        )
+    }
+}
+
+/// Which results a rule applies to. Fields combine with AND, list entries with OR, and an
+/// omitted or empty field matches everything.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct When {
+    #[serde(default, rename = "type")]
+    pub types: Vec<ResourceKind>,
+    /// Ids of the plugins whose results the rule applies to.
+    #[serde(default)]
+    pub source: Vec<String>,
+}
+
+impl When {
+    pub fn matches(&self, resource: &mytools_plugin_api::Resource, source: &str) -> bool {
+        (self.types.is_empty() || self.types.iter().any(|kind| kind.matches(resource)))
+            && (self.source.is_empty() || self.source.iter().any(|id| id == source))
+    }
+}
+
+/// A plugin command added to matching results; the result's main value is sent as the item.
 #[derive(Clone, Debug)]
-pub struct PathAction {
+pub struct ContributedAction {
     pub command: String,
     pub title: String,
     pub icon: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ActionRule {
+    pub when: When,
+    pub actions: Vec<ContributedAction>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -95,7 +164,7 @@ pub struct Plugin {
     pub executable: PathBuf,
     pub process: Option<Arc<SearchProcess>>,
     pub view: mytools_plugin_api::View,
-    pub path_actions: Vec<PathAction>,
+    pub action_rules: Vec<ActionRule>,
 }
 
 impl Plugin {
@@ -105,20 +174,32 @@ impl Plugin {
         let executable = manifest.validate(path)?;
         let language = mytools_plugin_api::i18n::language();
         let name = localized_name(&manifest.name, path, language)?;
-        let path_actions = if manifest.kind == PluginType::Search {
+        // Only resident search plugins can receive the commands.
+        let action_rules = if manifest.kind == PluginType::Search {
             manifest
-                .path_actions
+                .contributes
+                .actions
                 .iter()
-                .filter(|action| !action.command.trim().is_empty())
-                .map(|action| {
-                    Ok(PathAction {
-                        command: action.command.clone(),
-                        title: localized_name(&action.title, path, language)?,
-                        icon: action
-                            .icon
-                            .clone()
-                            .filter(|icon| icon.starts_with("builtin:"))
-                            .unwrap_or_else(|| "builtin:external-link".into()),
+                .map(|rule| {
+                    let actions = rule
+                        .actions
+                        .iter()
+                        .filter(|action| !action.command.trim().is_empty())
+                        .map(|action| {
+                            Ok(ContributedAction {
+                                command: action.command.clone(),
+                                title: localized_name(&action.title, path, language)?,
+                                icon: action
+                                    .icon
+                                    .clone()
+                                    .filter(|icon| icon.starts_with("builtin:"))
+                                    .unwrap_or_else(|| "builtin:external-link".into()),
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    Ok(ActionRule {
+                        when: rule.when.clone(),
+                        actions,
                     })
                 })
                 .collect::<Result<Vec<_>>>()?
@@ -144,7 +225,7 @@ impl Plugin {
             executable,
             process,
             view: manifest.view,
-            path_actions,
+            action_rules,
         })
     }
 }
@@ -270,6 +351,40 @@ mod tests {
         assert_eq!(alias_timeout(Some(5000)), Duration::from_secs(5));
         assert_eq!(alias_timeout(Some(10)), Duration::from_secs(1));
         assert_eq!(alias_timeout(Some(60_000)), MAX_ALIAS_TIMEOUT);
+    }
+
+    #[test]
+    fn action_rules_match_by_type_and_source() {
+        use mytools_plugin_api::Resource;
+        let manifest: Manifest =
+            serde_json::from_str(include_str!("../../../plugins/dev-open/plugin.json")).unwrap();
+        let rule = &manifest.contributes.actions[0];
+        assert_eq!(rule.actions.len(), 3);
+        let file = Resource::File {
+            path: "C:\\a.txt".into(),
+        };
+        let folder = Resource::Folder {
+            path: "C:\\".into(),
+        };
+        let text = Resource::Text { text: "x".into() };
+        assert!(rule.when.matches(&file, "everything"));
+        assert!(rule.when.matches(&folder, "clipboard"));
+        assert!(!rule.when.matches(&text, "everything"));
+
+        let when: When =
+            serde_json::from_str(r#"{"type":["plugin_item"],"source":["process-killer"]}"#)
+                .unwrap();
+        let item = Resource::PluginItem { id: "42".into() };
+        assert!(when.matches(&item, "process-killer"));
+        assert!(!when.matches(&item, "clipboard"));
+        assert!(!when.matches(&file, "process-killer"));
+        assert!(When::default().matches(&text, "anything"));
+    }
+
+    #[test]
+    fn action_rules_reject_unknown_types_and_fields() {
+        assert!(serde_json::from_str::<When>(r#"{"type":["paths"]}"#).is_err());
+        assert!(serde_json::from_str::<When>(r#"{"from":["clipboard"]}"#).is_err());
     }
 
     #[test]

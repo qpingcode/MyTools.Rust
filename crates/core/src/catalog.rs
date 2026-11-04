@@ -308,28 +308,46 @@ impl Catalog {
             );
         }
         output.entries.truncate(50);
-        self.attach_path_actions(&mut output.entries);
+        self.attach_contributed_actions(&mut output.entries);
         output
     }
 
-    /// Appends actions such as "Open in Rider" that plugins offer for any file or folder.
-    fn attach_path_actions(&self, entries: &mut [Entry]) {
+    /// Appends actions other plugins contribute through `contributes.actions` rules, such
+    /// as "Open in Rider" on every path.
+    fn attach_contributed_actions(&self, entries: &mut [Entry]) {
         for entry in entries {
-            let (Resource::File { path } | Resource::Folder { path }) = &entry.resource else {
-                continue;
-            };
             if entry.actions.is_empty() {
                 continue; // An explicit `[]` means the result is informational only.
             }
+            let item = contributed_item(&entry.resource);
             for plugin in &self.plugins {
                 let Some(process) = &plugin.process else {
                     continue;
                 };
-                for action in &plugin.path_actions {
-                    entry.actions.push(Action::for_path(action, path, process));
+                for rule in &plugin.action_rules {
+                    if !rule.when.matches(&entry.resource, &entry.source_id) {
+                        continue;
+                    }
+                    for action in &rule.actions {
+                        entry
+                            .actions
+                            .push(Action::contributed(action, item.clone(), process));
+                    }
                 }
             }
         }
+    }
+}
+
+/// The value sent as `item` when a contributed action runs.
+fn contributed_item(resource: &Resource) -> String {
+    match resource {
+        Resource::File { path } | Resource::Folder { path } | Resource::Application { path } => {
+            mytools_plugin_api::paths::display(path)
+        }
+        Resource::Url { url } => url.clone(),
+        Resource::Text { text } => text.clone(),
+        Resource::PluginItem { id } => id.clone(),
     }
 }
 
@@ -576,7 +594,7 @@ mod tests {
             executable: std::env::temp_dir().join("mytools-fixture.exe"),
             process: None,
             view: Default::default(),
-            path_actions: vec![],
+            action_rules: vec![],
         }
     }
 

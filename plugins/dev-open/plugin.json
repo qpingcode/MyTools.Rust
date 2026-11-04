@@ -14,21 +14,28 @@
   "search": {
     "global": true
   },
-  "pathActions": [
-    {
-      "command": "rider",
-      "title": { "key": "action.rider", "defaultValue": "Open in Rider" },
-      "icon": "builtin:square-code"
-    },
-    {
-      "command": "vscode",
-      "title": { "key": "action.vscode", "defaultValue": "Open in VS Code" },
-      "icon": "builtin:code-xml"
-    },
-    {
-      "command": "visualstudio",
-      "title": { "key": "action.visualstudio", "defaultValue": "Open in Visual Studio" },
-      "icon": "builtin:code"
-    }
-  ]
+  "contributes": {
+    "actions": [
+      {
+        "when": { "type": ["path"] },
+        "actions": [
+          {
+            "command": "rider",
+            "title": { "key": "action.rider", "defaultValue": "Open in Rider" },
+            "icon": "builtin:square-code"
+          },
+          {
+            "command": "vscode",
+            "title": { "key": "action.vscode", "defaultValue": "Open in VS Code" },
+            "icon": "builtin:code-xml"
+          },
+          {
+            "command": "visualstudio",
+            "title": { "key": "action.visualstudio", "defaultValue": "Open in Visual Studio" },
+            "icon": "builtin:code"
+          }
+        ]
+      }
+    ]
+  }
 }

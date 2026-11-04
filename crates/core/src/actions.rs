@@ -106,10 +106,10 @@ impl Action {
         }
     }
 
-    /// A plugin-provided command acting on a file or folder path.
-    pub(crate) fn for_path(
-        action: &crate::plugins::PathAction,
-        path: &Path,
+    /// A command another plugin contributes to this result; `item` is the result's main value.
+    pub(crate) fn contributed(
+        action: &crate::plugins::ContributedAction,
+        item: String,
         process: &std::sync::Arc<crate::search_process::SearchProcess>,
     ) -> Self {
         Self {
@@ -119,7 +119,7 @@ impl Action {
             icon: action.icon.clone(),
             operation: Operation::Plugin {
                 command: action.command.clone(),
-                item: mytools_plugin_api::paths::display(path),
+                item,
                 process: Some(process.clone()),
             },
             selection: None,
