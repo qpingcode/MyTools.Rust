@@ -1,6 +1,6 @@
 use crate::{
-    AboutWindow, AppTray, I18n, MainWindow, ResultData, Theme, actions, config, desktop, i18n,
-    icons,
+    AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, config, desktop,
+    i18n, icons,
     search::{Query, SearchWorker},
     theme, tray,
 };
@@ -42,6 +42,8 @@ pub fn run() -> anyhow::Result<()> {
     let about = AboutWindow::new()?;
     theme::apply_configured(&about.global::<Theme>());
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
+    ui.global::<TextFit>()
+        .on_path(|text, width, font_size| crate::elide::fit_path(&text, width, font_size).into());
     tray.global::<I18n>().on_text(|key| i18n::t(&key).into());
     about.global::<I18n>().on_text(|key| i18n::t(&key).into());
     tray.set_tooltip_text(

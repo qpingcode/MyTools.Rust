@@ -5,6 +5,7 @@ mod app;
 mod autostart;
 mod config;
 mod desktop;
+mod elide;
 mod i18n;
 mod icons;
 mod search;

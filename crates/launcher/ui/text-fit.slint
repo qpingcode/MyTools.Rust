@@ -1,0 +1,5 @@
+// Implemented in Rust (src/elide.rs): shortens a path inside `text` from the middle so it
+// fits `width` at `font-size`. Bindings re-run when the row width changes.
+export global TextFit {
+    pure callback path(text: string, width: length, font-size: length) -> string;
+}

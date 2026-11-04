@@ -1,6 +1,7 @@
 import { Theme } from "../../../../ui/theme.slint";
 import { ResultData } from "../types.slint";
 import { Icon } from "../../../../ui/components/icon.slint";
+import { TextFit } from "../text-fit.slint";
 
 export component ResultRow inherits Rectangle {
     in property <ResultData> result;
@@ -30,7 +31,8 @@ export component ResultRow inherits Rectangle {
     Text {
         x: root.text-x; y: parent.height / 2 + 1px; width: parent.width - root.text-x - 14px;
         height: Theme.font-small * 1.5;
-        text: root.result.description; color: Theme.muted; font-size: Theme.font-small;
+        text: TextFit.path(root.result.description, self.width, Theme.font-small);
+        color: Theme.muted; font-size: Theme.font-small;
         vertical-alignment: top; overflow: elide;
     }
     touch := TouchArea {
