@@ -1,6 +1,7 @@
 {
   "search.placeholder": "搜索应用或插件…",
   "search.loading": "搜索中…",
+  "search.loading_plugin": "正在搜索 {name}…",
   "search.empty": "没有匹配的应用或插件",
   "app.loading": "正在加载…",
   "app.description": "Rust 桌面快捷启动器",

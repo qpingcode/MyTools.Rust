@@ -11,6 +11,7 @@ export component StatusBar inherits Rectangle {
     in property <bool> actions-available;
     in property <bool> primary-available;
     in property <bool> busy;
+    in property <bool> loading;
     callback execute();
     callback toggle-actions();
     callback drag-requested();
@@ -34,7 +35,7 @@ export component StatusBar inherits Rectangle {
     }
     Rectangle {
         x: 18px; y: (parent.height - self.height) / 2; width: 7px; height: 7px; border-radius: 3.5px;
-        background: root.failed ? Theme.warning : Theme.success;
+        background: root.loading ? Theme.accent : root.failed ? Theme.warning : Theme.success;
     }
     Text {
         x: 34px; y: 0px; width: max(0px, buttons.x - 46px); height: parent.height;

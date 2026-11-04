@@ -29,6 +29,10 @@ export component MainWindow inherits Window {
     in property <string> status;
     in property <bool> failed;
     in property <bool> searching: true;
+    /// Status text while a search runs, e.g. "Searching Everything…".
+    in property <string> searching-status: I18n.text("search.loading");
+    /// Searches that finish quickly never show the indicator, so typing does not flicker.
+    private property <bool> show-loading;
     in property <[ActionData]> actions;
     in-out property <bool> actions-open;
     in-out property <int> selected-action: 0;
@@ -56,6 +60,12 @@ export component MainWindow inherits Window {
     callback execute-action(int);
     private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
+    changed searching => { if (!self.searching) { self.show-loading = false; } }
+    loading-delay := Timer {
+        interval: 150ms;
+        running: root.searching && !root.show-loading;
+        triggered => { root.show-loading = true; }
+    }
     public function focus-search() { search-bar.focus-input(); }
     public function focus-search-select-all() { search-bar.focus-input-select-all(); }
     public function focus-search-at-end() { search-bar.focus-input-at-end(); }
@@ -81,6 +91,7 @@ export component MainWindow inherits Window {
                 x: 0px; y: 0px;
                 width: parent.width;
                 query <=> root.query;
+                loading: root.show-loading;
                 edited(query) => { root.search(query); }
                 accepted => { root.execute(root.selected); }
                 navigate(delta) => { root.navigate(delta); }
@@ -110,7 +121,9 @@ export component MainWindow inherits Window {
             }
             StatusBar {
                 y: parent.height - self.height; width: parent.width;
-                status: root.status; failed: root.failed;
+                status: root.show-loading && root.searching-status != "" ? root.searching-status : root.status;
+                failed: root.failed && !root.show-loading;
+                loading: root.show-loading;
                 primary-title: root.primary-title;
                 shortcut-label: root.shortcut-label;
                 actions-available: root.actions-available && !root.searching;

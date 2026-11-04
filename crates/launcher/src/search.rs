@@ -1,7 +1,7 @@
-use mytools_core::{Catalog, SearchOptions, SearchResults};
+use mytools_core::{AliasTable, Catalog, SearchOptions, SearchResults};
 use std::{
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicU32, AtomicU64, Ordering},
         mpsc,
     },
@@ -40,6 +40,7 @@ pub struct SearchWorker {
     requests: mpsc::Sender<Option<Query>>,
     /// Generation of the newest query sent; a search for an older one stops waiting.
     latest: Arc<AtomicU64>,
+    aliases: Arc<OnceLock<AliasTable>>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -49,8 +50,11 @@ impl SearchWorker {
         let (completed, results) = async_channel::unbounded();
         let latest = Arc::new(AtomicU64::new(0));
         let worker_latest = latest.clone();
+        let aliases = Arc::new(OnceLock::new());
+        let worker_aliases = aliases.clone();
         let thread = thread::spawn(move || {
             let catalog = Catalog::load();
+            let _ = worker_aliases.set(catalog.alias_table());
             'requests: while let Ok(Some(mut query)) = receiver.recv() {
                 // Typed input settles for a moment; an explicit retry runs at once.
                 while query.attempt == 0 {
@@ -88,6 +92,7 @@ impl SearchWorker {
             Self {
                 requests,
                 latest,
+                aliases,
                 thread: Some(thread),
             },
             results,
@@ -98,6 +103,7 @@ impl SearchWorker {
         QuerySender {
             requests: self.requests.clone(),
             latest: self.latest.clone(),
+            aliases: self.aliases.clone(),
         }
     }
 }
@@ -107,9 +113,16 @@ impl SearchWorker {
 pub struct QuerySender {
     requests: mpsc::Sender<Option<Query>>,
     latest: Arc<AtomicU64>,
+    aliases: Arc<OnceLock<AliasTable>>,
 }
 
 impl QuerySender {
+    /// The plugin an alias query will search; `None` for global search or while the
+    /// catalog is still loading.
+    pub fn plugin_for(&self, text: &str) -> Option<String> {
+        self.aliases.get()?.plugin_for(text).map(str::to_owned)
+    }
+
     pub fn send(&self, query: Query) {
         self.latest.store(query.generation, Ordering::SeqCst);
         let _ = self.requests.send(Some(query));

@@ -1,6 +1,7 @@
 {
   "search.placeholder": "Search applications or plugins…",
   "search.loading": "Searching…",
+  "search.loading_plugin": "Searching {name}…",
   "search.empty": "No matching applications or plugins",
   "app.loading": "Loading…",
   "app.description": "Rust desktop launcher",

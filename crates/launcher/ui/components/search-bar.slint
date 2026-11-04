@@ -4,6 +4,8 @@ import { WindowDragArea } from "../../../../ui/components/window-drag-area.slint
 
 export component SearchBar inherits Rectangle {
     in-out property <string> query;
+    /// Shows an indeterminate bar along the bottom edge while a search runs.
+    in property <bool> loading;
     callback edited(string);
     callback accepted();
     callback navigate(int);
@@ -68,4 +70,16 @@ export component SearchBar inherits Rectangle {
         }
     }
     Rectangle { y: parent.height - 1px; height: 1px; background: Theme.border; }
+    if root.loading: Rectangle {
+        y: parent.height - 2px; width: parent.width; height: 2px;
+        clip: true;
+        // One sweep per 1.1s; the segment enters from the left and leaves on the right.
+        property <float> phase: Math.mod(animation-tick() / 1100ms, 1.0);
+        Rectangle {
+            width: parent.width * 0.3; height: parent.height;
+            x: -self.width + (parent.width + self.width) * parent.phase;
+            border-radius: 1px;
+            background: Theme.accent;
+        }
+    }
 }

@@ -157,6 +157,11 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
         let mut state = state.borrow_mut();
         actions::close_panel(&ui, &mut state);
         state.generation += 1;
+        let searching = match requests.plugin_for(&text) {
+            Some(name) => i18n::format("search.loading_plugin", &[("name", &name)]),
+            None => i18n::t("search.loading"),
+        };
+        ui.set_searching_status(searching.into());
         ui.set_searching(true);
         requests.send(Query {
             generation: state.generation,

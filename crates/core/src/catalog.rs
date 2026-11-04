@@ -209,6 +209,15 @@ impl Catalog {
         }
     }
 
+    pub fn alias_table(&self) -> AliasTable {
+        AliasTable(
+            self.plugins
+                .iter()
+                .map(|plugin| (plugin.aliases.clone(), plugin.name.clone()))
+                .collect(),
+        )
+    }
+
     pub fn search(&self, input: &str) -> SearchResults {
         self.search_with(input, &SearchOptions::default())
     }
@@ -421,18 +430,41 @@ fn plugin_entry(plugin: &Plugin, item: SearchItem) -> Result<Entry> {
 }
 
 fn route<'a>(plugins: &[Plugin], input: &'a str) -> (Option<usize>, &'a str) {
+    route_by(
+        plugins.iter().map(|plugin| plugin.aliases.as_slice()),
+        input,
+    )
+}
+
+/// `alias + whitespace + query` selects the plugin with that alias, ignoring ASCII case.
+fn route_by<'p, 'a>(
+    aliases: impl Iterator<Item = &'p [String]>,
+    input: &'a str,
+) -> (Option<usize>, &'a str) {
     let input = input.trim_start();
-    if let Some((alias, query)) = input.split_once(char::is_whitespace)
-        && let Some(index) = plugins.iter().position(|plugin| {
-            plugin
-                .aliases
+    if let Some((alias, query)) = input.split_once(char::is_whitespace) {
+        let mut aliases = aliases;
+        if let Some(index) = aliases.position(|candidates| {
+            candidates
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(alias))
-        })
-    {
-        return (Some(index), query.trim());
+        }) {
+            return (Some(index), query.trim());
+        }
     }
     (None, input.trim())
+}
+
+/// Plugin aliases and names, so the UI thread can name the plugin a query will search
+/// without waiting for the worker that owns the catalog.
+#[derive(Clone, Debug, Default)]
+pub struct AliasTable(Vec<(Vec<String>, String)>);
+
+impl AliasTable {
+    pub fn plugin_for(&self, input: &str) -> Option<&str> {
+        let (index, _) = route_by(self.0.iter().map(|(aliases, _)| aliases.as_slice()), input);
+        index.map(|index| self.0[index].1.as_str())
+    }
 }
 
 fn eligible(index: usize, global: bool, target: Option<usize>) -> bool {
@@ -611,6 +643,15 @@ mod tests {
             route(&plugins, "calcSomething 1+1"),
             (None, "calcSomething 1+1")
         );
+    }
+
+    #[test]
+    fn alias_table_names_the_routed_plugin_like_search_does() {
+        let table = AliasTable(vec![(vec!["calc".into(), "计算".into()], "计算器".into())]);
+        assert_eq!(table.plugin_for(" CALC 1+1"), Some("计算器"));
+        assert_eq!(table.plugin_for("计算 2"), Some("计算器"));
+        assert_eq!(table.plugin_for("calc"), None);
+        assert_eq!(table.plugin_for("other 1"), None);
     }
 
     #[test]
