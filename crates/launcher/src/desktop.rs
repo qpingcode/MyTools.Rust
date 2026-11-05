@@ -142,3 +142,22 @@ pub fn drag(ui: &MainWindow) {
         let _ = window.drag_window();
     });
 }
+
+/// Starts a native resize from a frameless-window edge, e.g. `"se"` for the bottom-right corner.
+pub fn drag_resize(ui: &MainWindow, edge: &str) {
+    use slint::winit_030::winit::window::ResizeDirection;
+    let direction = match edge {
+        "n" => ResizeDirection::North,
+        "s" => ResizeDirection::South,
+        "e" => ResizeDirection::East,
+        "w" => ResizeDirection::West,
+        "ne" => ResizeDirection::NorthEast,
+        "nw" => ResizeDirection::NorthWest,
+        "se" => ResizeDirection::SouthEast,
+        "sw" => ResizeDirection::SouthWest,
+        _ => return,
+    };
+    ui.window().with_winit_window(|window| {
+        let _ = window.drag_resize_window(direction);
+    });
+}

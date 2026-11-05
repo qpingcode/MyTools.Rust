@@ -51,6 +51,12 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         }
     });
     let weak = ui.as_weak();
+    ui.on_resize_requested(move |edge| {
+        if let Some(ui) = weak.upgrade() {
+            desktop::drag_resize(&ui, &edge);
+        }
+    });
+    let weak = ui.as_weak();
     let close_state = state.clone();
     ui.window().on_close_requested(move || {
         if let Some(ui) = weak.upgrade() {

@@ -52,5 +52,5 @@
   "restart.now": "Restart Now",
   "restart.later": "Later",
   "history.save_failed": "Cannot save search history: {error}",
-  "window.position_save_failed": "Cannot save window position: {error}"
+  "window.geometry_save_failed": "Cannot save window size and position: {error}"
 }
