@@ -32,3 +32,4 @@
 - 在独立 worktree 分支上完成的任务，先合并回 `master` 再在主工作区部署，避免用缺少其他改动的版本覆盖已部署的程序。
 - 可选参数：`-Target <目录>` 指定安装目录，`-SkipBuild` 跳过编译，`-NoRestart` 不重启，等下次手动重启生效。
 - 本机 VS 18 的 C++ 工具集不完整，脚本会自动加载工具集完整的 Visual Studio（目前是 VS 2019）的开发环境；部署失败时把编译错误原样报告给用户。
+- 链接器使用 `rust-lld`（见 `.cargo/config.toml`），它依赖开发环境提供的库路径。手动执行 `cargo build/test/clippy` 前，先在同一个 PowerShell 里执行 `. ./scripts/dev-environment.ps1; Enter-DeveloperEnvironment`。始终使用同一套环境，避免依赖因环境变量变化而反复重编。

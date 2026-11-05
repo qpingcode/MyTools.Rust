@@ -182,6 +182,7 @@ mod tests {
         assert!(target(&root.join("document.txt")).is_err());
         drop(file);
         drop(link);
-        std::fs::remove_dir_all(root).unwrap();
+        // Best effort: a virus scanner may still hold the new shortcut or executable open.
+        let _ = std::fs::remove_dir_all(root);
     }
 }

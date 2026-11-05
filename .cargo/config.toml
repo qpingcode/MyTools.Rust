@@ -1,0 +1,5 @@
+# rust-lld ships with the Rust toolchain and links the large Slint executables several
+# times faster than link.exe. It still needs the MSVC/SDK libraries: build from a developer
+# environment (`scripts/dev-environment.ps1` loads one).
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"
