@@ -1,0 +1,56 @@
+component Handle inherits TouchArea {
+    in property <string> direction;
+    callback requested(string);
+    pointer-event(event) => {
+        if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) { root.requested(root.direction); }
+    }
+}
+
+/// Edge and corner hit areas for frameless windows; place it last so it stays on top.
+/// `resize-requested` receives one of "n", "s", "e", "w", "ne", "nw", "se", "sw".
+export component WindowResizeHandles inherits Rectangle {
+    in property <length> thickness: 5px;
+    in property <length> corner: 12px;
+    callback resize-requested(string);
+
+    Handle {
+        direction: "n"; mouse-cursor: MouseCursor.ns-resize;
+        x: root.corner; y: 0px; width: root.width - 2 * root.corner; height: root.thickness;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "s"; mouse-cursor: MouseCursor.ns-resize;
+        x: root.corner; y: root.height - self.height; width: root.width - 2 * root.corner; height: root.thickness;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "w"; mouse-cursor: MouseCursor.ew-resize;
+        x: 0px; y: root.corner; width: root.thickness; height: root.height - 2 * root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "e"; mouse-cursor: MouseCursor.ew-resize;
+        x: root.width - self.width; y: root.corner; width: root.thickness; height: root.height - 2 * root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "nw"; mouse-cursor: MouseCursor.nwse-resize;
+        x: 0px; y: 0px; width: root.corner; height: root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "ne"; mouse-cursor: MouseCursor.nesw-resize;
+        x: root.width - self.width; y: 0px; width: root.corner; height: root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "sw"; mouse-cursor: MouseCursor.nesw-resize;
+        x: 0px; y: root.height - self.height; width: root.corner; height: root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+    Handle {
+        direction: "se"; mouse-cursor: MouseCursor.nwse-resize;
+        x: root.width - self.width; y: root.height - self.height; width: root.corner; height: root.corner;
+        requested(direction) => { root.resize-requested(direction); }
+    }
+}

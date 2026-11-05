@@ -6,6 +6,7 @@ import { ResultRow } from "components/result-row.slint";
 import { DetailPreview } from "components/detail-preview.slint";
 import { StatusBar } from "components/status-bar.slint";
 import { ActionPanel } from "components/action-panel.slint";
+import { WindowResizeHandles } from "../../../ui/components/window-resize-handles.slint";
 import { AboutSlint } from "std-widgets.slint";
 import { ResultData, ActionData } from "types.slint";
 export { ResultData, ActionData } from "types.slint";
@@ -60,6 +61,8 @@ export component MainWindow inherits Window {
     callback navigate(int);
     callback dismiss();
     callback drag-requested();
+    /// Edge or corner being dragged: "n", "s", "e", "w", "ne", "nw", "se" or "sw".
+    callback resize-requested(string);
     callback toggle-actions();
     callback close-actions();
     callback navigate-action(int);
@@ -155,6 +158,10 @@ export component MainWindow inherits Window {
                 target-title: root.action-target;
                 execute(index) => { root.execute-action(index); }
             }
+        }
+        WindowResizeHandles {
+            width: parent.width; height: parent.height;
+            resize-requested(direction) => { root.resize-requested(direction); }
         }
     }
     changed selected => {

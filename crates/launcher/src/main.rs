@@ -11,7 +11,7 @@ mod icons;
 mod search;
 mod theme;
 mod tray;
-mod window_position;
+mod window_geometry;
 
 slint::include_modules!();
 

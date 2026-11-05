@@ -37,7 +37,7 @@ pub fn run() -> anyhow::Result<()> {
     desktop::configure_backend()?;
     let ui = MainWindow::new()?;
     theme::apply_configured(&ui.global::<Theme>());
-    let position_tracker = crate::window_position::Tracker::new(&ui);
+    let geometry_tracker = crate::window_geometry::Tracker::new(&ui);
     let tray = AppTray::new()?;
     let about = AboutWindow::new()?;
     theme::apply_configured(&about.global::<Theme>());
@@ -147,7 +147,7 @@ pub fn run() -> anyhow::Result<()> {
     drop(tray_controller);
     drop(tray);
     drop(about);
-    drop(position_tracker);
+    drop(geometry_tracker);
     drop(ui);
     if restart {
         tray::restart()?;

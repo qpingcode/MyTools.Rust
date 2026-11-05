@@ -52,5 +52,5 @@
   "restart.now": "立即重启",
   "restart.later": "稍后",
   "history.save_failed": "无法保存搜索历史：{error}",
-  "window.position_save_failed": "无法保存窗口位置：{error}"
+  "window.geometry_save_failed": "无法保存窗口大小和位置：{error}"
 }
