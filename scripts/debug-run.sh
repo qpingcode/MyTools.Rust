@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd -- "$(dirname -- "$0")"
+cd -- "$(dirname -- "$0")/.."
 
 profile=debug
 build_only=false
@@ -11,7 +11,7 @@ for argument in "$@"; do
         --release) profile=release; build_args+=(--release) ;;
         --build-only) build_only=true ;;
         --show) show_args=(--show) ;;
-        *) echo "Usage: bash run.sh [--release] [--build-only] [--show]" >&2; exit 1 ;;
+        *) echo "Usage: bash scripts/debug-run.sh [--release] [--build-only] [--show]" >&2; exit 1 ;;
     esac
 done
 

@@ -1,7 +1,12 @@
+# Builds the workspace and runs MyTools from target/, isolated from the installed copy
+# (its own config.json and window position). Defaults to a fast debug build.
 param([switch]$Release, [switch]$BuildOnly, [switch]$Show)
 $ErrorActionPreference = 'Stop'
-Push-Location $PSScriptRoot
+$root = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'dev-environment.ps1')
+Push-Location $root
 try {
+    Enter-DeveloperEnvironment
     $buildArgs = @('build', '--workspace', '--locked')
     $profile = 'debug'
     if ($Release) {
@@ -11,23 +16,25 @@ try {
     & cargo @buildArgs
     if ($LASTEXITCODE -ne 0) { throw 'Cargo 编译失败' }
 
-    $output = Join-Path $PSScriptRoot "target/$profile"
+    $output = Join-Path $root "target/$profile"
     $licenses = Join-Path $output 'licenses'
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ui/assets/icons/LICENSE') -Destination (Join-Path $licenses 'Lucide.txt')
+    Copy-Item -LiteralPath (Join-Path $root 'ui/assets/icons/LICENSE') -Destination (Join-Path $licenses 'Lucide.txt')
     if (-not (Test-Path -LiteralPath (Join-Path $output 'config.json'))) {
-        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'config.example.json') -Destination (Join-Path $output 'config.json')
+        Copy-Item -LiteralPath (Join-Path $root 'config.example.json') -Destination (Join-Path $output 'config.json')
     }
-    foreach ($plugin in @('calculator', 'applications', 'clipboard', 'chrome-bookmark', 'encode', 'decode', 'formatter', 'process-killer', 'uuid-generator', 'translator', 'quick-text', 'scripts-runner', 'everything', 'dev-open')) {
+    foreach ($manifest in Get-ChildItem -Path (Join-Path $root 'plugins/*/plugin.json')) {
+        $plugin = $manifest.Directory.Name
+        $entry = (Get-Content -LiteralPath $manifest.FullName -Raw | ConvertFrom-Json).entry
         $pluginDirectory = Join-Path $output "plugins/$plugin"
         New-Item -ItemType Directory -Force -Path $pluginDirectory | Out-Null
-        Copy-Item -LiteralPath (Join-Path $PSScriptRoot "plugins/$plugin/plugin.json") -Destination $pluginDirectory
+        Copy-Item -LiteralPath (Join-Path $root "plugins/$plugin/plugin.json") -Destination $pluginDirectory
         $localeDirectory = Join-Path $pluginDirectory 'locales'
         New-Item -ItemType Directory -Force -Path $localeDirectory | Out-Null
-        Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot "plugins/$plugin/locales") -Filter '*.json' |
+        Get-ChildItem -LiteralPath (Join-Path $root "plugins/$plugin/locales") -Filter '*.json' |
             Copy-Item -Destination $localeDirectory
-        Copy-Item -LiteralPath (Join-Path $output "mytools-$plugin.exe") -Destination $pluginDirectory
-        $example = Join-Path $PSScriptRoot "plugins/$plugin/config.example.json"
+        Copy-Item -LiteralPath (Join-Path $output "$entry.exe") -Destination $pluginDirectory
+        $example = Join-Path $root "plugins/$plugin/config.example.json"
         if (Test-Path -LiteralPath $example) {
             Copy-Item -LiteralPath $example -Destination $pluginDirectory
         }

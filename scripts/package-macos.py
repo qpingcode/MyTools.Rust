@@ -22,7 +22,7 @@ def main():
     version = os.environ.get("MYTOOLS_VERSION", "0.0.1").removeprefix("v")
     if not version or any(ch not in "0123456789." for ch in version):
         raise SystemExit("MYTOOLS_VERSION must be a numeric dotted version")
-    run("bash", "run.sh", "--release", "--build-only")
+    run("bash", "scripts/debug-run.sh", "--release", "--build-only")
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
     architecture = platform.machine()

@@ -1,6 +1,6 @@
 # 实用插件
 
-运行 `./run.ps1 -BuildOnly` 或 `bash run.sh --build-only` 编译并打包全部插件。
+运行 `./scripts/debug-run.ps1 -BuildOnly` 或 `bash scripts/debug-run.sh --build-only` 编译并打包全部插件。
 别名后输入空格进入插件作用域。默认 Enter 执行首个动作，Ctrl+K（macOS 为 ⌘K）打开其他动作。
 
 | 插件 | 输入示例 | 交互 |

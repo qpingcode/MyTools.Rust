@@ -7,22 +7,24 @@
 Windows 需要 Rust stable（MSVC 工具链）、Visual Studio C++ Build Tools 和 Windows SDK。
 
 ```powershell
-.\run.ps1
+.\scripts\debug-run.ps1
 # 发布版本
-.\run.ps1 -Release
+.\scripts\debug-run.ps1 -Release
 # 只编译和放置插件，不打开窗口
-.\run.ps1 -BuildOnly
+.\scripts\debug-run.ps1 -BuildOnly
 # 启动时直接显示窗口，便于开发
-.\run.ps1 -Show
+.\scripts\debug-run.ps1 -Show
+# 编译 release 并更新本机安装（默认 C:\soft\MyTools）
+.\scripts\deploy.ps1
 ```
 
 macOS 需要 Rust stable 和 Xcode Command Line Tools：
 
 ```bash
-bash run.sh
-bash run.sh --release
-bash run.sh --build-only
-bash run.sh --show
+bash scripts/debug-run.sh
+bash scripts/debug-run.sh --release
+bash scripts/debug-run.sh --build-only
+bash scripts/debug-run.sh --show
 ```
 
 脚本编译整个 workspace，并把插件放入 `target/debug/plugins/`（发布版为 `target/release/plugins/`）。
@@ -113,7 +115,7 @@ ui/
   theme.slint         共享配色
   components/         共享按键提示、按钮等基础组件
   assets/             SVG 图标，构建时嵌入
-run.ps1 / run.sh       编译、放置插件、运行
+scripts/              debug-run（编译并从 target 运行）、deploy（更新本机安装）、打包
 .github/workflows/    Windows 构建、测试和发布配置
 ```
 

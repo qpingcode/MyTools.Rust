@@ -4,9 +4,12 @@ $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 try {
     if (-not $SkipBuild) {
-        $arguments = @{ BuildOnly = $true }
-        if ($Profile -eq 'release') { $arguments.Release = $true }
-        & ./run.ps1 @arguments
+        . (Join-Path $PSScriptRoot 'dev-environment.ps1')
+        Enter-DeveloperEnvironment
+        $arguments = @('build', '--workspace', '--locked')
+        if ($Profile -eq 'release') { $arguments += '--release' }
+        & cargo @arguments
+        if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
     }
     $source = Join-Path $root "target/$Profile"
     $destination = Join-Path $root 'dist'
