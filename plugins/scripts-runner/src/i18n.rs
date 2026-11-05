@@ -13,6 +13,9 @@ fn catalog() -> &'static Catalog {
 pub fn t(key: &str) -> String {
     catalog().get(key).into()
 }
+pub fn format(key: &str, values: &[(&str, &str)]) -> String {
+    catalog().format(key, values)
+}
 pub fn error(error: impl std::fmt::Display) -> String {
     catalog().format("error.detail", &[("error", &error.to_string())])
 }

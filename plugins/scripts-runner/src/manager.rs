@@ -1,6 +1,6 @@
 use crate::{
     I18n, ScriptManager, ScriptRow, i18n, runner,
-    store::{Kind, Script, Store},
+    store::{Kind, Mode, Script, Store},
 };
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::{cell::RefCell, rc::Rc};
@@ -90,6 +90,7 @@ pub fn run(id: Option<String>) -> anyhow::Result<()> {
             },
             content: ui.get_content().to_string(),
             directory: ui.get_directory().trim().into(),
+            mode: mode_from(ui.get_mode()),
         };
         let result = state
             .store
@@ -222,18 +223,35 @@ fn load(ui: &ScriptManager, state: &mut State, script: Option<Script>) {
         field(|s| &s.directory),
     );
     let kind = i32::from(script.as_ref().is_some_and(|s| s.kind == Kind::Cmd));
+    let mode = mode_index(script.as_ref().map(|s| s.mode).unwrap_or_default());
     // The saved copies define "unchanged"; the form is dirty once it differs from them.
     ui.set_saved_name(name.clone());
     ui.set_saved_alias(alias.clone());
     ui.set_saved_kind(kind);
     ui.set_saved_content(content.clone());
     ui.set_saved_directory(directory.clone());
+    ui.set_saved_mode(mode);
     ui.set_script_name(name);
     ui.set_alias(alias);
     ui.set_kind(kind);
     ui.set_content(content);
     ui.set_directory(directory);
+    ui.set_mode(mode);
     ui.set_saved(script.is_some());
     ui.set_deleting(false);
     state.original = script;
+}
+fn mode_index(mode: Mode) -> i32 {
+    match mode {
+        Mode::Window => 0,
+        Mode::CloseOnSuccess => 1,
+        Mode::Background => 2,
+    }
+}
+fn mode_from(index: i32) -> Mode {
+    match index {
+        1 => Mode::CloseOnSuccess,
+        2 => Mode::Background,
+        _ => Mode::Window,
+    }
 }

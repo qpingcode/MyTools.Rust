@@ -2,7 +2,7 @@
   "name": "脚本",
   "manage": "管理脚本",
   "manage.detail": "新增、编辑并执行保存的 PowerShell 或 CMD 脚本",
-  "manage.hint": "保存后可在启动器搜索名称或别名，执行时打开终端显示输出。",
+  "manage.hint": "保存后可在启动器搜索名称或别名，按运行方式执行。",
   "new": "新建脚本",
   "new.detail": "尚未保存",
   "empty": "还没有脚本，点击 + 新建。",
@@ -40,5 +40,14 @@
   "store.invalid": "脚本数据存在无效或重复 ID。",
   "store.conflict": "脚本已被其他窗口修改，请重新打开管理窗口后再编辑。",
   "platform.unsupported": "目前仅支持在 Windows 上执行 PowerShell 和 CMD 脚本。",
-  "error.detail": "操作失败：{error}"
+  "error.detail": "操作失败：{error}",
+  "field.mode": "运行方式",
+  "mode.window": "窗口",
+  "mode.close": "成功后关闭",
+  "mode.background": "后台",
+  "mode.window.hint": "打开终端，脚本结束后保留窗口。",
+  "mode.close.hint": "打开终端，成功后自动关闭，出错时保留窗口。",
+  "mode.background.hint": "隐藏运行且不接收输入，仅在失败时弹窗提示。",
+  "background.failed": "“{name}”执行失败，退出码 {code}。\n\n{output}\n\n完整输出：{log}",
+  "background.error": "“{name}”无法运行：{error}"
 }

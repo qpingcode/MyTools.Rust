@@ -1,4 +1,5 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+mod background;
 mod dialog;
 mod i18n;
 mod manager;
@@ -10,6 +11,11 @@ fn main() -> anyhow::Result<()> {
     mytools_plugin_api::i18n::language();
     if std::env::args().nth(1).as_deref() == Some("--manage") {
         return manager::run(std::env::args().nth(2));
+    }
+    if std::env::args().nth(1).as_deref() == Some("--background")
+        && let Some(run) = std::env::args().nth(2)
+    {
+        return background::run(std::path::Path::new(&run));
     }
     let store = store::Store::new()?;
     mytools_plugin_api::serve_interactive(

@@ -124,7 +124,7 @@ component FieldLabel inherits Text {
     font-size: Theme.font-small;
 }
 
-/// A two-option toggle, used for the script type.
+/// A toggle between a few options, used for the script type and run mode.
 component Segmented inherits Rectangle {
     in property <[string]> options;
     in-out property <int> current;
@@ -169,17 +169,20 @@ export component ScriptManager inherits Window {
     in-out property <int> kind;
     in-out property <string> content;
     in-out property <string> directory;
+    /// 0 = window, 1 = window that closes after success, 2 = background.
+    in-out property <int> mode;
     /// The values last loaded or saved; the form is dirty when it differs from them.
     in property <string> saved-name;
     in property <string> saved-alias;
     in property <int> saved-kind;
     in property <string> saved-content;
     in property <string> saved-directory;
+    in property <int> saved-mode;
     // A binding rather than `changed` handlers, which run after the Rust side has finished
     // loading a script and would mark a freshly opened script as modified.
     out property <bool> dirty: root.script-name != root.saved-name || root.alias != root.saved-alias
         || root.kind != root.saved-kind || root.content != root.saved-content
-        || root.directory != root.saved-directory;
+        || root.directory != root.saved-directory || root.mode != root.saved-mode;
     in-out property <bool> deleting;
     in property <bool> saved;
     in property <bool> busy;
@@ -349,6 +352,23 @@ export component ScriptManager inherits Window {
                                 accessible-label: I18n.text("browse");
                                 clicked => { root.browse(); }
                             }
+                        }
+                    }
+                    VerticalLayout {
+                        row: 2; col: 0; spacing: 6px;
+                        FieldLabel { text: I18n.text("field.mode"); }
+                        Segmented {
+                            options: [I18n.text("mode.window"), I18n.text("mode.close"), I18n.text("mode.background")];
+                            current <=> root.mode; enabled: !root.busy;
+                        }
+                    }
+                    VerticalLayout {
+                        row: 2; col: 1;
+                        alignment: end;
+                        Text {
+                            height: 32px; vertical-alignment: center;
+                            text: I18n.text(root.mode == 2 ? "mode.background.hint" : root.mode == 1 ? "mode.close.hint" : "mode.window.hint");
+                            color: Theme.muted; font-size: Theme.font-small; wrap: word-wrap;
                         }
                     }
                 }

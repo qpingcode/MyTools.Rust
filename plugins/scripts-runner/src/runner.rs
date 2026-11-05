@@ -1,5 +1,7 @@
 #[cfg(any(windows, test))]
 use crate::store::Kind;
+#[cfg(windows)]
+use crate::store::Mode;
 use crate::{
     i18n,
     store::{Script, Store},
@@ -31,19 +33,53 @@ pub fn run(store: &Store, script: &Script, admin: bool) -> Result<()> {
         } else {
             script.directory.clone().into()
         };
-        let system = std::path::PathBuf::from(
-            std::env::var_os("SystemRoot")
-                .ok_or_else(|| anyhow::anyhow!(i18n::t("platform.unsupported")))?,
-        )
-        .join("System32");
-        let executable = match script.kind {
-            Kind::Ps1 => system.join("WindowsPowerShell/v1.0/powershell.exe"),
-            Kind::Cmd => system.join("cmd.exe"),
-        };
         let path = mytools_plugin_api::paths::display(&file);
-        let parameters = parameters(script.kind, &path);
-        launch(&executable, &parameters, &cwd, admin)
+        match script.mode {
+            Mode::Window => launch(
+                &executable(script.kind)?,
+                &parameters(script.kind, &path),
+                &cwd,
+                admin,
+                true,
+            ),
+            Mode::CloseOnSuccess => launch(
+                &executable(Kind::Cmd)?,
+                &close_parameters(
+                    script.kind,
+                    &executable(script.kind)?.to_string_lossy(),
+                    &path,
+                ),
+                &cwd,
+                admin,
+                true,
+            ),
+            Mode::Background => {
+                crate::background::prepare(&directory, script, &file, &cwd)?;
+                let directory = mytools_plugin_api::paths::display(&directory.canonicalize()?);
+                launch(
+                    &std::env::current_exe()?,
+                    &format!("--background \"{directory}\""),
+                    &cwd,
+                    admin,
+                    false,
+                )
+            }
+        }
     }
+}
+
+/// The system interpreter for a script type, never one found through `PATH`.
+#[cfg(windows)]
+pub fn executable(kind: Kind) -> Result<std::path::PathBuf> {
+    let system = std::path::PathBuf::from(
+        std::env::var_os("SystemRoot")
+            .ok_or_else(|| anyhow::anyhow!(i18n::t("platform.unsupported")))?,
+    )
+    .join("System32");
+    Ok(match kind {
+        Kind::Ps1 => system.join("WindowsPowerShell/v1.0/powershell.exe"),
+        Kind::Cmd => system.join("cmd.exe"),
+    })
 }
 
 #[cfg(any(windows, test))]
@@ -58,6 +94,7 @@ fn encode(kind: Kind, content: &str) -> Vec<u8> {
     }
 }
 
+/// Arguments for a console that stays open after the script ends.
 #[cfg(any(windows, test))]
 fn parameters(kind: Kind, file: &str) -> String {
     match kind {
@@ -66,17 +103,31 @@ fn parameters(kind: Kind, file: &str) -> String {
     }
 }
 
+/// `cmd.exe` arguments that run the script and pause only when it exits with an error,
+/// so a successful run closes its console. `/c` drops the outer quotes and keeps the rest.
+#[cfg(any(windows, test))]
+fn close_parameters(kind: Kind, interpreter: &str, file: &str) -> String {
+    let command = match kind {
+        Kind::Ps1 => {
+            format!("\"{interpreter}\" -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"{file}\"")
+        }
+        Kind::Cmd => format!("call \"{file}\""),
+    };
+    format!("/d /c \"{command} || pause\"")
+}
+
 #[cfg(windows)]
 fn launch(
     executable: &std::path::Path,
     parameters: &str,
     directory: &std::path::Path,
     admin: bool,
+    visible: bool,
 ) -> Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::UI::{
         Shell::{SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SHELLEXECUTEINFOW, ShellExecuteExW},
-        WindowsAndMessaging::SW_SHOWNORMAL,
+        WindowsAndMessaging::{SW_HIDE, SW_SHOWNORMAL},
     };
     let wide = |value: &std::ffi::OsStr| value.encode_wide().chain(Some(0)).collect::<Vec<u16>>();
     let executable = wide(executable.as_os_str());
@@ -90,7 +141,7 @@ fn launch(
         lpFile: executable.as_ptr(),
         lpParameters: parameters.as_ptr(),
         lpDirectory: directory.as_ptr(),
-        nShow: SW_SHOWNORMAL,
+        nShow: if visible { SW_SHOWNORMAL } else { SW_HIDE },
         ..Default::default()
     };
     if unsafe { ShellExecuteExW(&mut info) } == 0 {
@@ -119,6 +170,17 @@ mod tests {
         assert_eq!(
             parameters(Kind::Cmd, r"C:\scripts\file.cmd"),
             r#"/d /k ""C:\scripts\file.cmd"""#
+        );
+    }
+    #[test]
+    fn close_on_success_pauses_only_after_a_failure() {
+        assert_eq!(
+            close_parameters(Kind::Cmd, "cmd.exe", r"C:\a b\file.cmd"),
+            r#"/d /c "call "C:\a b\file.cmd" || pause""#
+        );
+        assert_eq!(
+            close_parameters(Kind::Ps1, r"C:\ps.exe", r"C:\a\file.ps1"),
+            r#"/d /c ""C:\ps.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\a\file.ps1" || pause""#
         );
     }
 }

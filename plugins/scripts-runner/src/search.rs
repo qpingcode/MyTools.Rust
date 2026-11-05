@@ -125,6 +125,7 @@ mod tests {
             kind: crate::store::Kind::Ps1,
             content: "Write-Output test".into(),
             directory: String::new(),
+            mode: Default::default(),
         };
         store.update(script.clone(), None).unwrap();
         let items = search(&store, "dev").unwrap().items;

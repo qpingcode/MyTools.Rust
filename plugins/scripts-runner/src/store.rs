@@ -19,6 +19,16 @@ impl Kind {
     }
 }
 
+/// How a run is shown: a console that stays open, one that closes after success, or none.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Mode {
+    #[default]
+    Window,
+    CloseOnSuccess,
+    Background,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Script {
     pub id: String,
@@ -28,6 +38,8 @@ pub struct Script {
     pub content: String,
     #[serde(default)]
     pub directory: String,
+    #[serde(default)]
+    pub mode: Mode,
 }
 impl Script {
     pub fn validate(&self) -> Result<()> {
@@ -165,6 +177,7 @@ mod tests {
             kind: Kind::Ps1,
             content: "Write-Output '中文'\n# multiline".into(),
             directory: String::new(),
+            mode: Mode::Background,
         }
     }
     #[test]

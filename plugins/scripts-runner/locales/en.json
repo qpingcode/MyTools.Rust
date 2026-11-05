@@ -2,7 +2,7 @@
   "name": "Scripts",
   "manage": "Manage scripts",
   "manage.detail": "Create, edit and run saved PowerShell or CMD scripts",
-  "manage.hint": "Save a script, then search its name or alias in the launcher. Execution opens a terminal.",
+  "manage.hint": "Save a script, then search its name or alias in the launcher. It runs in the chosen run mode.",
   "new": "New script",
   "new.detail": "Not saved yet",
   "empty": "No scripts yet. Click + to create one.",
@@ -40,5 +40,14 @@
   "store.invalid": "Script store contains invalid or duplicate IDs.",
   "store.conflict": "This script was changed in another window. Reopen the manager before editing again.",
   "platform.unsupported": "PowerShell and CMD execution is currently supported on Windows only.",
-  "error.detail": "Action failed: {error}"
+  "error.detail": "Action failed: {error}",
+  "field.mode": "Run mode",
+  "mode.window": "Window",
+  "mode.close": "Close on success",
+  "mode.background": "Background",
+  "mode.window.hint": "Opens a terminal that stays open after the script ends.",
+  "mode.close.hint": "Opens a terminal that closes on success and stays open on errors.",
+  "mode.background.hint": "Runs hidden without input; shows a dialog only if it fails.",
+  "background.failed": "“{name}” failed with exit code {code}.\n\n{output}\n\nFull output: {log}",
+  "background.error": "“{name}” could not run: {error}"
 }
