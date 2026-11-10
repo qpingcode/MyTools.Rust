@@ -8,6 +8,7 @@ mod desktop;
 mod elide;
 mod i18n;
 mod icons;
+mod notices;
 mod search;
 mod theme;
 mod tray;

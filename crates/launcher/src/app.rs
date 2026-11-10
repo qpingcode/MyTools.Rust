@@ -4,7 +4,7 @@ use crate::{
     search::{Event, Query, SearchWorker},
     theme, tray,
 };
-use mytools_core::{Action, Entry, SearchResults};
+use mytools_core::{Action, Entry, Notice, SearchResults};
 use slint::{ComponentHandle, VecModel};
 use std::{cell::RefCell, rc::Rc};
 
@@ -79,6 +79,9 @@ pub fn run() -> anyhow::Result<()> {
         .into(),
     );
     about.set_app_font_family(font.into());
+    let notifier = crate::notices::Notifier::new(font);
+    // Startup problems are shown once the event loop runs, next to plugin notices.
+    let mut startup_notices = Vec::new();
     let mut initial = State::default();
     if let Err(error) = config {
         initial.desktop_error = Some(i18n::format(
@@ -90,6 +93,12 @@ pub fn run() -> anyhow::Result<()> {
             "config.invalid",
             &[("error", &theme_errors.join("; "))],
         ));
+    }
+    if let Some(error) = &initial.desktop_error {
+        startup_notices.push(Notice {
+            title: i18n::t("notice.config"),
+            message: error.clone(),
+        });
     }
     let state = Rc::new(RefCell::new(initial));
     let icons = icons::Loader::new(&ui)?;
@@ -106,6 +115,7 @@ pub fn run() -> anyhow::Result<()> {
 
     let weak = ui.as_weak();
     let response_state = state.clone();
+    let response_notifier = notifier.clone();
     let _responses = slint::spawn_local(async move {
         while let Ok(event) = responses.recv().await {
             let Some(ui) = weak.upgrade() else { break };
@@ -118,14 +128,7 @@ pub fn run() -> anyhow::Result<()> {
                 Event::Completed(completed) if completed.generation == state.generation => {
                     apply_results(&ui, &mut state, completed.results, &icons);
                 }
-                Event::Notices(notices) => {
-                    let text: Vec<String> = notices
-                        .iter()
-                        .map(|notice| format!("{}：{}", notice.title, notice.message))
-                        .collect();
-                    ui.set_failed(true);
-                    ui.set_status(text.join("；").into());
-                }
+                Event::Notices(notices) => response_notifier.show(notices),
                 _ => {} // Superseded by newer input.
             }
         }
@@ -135,16 +138,29 @@ pub fn run() -> anyhow::Result<()> {
         Ok(desktop) => {
             if !desktop.registration_errors.is_empty() {
                 state.borrow_mut().desktop_error = Some(desktop.registration_errors.join("；"));
-                desktop::show(&ui);
+                startup_notices.extend(desktop.registration_errors.iter().map(|error| Notice {
+                    title: i18n::t("notice.hotkey"),
+                    message: error.clone(),
+                }));
             }
             Some(desktop)
         }
         Err(error) => {
-            state.borrow_mut().desktop_error = Some(format!("{error:#}"));
+            // Without Alt+Space the window would be hard to reach, so it opens as well.
+            let message = format!("{error:#}");
+            state.borrow_mut().desktop_error = Some(message.clone());
+            startup_notices.push(Notice {
+                title: i18n::t("notice.hotkey"),
+                message,
+            });
             desktop::show(&ui);
             None
         }
     };
+    let startup_notifier = notifier.clone();
+    slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
+        startup_notifier.show(startup_notices);
+    });
     ui.invoke_search("".into());
     if std::env::args().any(|argument| argument == "--show") {
         desktop::show(&ui);

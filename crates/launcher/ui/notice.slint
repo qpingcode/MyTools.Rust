@@ -1,0 +1,78 @@
+import { Theme } from "../../../ui/theme.slint";
+import { I18n } from "../../../ui/i18n.slint";
+import { Icon } from "../../../ui/components/icon.slint";
+
+export struct NoticeData {
+    title: string,
+    message: string,
+}
+
+/// Problems found in the background, shown in the bottom-right corner without taking focus.
+export component NoticeWindow inherits Window {
+    title: "MyTools";
+    icon: @image-url("../../../ui/assets/app.png");
+    no-frame: true;
+    always-on-top: true;
+    width: 380px;
+    // Grows with the notices; a shown window does not follow its layout on its own.
+    height: content.preferred-height;
+    background: Theme.popup;
+    in property <string> app-font-family;
+    default-font-family: root.app-font-family;
+    in property <[NoticeData]> notices;
+    /// The pointer is over the window; it stays open meanwhile.
+    out property <bool> hovered: area.has-hover;
+    /// The height the notices need, known before the native window catches up.
+    out property <length> content-height: content.preferred-height;
+    out property <length> content-width: root.width;
+    /// Wrapped text settles over a few layout passes; the window is moved each time.
+    callback content-resized();
+    changed content-height => { root.content-resized(); }
+    callback dismiss();
+    area := TouchArea { }
+    Rectangle {
+        border-width: 1px;
+        border-color: Theme.control-border;
+    }
+    content := VerticalLayout {
+        padding: 14px; padding-top: 12px; spacing: 10px;
+        HorizontalLayout {
+            spacing: 8px;
+            VerticalLayout {
+                alignment: center;
+                Icon { name: "builtin:triangle-alert"; width: 15px; height: 15px; tint: Theme.warning; }
+            }
+            Text {
+                text: I18n.text("notice.title"); color: Theme.foreground;
+                font-size: Theme.font-body; font-weight: 600;
+                vertical-alignment: center; horizontal-stretch: 1;
+            }
+            close-button := Rectangle {
+                width: 22px; height: 22px; border-radius: 5px;
+                background: close-touch.has-hover ? Theme.hover : transparent;
+                Icon { x: 5px; y: 5px; width: 12px; height: 12px; name: "builtin:x"; tint: Theme.muted; }
+                close-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.dismiss(); }
+                }
+                accessible-role: button;
+                accessible-label: I18n.text("notice.close");
+                accessible-action-default => { root.dismiss(); }
+            }
+        }
+        // A fixed text width lets the layout measure wrapped lines.
+        for notice in root.notices: VerticalLayout {
+            spacing: 2px;
+            Text {
+                width: root.width - 28px;
+                text: notice.title; color: Theme.foreground; font-size: Theme.font-small;
+                font-weight: 600; wrap: word-wrap;
+            }
+            Text {
+                width: root.width - 28px;
+                text: notice.message; color: Theme.muted; font-size: Theme.font-small;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

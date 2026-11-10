@@ -53,5 +53,9 @@
   "restart.now": "Restart Now",
   "restart.later": "Later",
   "history.save_failed": "Cannot save search history: {error}",
-  "window.geometry_save_failed": "Cannot save window size and position: {error}"
+  "window.geometry_save_failed": "Cannot save window size and position: {error}",
+  "notice.title": "MyTools",
+  "notice.close": "Close",
+  "notice.config": "Configuration problem",
+  "notice.hotkey": "Shortcut not registered"
 }

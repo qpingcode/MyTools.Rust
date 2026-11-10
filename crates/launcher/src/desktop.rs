@@ -15,7 +15,21 @@ pub struct Desktop {
 }
 
 pub fn configure_backend() -> Result<()> {
-    let backend = slint::BackendSelector::new().backend_name("winit".into());
+    let backend = slint::BackendSelector::new()
+        .backend_name("winit".into())
+        .with_winit_window_attributes_hook(|attributes| {
+            if !crate::notices::creating() {
+                return attributes;
+            }
+            // Notices appear without stealing focus or adding a taskbar button.
+            let attributes = attributes.with_active(false);
+            #[cfg(windows)]
+            let attributes = {
+                use slint::winit_030::winit::platform::windows::WindowAttributesExtWindows;
+                attributes.with_skip_taskbar(true)
+            };
+            attributes
+        });
     #[cfg(target_os = "macos")]
     let backend = {
         use slint::winit_030::winit::{

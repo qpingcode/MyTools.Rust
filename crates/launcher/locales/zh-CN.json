@@ -53,5 +53,9 @@
   "restart.now": "立即重启",
   "restart.later": "稍后",
   "history.save_failed": "无法保存搜索历史：{error}",
-  "window.geometry_save_failed": "无法保存窗口大小和位置：{error}"
+  "window.geometry_save_failed": "无法保存窗口大小和位置：{error}",
+  "notice.title": "MyTools 提示",
+  "notice.close": "关闭",
+  "notice.config": "配置文件有误",
+  "notice.hotkey": "快捷键注册失败"
 }
