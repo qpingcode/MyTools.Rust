@@ -23,6 +23,10 @@ pub fn run() -> anyhow::Result<()> {
         .as_ref()
         .map(|config| config.plugin_shortcuts.clone())
         .unwrap_or_default();
+    let load_options = config
+        .as_ref()
+        .map(config::Config::load_options)
+        .unwrap_or_default();
     let requested = config
         .as_ref()
         .map(|config| config.language.as_str())
@@ -89,7 +93,7 @@ pub fn run() -> anyhow::Result<()> {
     }
     let state = Rc::new(RefCell::new(initial));
     let icons = icons::Loader::new(&ui)?;
-    let (worker, responses) = SearchWorker::start();
+    let (worker, responses) = SearchWorker::start(load_options);
     wire_search(&ui, &state, &worker);
     actions::wire(&ui, &state);
     let tray_controller = tray::Controller::new(&tray, &ui)?;
@@ -113,6 +117,14 @@ pub fn run() -> anyhow::Result<()> {
                 }
                 Event::Completed(completed) if completed.generation == state.generation => {
                     apply_results(&ui, &mut state, completed.results, &icons);
+                }
+                Event::Notices(notices) => {
+                    let text: Vec<String> = notices
+                        .iter()
+                        .map(|notice| format!("{}：{}", notice.title, notice.message))
+                        .collect();
+                    ui.set_failed(true);
+                    ui.set_status(text.join("；").into());
                 }
                 _ => {} // Superseded by newer input.
             }
@@ -199,6 +211,15 @@ fn apply_results(
             "status.plugin",
             &[
                 ("name", &name),
+                ("count", &results.entries.len().to_string()),
+            ],
+        )
+    } else if let Some((ready, total)) = results.partial {
+        i18n::format(
+            "status.partial",
+            &[
+                ("ready", &ready.to_string()),
+                ("total", &total.to_string()),
                 ("count", &results.entries.len().to_string()),
             ],
         )

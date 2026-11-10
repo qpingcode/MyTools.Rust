@@ -1,12 +1,13 @@
 use crate::i18n;
 use crate::{
     actions::{Action, resolve_actions},
-    plugins::{Plugin, manifest_paths},
-    search_process::SEARCH_TIMEOUT,
+    plugins::{DisabledPlugin, LoadContext, Loaded, Plugin, manifest_paths},
+    search_process::{SEARCH_TIMEOUT, STARTUP_TIMEOUT, SearchProcess},
+    status::{Board, Notice},
 };
 use anyhow::Result;
-use mytools_plugin_api::{ActionId, ActionSpec, Icon, Resource, SearchItem};
-use std::{collections::HashSet, time::Instant};
+use mytools_plugin_api::{ActionId, ActionSpec, Icon, Resource, SearchItem, plugin_status::State};
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -54,9 +55,26 @@ impl Entry {
 #[derive(Clone)]
 pub struct Catalog {
     plugins: Vec<Plugin>,
+    /// Turned off in the settings; their aliases explain why nothing answers.
+    disabled: Vec<DisabledPlugin>,
     errors: Vec<String>,
     /// When the plugin settings file was last changed as of this load.
     settings_stamp: Option<std::time::SystemTime>,
+    board: Arc<Board>,
+}
+
+/// Host settings that apply to every plugin.
+pub struct LoadOptions {
+    /// How long a plugin may take to start unless its manifest says otherwise.
+    pub startup_timeout: std::time::Duration,
+}
+
+impl Default for LoadOptions {
+    fn default() -> Self {
+        Self {
+            startup_timeout: STARTUP_TIMEOUT,
+        }
+    }
 }
 
 fn settings_stamp() -> Option<std::time::SystemTime> {
@@ -73,6 +91,10 @@ pub struct SearchResults {
     pub revision: Option<u64>,
     /// A newer query arrived while waiting; the results are incomplete and stale.
     pub cancelled: bool,
+    /// A plugin this search needs is still starting: search again once it is ready.
+    pub waiting: bool,
+    /// For a global search while some plugins are not ready: (ready, expected).
+    pub partial: Option<(usize, usize)>,
 }
 
 /// How one search runs: retries wait longer, and a newer query cancels the wait.
@@ -156,12 +178,27 @@ fn retry_entry(plugin: &Plugin, input: &str, waited: std::time::Duration, attemp
 
 impl Catalog {
     pub fn load() -> Self {
+        Self::load_with(&LoadOptions::default())
+    }
+
+    /// Loads every plugin and starts the eager ones without waiting for them.
+    pub fn load_with(options: &LoadOptions) -> Self {
         let settings_stamp = settings_stamp();
         let (settings, settings_error) = crate::plugins::load_settings();
+        let board = Arc::new(Board::new(Some(mytools_plugin_api::plugin_status::path(
+            &crate::plugins::settings_path(),
+        ))));
         let mut catalog = Self {
             plugins: vec![],
+            disabled: vec![],
             errors: settings_error.into_iter().collect(),
             settings_stamp,
+            board: board.clone(),
+        };
+        let context = LoadContext {
+            settings: &settings,
+            board: &board,
+            startup_timeout: options.startup_timeout,
         };
         let root = crate::plugins::directory();
         match manifest_paths(&root) {
@@ -169,9 +206,9 @@ impl Catalog {
                 let mut ids = HashSet::new();
                 let mut aliases = HashSet::new();
                 for path in paths {
-                    match Plugin::load(&path, &settings) {
-                        Ok(None) => {}
-                        Ok(Some(plugin)) => {
+                    match Plugin::load(&path, &context) {
+                        Ok(Loaded::Disabled(plugin)) => catalog.disabled.push(plugin),
+                        Ok(Loaded::Enabled(plugin)) => {
                             if !ids.insert(plugin.id.clone()) {
                                 catalog.errors.push(i18n::format(
                                     "error.duplicate_id",
@@ -182,10 +219,12 @@ impl Catalog {
                                 .iter()
                                 .any(|alias| aliases.contains(&alias.to_lowercase()))
                             {
-                                catalog.errors.push(i18n::format(
+                                let error = i18n::format(
                                     "error.duplicate_alias",
                                     &[("name", &plugin.name)],
-                                ));
+                                );
+                                board.set(&plugin.id, State::Failed, Some(error.clone()));
+                                catalog.errors.push(error);
                             } else {
                                 aliases.extend(
                                     plugin.aliases.iter().map(|alias| alias.to_lowercase()),
@@ -224,6 +263,55 @@ impl Catalog {
                 process.shutdown();
             }
         }
+        self.board.retract();
+    }
+
+    /// Changes whenever any plugin changes state.
+    pub fn revision(&self) -> u64 {
+        self.board.revision()
+    }
+
+    /// Problems found since the last call, each reported once.
+    pub fn take_notices(&self) -> Vec<Notice> {
+        self.board.take_notices()
+    }
+
+    /// Restarts a plugin, e.g. one that failed to start; `false` if it has no process.
+    pub fn restart(&self, id: &str) -> bool {
+        let process = self
+            .plugins
+            .iter()
+            .find(|plugin| plugin.id == id)
+            .and_then(|plugin| plugin.process.as_ref());
+        if let Some(process) = process {
+            process.restart();
+        }
+        process.is_some()
+    }
+
+    /// Carries out what the settings window asked for, such as restarting a plugin.
+    pub fn apply_requests(&self) {
+        let settings = crate::plugins::settings_path();
+        if let Some(requests) = mytools_plugin_api::plugin_status::take_requests(&settings) {
+            for id in requests.restart {
+                self.restart(&id);
+            }
+        }
+    }
+
+    /// Plugins with a process that should be running now, and how many of them are ready.
+    fn loaded(&self) -> (usize, usize) {
+        let states: Vec<State> = self
+            .plugins
+            .iter()
+            .filter_map(|plugin| plugin.process.as_ref().map(|process| process.state().0))
+            .filter(|state| *state != State::Idle)
+            .collect();
+        let ready = states
+            .iter()
+            .filter(|state| **state == State::Ready)
+            .count();
+        (ready, states.len())
     }
 
     pub fn alias_table(&self) -> AliasTable {
@@ -248,7 +336,26 @@ impl Catalog {
             view: target.map(|i| self.plugins[i].view).unwrap_or_default(),
             revision: None,
             cancelled: false,
+            waiting: false,
+            partial: None,
         };
+        if target.is_none()
+            && let (Some(index), _) = route_by(
+                self.disabled.iter().map(|plugin| plugin.aliases.as_slice()),
+                input,
+            )
+        {
+            let plugin = &self.disabled[index];
+            output.plugin_name = Some(plugin.name.clone());
+            output.entries.push(status_entry(
+                &plugin.id,
+                i18n::format("plugin.disabled_title", &[("name", &plugin.name)]),
+                i18n::t("plugin.disabled_detail"),
+                "builtin:power",
+                input,
+            ));
+            return output;
+        }
         let timeout = |plugin: &Plugin| search_timeout(plugin, target.is_some(), options.attempt);
         let mut pending = vec![];
         // Submit to every eligible plugin before waiting, so plugins run concurrently.
@@ -257,6 +364,9 @@ impl Catalog {
                 continue;
             }
             if let Some(process) = &plugin.process {
+                if !ready(process, plugin, input, target.is_some(), &mut output) {
+                    continue;
+                }
                 match process.begin(query, timeout(plugin)) {
                     Ok(reply) => pending.push((plugin, reply)),
                     Err(err) => output.errors.push(format!("{}：{err}", plugin.name)),
@@ -325,6 +435,10 @@ impl Catalog {
                 }
             }
         }
+        if target.is_none() {
+            let (ready, expected) = self.loaded();
+            output.partial = (ready < expected).then_some((ready, expected));
+        }
         if target.is_none() && !query.is_empty() {
             rank_global(
                 &mut output.entries,
@@ -363,6 +477,63 @@ impl Catalog {
             }
         }
     }
+}
+
+/// Whether a plugin can be searched now. A lazy plugin is started on first need; for a
+/// search through its alias, a plugin that is not ready explains itself with one result.
+fn ready(
+    process: &SearchProcess,
+    plugin: &Plugin,
+    input: &str,
+    targeted: bool,
+    output: &mut SearchResults,
+) -> bool {
+    let (mut state, detail) = process.state();
+    if state == State::Idle {
+        process.activate();
+        state = process.state().0;
+    }
+    match state {
+        State::Ready => return true,
+        State::Idle | State::Starting => output.waiting = true,
+        State::Failed | State::Disabled => {}
+    }
+    if targeted {
+        output.entries.push(match state {
+            State::Failed | State::Disabled => status_entry(
+                &plugin.id,
+                i18n::format("plugin.failed_title", &[("name", &plugin.name)]),
+                i18n::format(
+                    "plugin.failed_detail",
+                    &[("reason", &detail.unwrap_or_default())],
+                ),
+                "builtin:triangle-alert",
+                input,
+            ),
+            _ => status_entry(
+                &plugin.id,
+                i18n::format("plugin.starting_title", &[("name", &plugin.name)]),
+                detail.unwrap_or_else(|| i18n::t("plugin.starting_detail")),
+                "builtin:clock",
+                input,
+            ),
+        });
+    }
+    false
+}
+
+/// An informational result describing a plugin rather than coming from it.
+fn status_entry(id: &str, title: String, description: String, icon: &str, input: &str) -> Entry {
+    let mut entry = Entry::new(
+        title,
+        description,
+        icon.into(),
+        Resource::Text { text: input.into() },
+        Some(&[]),
+    )
+    .expect("an empty action list fits every resource");
+    entry.source_id = id.into();
+    entry
 }
 
 /// The value sent as `item` when a contributed action runs.
@@ -648,6 +819,16 @@ mod tests {
         }
     }
 
+    fn catalog(plugins: Vec<Plugin>) -> Catalog {
+        Catalog {
+            plugins,
+            disabled: vec![],
+            errors: vec![],
+            settings_stamp: None,
+            board: Default::default(),
+        }
+    }
+
     #[test]
     fn alias_requires_whitespace_and_preserves_expression() {
         let plugins = vec![plugin()];
@@ -681,17 +862,30 @@ mod tests {
         rider.name = "Rider".into();
         rider.aliases = vec!["rider".into()];
         rider.global = true;
-        let catalog = Catalog {
-            plugins: vec![plugin(), rider],
-            errors: vec![],
-            settings_stamp: None,
-        };
+        let catalog = catalog(vec![plugin(), rider]);
         assert!(catalog.search("计算器").entries.is_empty());
         let scoped = catalog.search("calc 1+1");
         assert_eq!(scoped.entries.len(), 1);
         assert_eq!(scoped.entries[0].name, "计算器");
         assert_eq!(scoped.plugin_name.as_deref(), Some("计算器"));
         assert_eq!(catalog.search("RIDER").entries[0].name, "Rider");
+    }
+
+    #[test]
+    fn disabled_alias_explains_instead_of_searching_everything() {
+        let mut catalog = catalog(vec![plugin()]);
+        catalog.disabled.push(DisabledPlugin {
+            id: "translator".into(),
+            name: "翻译".into(),
+            aliases: vec!["tr".into()],
+        });
+        let results = catalog.search("tr hello");
+        assert_eq!(results.entries.len(), 1);
+        assert_eq!(results.plugin_name.as_deref(), Some("翻译"));
+        assert!(results.entries[0].actions.is_empty());
+        // An enabled plugin's alias wins over a disabled one's.
+        catalog.disabled[0].aliases = vec!["calc".into()];
+        assert_eq!(catalog.search("calc 1").entries[0].name, "计算器");
     }
 
     #[cfg(windows)]
@@ -707,11 +901,7 @@ mod tests {
         second.name = "第二个插件".into();
         second.aliases = vec!["second".into()];
         second.process = Some(Arc::new(SearchProcess::fixture()));
-        let mut catalog = Catalog {
-            plugins: vec![first, second],
-            errors: vec![],
-            settings_stamp: None,
-        };
+        let mut catalog = catalog(vec![first, second]);
         let results = catalog.search("1+1");
         assert!(results.errors.is_empty(), "{:?}", results.errors);
         assert_eq!(results.entries.len(), 2);

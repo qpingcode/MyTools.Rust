@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
 mod transport;
-pub use transport::{cancelled, deadline};
+pub use transport::{cancelled, deadline, on_init, progress};
 
 mod actions;
 pub use actions::{ActionId, ActionSpec, Resource};
@@ -22,6 +22,25 @@ pub struct SearchRequest {
     /// Heartbeat: answered at once with `pong` by the transport, never by the plugin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ping: Option<u64>,
+    /// The host's first request to a new process; answered with `ready` (see [`on_init`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub init: Option<InitRequest>,
+}
+
+/// Sent once as `{"init":{}}` before any search or action.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct InitRequest {}
+
+impl SearchRequest {
+    pub fn init() -> Self {
+        Self {
+            query: String::new(),
+            action: None,
+            timeout_ms: None,
+            ping: None,
+            init: Some(InitRequest {}),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -59,6 +78,12 @@ pub struct SearchResponse {
     /// With `pong`: how long the current request has been running, 0 when idle.
     #[serde(default, rename = "busyMs", skip_serializing_if = "Option::is_none")]
     pub busy_ms: Option<u64>,
+    /// Answer to `init`: the plugin can take searches now. `error` instead means it failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ready: Option<bool>,
+    /// A status line sent while `init` runs; not a response to any request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<String>,
 }
 
 /// A search plugin stays alive and handles one JSON request per line.
@@ -85,6 +110,7 @@ pub mod icons;
 pub mod matching;
 pub mod paths;
 pub mod plugin_settings;
+pub mod plugin_status;
 pub mod text;
 
 fn is_false(value: &bool) -> bool {

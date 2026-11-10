@@ -1,4 +1,4 @@
-use mytools_core::{AliasTable, Catalog, SearchOptions, SearchResults};
+use mytools_core::{AliasTable, Catalog, LoadOptions, Notice, SearchOptions, SearchResults};
 use std::{
     sync::{
         Arc, RwLock,
@@ -9,6 +9,11 @@ use std::{
     time::Duration,
 };
 
+/// How often the idle worker re-runs a search that waits for a plugin, applies requests
+/// from the settings window and forwards problem notices.
+const TICK: Duration = Duration::from_millis(250);
+
+#[derive(Clone)]
 pub struct Query {
     pub generation: u64,
     pub text: String,
@@ -28,6 +33,8 @@ pub enum Event {
         generation: u64,
     },
     Completed(Completed),
+    /// Plugin problems found in the background, such as a start that timed out.
+    Notices(Vec<Notice>),
 }
 
 /// The retry attempt for the next search the UI starts; consumed by that search.
@@ -54,7 +61,7 @@ pub struct SearchWorker {
 }
 
 impl SearchWorker {
-    pub fn start() -> (Self, async_channel::Receiver<Event>) {
+    pub fn start(options: LoadOptions) -> (Self, async_channel::Receiver<Event>) {
         let (requests, receiver) = mpsc::channel::<Option<Query>>();
         let (events, results) = async_channel::unbounded();
         let latest = Arc::new(AtomicU64::new(0));
@@ -62,10 +69,26 @@ impl SearchWorker {
         let aliases = Arc::new(RwLock::new(None));
         let worker_aliases = aliases.clone();
         let thread = thread::spawn(move || {
-            let mut catalog = Catalog::load();
-            *worker_aliases.write().unwrap_or_else(|e| e.into_inner()) =
-                Some(catalog.alias_table());
-            'requests: while let Ok(Some(mut query)) = receiver.recv() {
+            let mut worker = Worker {
+                catalog: Catalog::load_with(&options),
+                options,
+                events,
+                latest: worker_latest,
+                aliases: worker_aliases,
+                waiting: None,
+            };
+            worker.publish_aliases();
+            'requests: loop {
+                let mut query = match receiver.recv_timeout(TICK) {
+                    Ok(Some(query)) => query,
+                    Ok(None) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if !worker.tick() {
+                            break;
+                        }
+                        continue;
+                    }
+                };
                 // Typed input settles for a moment; an explicit retry runs at once.
                 while query.attempt == 0 {
                     match receiver.recv_timeout(Duration::from_millis(120)) {
@@ -75,38 +98,24 @@ impl SearchWorker {
                     }
                 }
                 let generation = query.generation;
-                if events.send_blocking(Event::Started { generation }).is_err() {
-                    break;
-                }
-                // Enabled plugins and aliases edited in Settings apply from the next search.
-                if catalog.settings_changed() {
-                    catalog.shutdown();
-                    catalog = Catalog::load();
-                    *worker_aliases.write().unwrap_or_else(|e| e.into_inner()) =
-                        Some(catalog.alias_table());
-                }
-                let is_stale = || worker_latest.load(Ordering::SeqCst) != generation;
-                let results = catalog.search_with(
-                    &query.text,
-                    &SearchOptions {
-                        attempt: query.attempt,
-                        cancelled: &is_stale,
-                    },
-                );
-                if results.cancelled {
-                    continue; // The newer query is already queued.
-                }
-                if events
-                    .send_blocking(Event::Completed(Completed {
-                        generation,
-                        results,
-                    }))
+                if worker
+                    .events
+                    .send_blocking(Event::Started { generation })
                     .is_err()
                 {
                     break;
                 }
+                // Enabled plugins and aliases edited in Settings apply from the next search.
+                if worker.catalog.settings_changed() {
+                    worker.catalog.shutdown();
+                    worker.catalog = Catalog::load_with(&worker.options);
+                    worker.publish_aliases();
+                }
+                if !worker.search(query) {
+                    break;
+                }
             }
-            catalog.shutdown();
+            worker.catalog.shutdown();
         });
         (
             Self {
@@ -125,6 +134,71 @@ impl SearchWorker {
             latest: self.latest.clone(),
             aliases: self.aliases.clone(),
         }
+    }
+}
+
+/// The state owned by the worker thread.
+struct Worker {
+    catalog: Catalog,
+    options: LoadOptions,
+    events: async_channel::Sender<Event>,
+    latest: Arc<AtomicU64>,
+    aliases: Arc<RwLock<Option<AliasTable>>>,
+    /// The last search, if it waited for a starting plugin, and the plugin states it saw.
+    waiting: Option<(Query, u64)>,
+}
+
+impl Worker {
+    fn publish_aliases(&self) {
+        *self.aliases.write().unwrap_or_else(|e| e.into_inner()) = Some(self.catalog.alias_table());
+    }
+
+    /// Runs one search and reports it; `false` once the UI is gone.
+    fn search(&mut self, query: Query) -> bool {
+        let generation = query.generation;
+        let revision = self.catalog.revision();
+        let latest = self.latest.clone();
+        let is_stale = || latest.load(Ordering::SeqCst) != generation;
+        let results = self.catalog.search_with(
+            &query.text,
+            &SearchOptions {
+                attempt: query.attempt,
+                cancelled: &is_stale,
+            },
+        );
+        if results.cancelled {
+            return true; // The newer query is already queued.
+        }
+        self.waiting = results.waiting.then_some((query, revision));
+        self.events
+            .send_blocking(Event::Completed(Completed {
+                generation,
+                results,
+            }))
+            .is_ok()
+            && self.forward_notices()
+    }
+
+    /// Background work between searches; `false` once the UI is gone.
+    fn tick(&mut self) -> bool {
+        self.catalog.apply_requests();
+        if !self.forward_notices() {
+            return false;
+        }
+        // A plugin the shown results waited for changed state: show its results now.
+        if let Some((query, revision)) = &self.waiting
+            && *revision != self.catalog.revision()
+            && self.latest.load(Ordering::SeqCst) == query.generation
+        {
+            let query = query.clone();
+            return self.search(query);
+        }
+        true
+    }
+
+    fn forward_notices(&self) -> bool {
+        let notices = self.catalog.take_notices();
+        notices.is_empty() || self.events.send_blocking(Event::Notices(notices)).is_ok()
     }
 }
 

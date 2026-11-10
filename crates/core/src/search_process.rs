@@ -1,6 +1,9 @@
 use crate::i18n;
+use crate::status::{Board, Notice};
 use anyhow::{Context, Result, anyhow, bail};
-use mytools_plugin_api::{PluginActionRequest, PluginEffect, SearchRequest, SearchResponse};
+use mytools_plugin_api::{
+    PluginActionRequest, PluginEffect, SearchRequest, SearchResponse, plugin_status::State,
+};
 use std::{
     collections::VecDeque,
     io::{BufRead, BufReader, Read, Write},
@@ -23,8 +26,10 @@ const RESTART_WINDOW: Duration = Duration::from_secs(60);
 /// a request runs, so they measure whether the process responds, not how slow a search is.
 const PING_INTERVAL: Duration = Duration::from_secs(10);
 const PONG_TIMEOUT: Duration = Duration::from_secs(3);
-/// A process that has not answered anything yet may still be initialising.
-const STARTUP_GRACE: Duration = Duration::from_secs(30);
+/// How long a plugin may take to answer `init` unless configured otherwise.
+pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
+pub const MIN_STARTUP_TIMEOUT: Duration = Duration::from_secs(1);
+pub const MAX_STARTUP_TIMEOUT: Duration = Duration::from_secs(120);
 /// A search still running this long (the longest alias timeout plus slack) is stuck.
 const SEARCH_HUNG: Duration = Duration::from_secs(20);
 /// Searches abandoned by the host stay queued until the plugin answers or skips them.
@@ -34,6 +39,7 @@ type Factory = Box<dyn Fn() -> Command + Send + Sync>;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
+    Init,
     Search,
     Action,
 }
@@ -58,10 +64,26 @@ struct Shared {
     pending: Mutex<VecDeque<Pending>>,
     /// Cleared when the pipe breaks, a response is invalid or the plugin is stuck.
     healthy: AtomicBool,
-    /// Set by the first line from the plugin: it has finished starting.
-    responsive: AtomicBool,
+    /// Set when the plugin answers `init`: it takes searches and heartbeats from now on.
+    ready: AtomicBool,
+    /// The reason the plugin gave for failing `init`.
+    init_error: Mutex<Option<String>>,
     started: Instant,
     heartbeat: Mutex<Heartbeat>,
+    status: Status,
+}
+
+/// Where one process reports its state.
+#[derive(Clone)]
+struct Status {
+    board: Arc<Board>,
+    id: String,
+}
+
+impl Status {
+    fn set(&self, state: State, detail: Option<String>) {
+        self.board.set(&self.id, state, detail);
+    }
 }
 
 impl Shared {
@@ -83,9 +105,7 @@ impl Shared {
         let now = Instant::now();
         let mut heartbeat = self.heartbeat.lock().unwrap();
         if let Some(sent) = heartbeat.outstanding {
-            let starting = !self.responsive.load(Ordering::Relaxed)
-                && now.duration_since(self.started) < STARTUP_GRACE;
-            if now.duration_since(sent) > PONG_TIMEOUT && !starting {
+            if now.duration_since(sent) > PONG_TIMEOUT {
                 self.healthy.store(false, Ordering::Relaxed);
             }
             return;
@@ -104,6 +124,7 @@ impl Shared {
             action: None,
             timeout_ms: None,
             ping: Some(heartbeat.sequence),
+            init: None,
         };
         drop(heartbeat);
         let _ = self.write(&ping);
@@ -155,15 +176,32 @@ impl Running {
     }
 }
 
-/// A resident search plugin. It restarts itself when the process exits, stops answering
-/// heartbeats, stays stuck on a request or returns an invalid response, so references
-/// held by actions stay valid.
+/// Who a process is and how long it may take to start.
+pub struct ProcessOptions {
+    pub id: String,
+    pub name: String,
+    pub startup_timeout: Duration,
+    pub board: Arc<Board>,
+}
+
+/// A resident search plugin. A new process first answers `init`; one that fails or times
+/// out there is stopped and stays failed until [`SearchProcess::restart`]. Once ready, it
+/// restarts itself when the process exits, stops answering heartbeats, stays stuck on a
+/// request or returns an invalid response, so references held by actions stay valid.
+/// A lazy plugin starts on the first request ([`SearchProcess::activate`]).
 pub struct SearchProcess {
     factory: Factory,
     running: Mutex<Option<Running>>,
     shutdown: AtomicBool,
     action_busy: Mutex<bool>,
     restarts: Mutex<VecDeque<Instant>>,
+    name: String,
+    status: Status,
+    startup_timeout: Duration,
+    /// A process has been started at least once; the watchdog only revives those.
+    started_once: AtomicBool,
+    /// Stopped after a failed start or a crash loop, until restarted by the user.
+    suspended: AtomicBool,
 }
 
 impl std::fmt::Debug for SearchProcess {
@@ -176,13 +214,14 @@ impl std::fmt::Debug for SearchProcess {
 }
 
 impl SearchProcess {
-    pub fn start(path: &Path) -> Result<Self> {
+    /// An eager plugin starts now; a lazy one waits for [`Self::activate`].
+    pub fn new(path: &Path, options: ProcessOptions, eager: bool) -> Result<Self> {
         let directory = path
             .parent()
             .context(i18n::t("error.plugin_directory"))?
             .to_path_buf();
         let program = path.to_path_buf();
-        Self::start_factory(Box::new(move || {
+        let factory: Factory = Box::new(move || {
             let mut command = Command::new(&program);
             command
                 .current_dir(&directory)
@@ -196,18 +235,63 @@ impl SearchProcess {
                     mytools_plugin_api::crash::directory(),
                 );
             command
-        }))
+        });
+        Ok(Self::with_factory(factory, options, eager))
     }
 
-    fn start_factory(factory: Factory) -> Result<Self> {
-        let running = spawn(factory())?;
-        Ok(Self {
+    fn with_factory(factory: Factory, options: ProcessOptions, eager: bool) -> Self {
+        let process = Self {
             factory,
-            running: Mutex::new(Some(running)),
+            running: Mutex::new(None),
             shutdown: AtomicBool::new(false),
             action_busy: Mutex::new(false),
             restarts: Mutex::new(VecDeque::new()),
-        })
+            name: options.name,
+            status: Status {
+                board: options.board,
+                id: options.id,
+            },
+            startup_timeout: options.startup_timeout,
+            started_once: AtomicBool::new(false),
+            suspended: AtomicBool::new(false),
+        };
+        if eager {
+            let mut running = process.running.lock().unwrap();
+            let _ = process.ensure_running(&mut running);
+        }
+        process
+    }
+
+    /// The state shown to the user, with its reason or progress.
+    pub fn state(&self) -> (State, Option<String>) {
+        self.status
+            .board
+            .get(&self.status.id)
+            .unwrap_or((State::Idle, None))
+    }
+
+    /// Starts a lazy plugin that has not been started (or was stopped); no effect on a
+    /// running or failed one.
+    pub fn activate(&self) {
+        let mut running = self.running.lock().unwrap();
+        if running.is_none() && !self.suspended.load(Ordering::Relaxed) {
+            let _ = self.ensure_running(&mut running);
+        }
+    }
+
+    /// Starts the plugin afresh at the user's request, clearing a failure.
+    pub fn restart(&self) {
+        if self.shutdown.load(Ordering::Relaxed) {
+            return;
+        }
+        let mut running = self.running.lock().unwrap();
+        if let Some(current) = running.take() {
+            current.kill();
+        }
+        self.suspended.store(false, Ordering::Relaxed);
+        self.restarts.lock().unwrap().clear();
+        self.started_once.store(false, Ordering::Relaxed);
+        let _ = self.ensure_running(&mut running);
     }
 
     /// Starts a search; `timeout` tells the plugin how long the host will wait for it.
@@ -225,6 +309,7 @@ impl SearchProcess {
                 action: None,
                 timeout_ms: Some(timeout.as_millis() as u64),
                 ping: None,
+                init: None,
             },
             Kind::Search,
         )
@@ -248,10 +333,18 @@ impl SearchProcess {
         Ok(receiver)
     }
 
-    /// Returns the live transport, restarting a dead process within the restart budget.
+    /// Returns the live transport, starting the process or restarting a dead one within
+    /// the restart budget. A request sent while the process starts waits behind `init`.
     fn ensure_running(&self, running: &mut Option<Running>) -> Result<Arc<Shared>> {
         if self.shutdown.load(Ordering::Relaxed) {
             bail!(i18n::t("error.process_stopped"));
+        }
+        if self.suspended.load(Ordering::Relaxed) {
+            bail!(
+                self.state()
+                    .1
+                    .unwrap_or_else(|| i18n::t("error.process_stopped"))
+            );
         }
         if let Some(current) = running.as_mut()
             && current.is_alive()
@@ -261,13 +354,35 @@ impl SearchProcess {
         if let Some(dead) = running.take() {
             dead.kill();
         }
-        if !self.allow_restart() {
-            bail!(i18n::t("error.process_stopped"));
+        // The first start is not a restart.
+        if self.started_once.swap(true, Ordering::Relaxed) && !self.allow_restart() {
+            let reason = i18n::t("plugin.crash_loop");
+            self.fail(running, reason.clone());
+            bail!(reason);
         }
-        let fresh = spawn((self.factory)())?;
+        let fresh = match spawn((self.factory)(), self.status.clone()) {
+            Ok(fresh) => fresh,
+            Err(error) => {
+                self.fail(running, format!("{error:#}"));
+                return Err(error);
+            }
+        };
         let shared = fresh.shared.clone();
         *running = Some(fresh);
         Ok(shared)
+    }
+
+    /// Stops the process and keeps it stopped until the user restarts it.
+    fn fail(&self, running: &mut Option<Running>, reason: String) {
+        if let Some(current) = running.take() {
+            current.kill();
+        }
+        self.suspended.store(true, Ordering::Relaxed);
+        self.status.set(State::Failed, Some(reason.clone()));
+        self.status.board.notify(Notice {
+            title: i18n::format("plugin.failed_title", &[("name", &self.name)]),
+            message: reason,
+        });
     }
 
     fn allow_restart(&self) -> bool {
@@ -301,6 +416,7 @@ impl SearchProcess {
                 }),
                 timeout_ms: None,
                 ping: None,
+                init: None,
             },
             Kind::Action,
         );
@@ -339,16 +455,29 @@ impl SearchProcess {
         self.stop();
     }
 
-    /// One watchdog tick: restarts a dead, unresponsive or stuck process and sends a
-    /// heartbeat when one is due.
+    /// One watchdog tick: fails a start that errs, exits or takes too long; restarts a
+    /// dead, unresponsive or stuck ready process; sends a heartbeat when one is due.
+    /// Lazy plugins that were never started and failed ones are left alone.
     pub(crate) fn check(&self) {
-        if self.shutdown.load(Ordering::Relaxed) {
+        if self.shutdown.load(Ordering::Relaxed) || self.suspended.load(Ordering::Relaxed) {
             return;
         }
         let mut running = self.running.lock().unwrap();
-        let alive = running.as_mut().is_some_and(Running::is_alive);
-        if !alive {
-            // Errors (restart budget exhausted, spawn failure) are retried next tick.
+        let Some(current) = running.as_mut() else {
+            // Stopped by `stop`; a lazy plugin that never ran waits for a request.
+            if self.started_once.load(Ordering::Relaxed) {
+                let _ = self.ensure_running(&mut running);
+            }
+            return;
+        };
+        if !current.shared.ready.load(Ordering::Relaxed) {
+            if let Some(reason) = self.start_failure(current) {
+                self.fail(&mut running, reason);
+            }
+            return;
+        }
+        if !current.is_alive() {
+            // A crash loop marks the plugin failed; other errors are retried next tick.
             let _ = self.ensure_running(&mut running);
             return;
         }
@@ -357,6 +486,25 @@ impl SearchProcess {
         if let Some(shared) = shared {
             shared.heartbeat();
         }
+    }
+
+    /// Why a process that has not answered `init` should be given up, if it should.
+    fn start_failure(&self, current: &mut Running) -> Option<String> {
+        if let Some(error) = current.shared.init_error.lock().unwrap().take() {
+            return Some(i18n::format("plugin.init_failed", &[("error", &error)]));
+        }
+        if !matches!(current.child.try_wait(), Ok(None))
+            || !current.shared.healthy.load(Ordering::Relaxed)
+        {
+            return Some(i18n::t("plugin.exited_starting"));
+        }
+        let waited = current.shared.started.elapsed();
+        (waited > self.startup_timeout).then(|| {
+            i18n::format(
+                "plugin.start_timeout",
+                &[("seconds", &self.startup_timeout.as_secs().to_string())],
+            )
+        })
     }
 }
 
@@ -383,7 +531,7 @@ pub(crate) fn watch(processes: Vec<std::sync::Weak<SearchProcess>>) {
     });
 }
 
-fn spawn(mut command: Command) -> Result<Running> {
+fn spawn(mut command: Command, status: Status) -> Result<Running> {
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -400,10 +548,21 @@ fn spawn(mut command: Command) -> Result<Running> {
         stdin: Mutex::new(stdin),
         pending: Mutex::new(VecDeque::new()),
         healthy: AtomicBool::new(true),
-        responsive: AtomicBool::new(false),
+        ready: AtomicBool::new(false),
+        init_error: Mutex::new(None),
         started: Instant::now(),
         heartbeat: Mutex::new(Heartbeat::default()),
+        status,
     });
+    shared.status.set(State::Starting, None);
+    // Nobody waits for the init reply: the reader marks the plugin ready instead.
+    let (reply, _) = mpsc::channel();
+    shared.pending.lock().unwrap().push_back(Pending {
+        reply,
+        kind: Kind::Init,
+    });
+    // A broken pipe shows up as unhealthy; the watchdog reports it.
+    let _ = shared.write(&SearchRequest::init());
     let reader = shared.clone();
     std::thread::spawn(move || {
         let error = read_responses(stdout, &reader);
@@ -431,16 +590,33 @@ fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
             Ok(response) => response,
             Err(error) => return anyhow!(error).context(i18n::t("error.response_invalid")),
         };
-        shared.responsive.store(true, Ordering::Relaxed);
         if let Some(sequence) = response.pong {
             shared.pong(sequence, response.busy_ms.unwrap_or(0));
+            continue;
+        }
+        if let Some(progress) = response.progress {
+            if !shared.ready.load(Ordering::Relaxed) {
+                shared.status.set(State::Starting, Some(progress));
+            }
             continue;
         }
         response.items.truncate(50);
         // The receiver may be gone when the host stopped waiting; that is fine.
         let next = shared.pending.lock().unwrap().pop_front();
-        if let Some(pending) = next {
-            let _ = pending.reply.send(Ok(response));
+        match next {
+            // Any answer without an error counts, so plugins that predate `init` (and
+            // answer it like an empty search) still start.
+            Some(pending) if pending.kind == Kind::Init => match response.error {
+                Some(error) => *shared.init_error.lock().unwrap() = Some(error),
+                None => {
+                    shared.ready.store(true, Ordering::Relaxed);
+                    shared.status.set(State::Ready, None);
+                }
+            },
+            Some(pending) => {
+                let _ = pending.reply.send(Ok(response));
+            }
+            None => {}
         }
     }
 }
@@ -448,6 +624,18 @@ fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
 impl Drop for SearchProcess {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+#[cfg(all(test, windows))]
+impl ProcessOptions {
+    fn test() -> Self {
+        Self {
+            id: "fixture".into(),
+            name: "Fixture".into(),
+            startup_timeout: STARTUP_TIMEOUT,
+            board: Arc::new(Board::new(None)),
+        }
     }
 }
 
@@ -467,9 +655,14 @@ impl SearchProcess {
         })
     }
 
+    /// An eager process reporting to a private board.
+    pub(crate) fn start_factory(factory: Factory) -> Result<Self> {
+        Ok(Self::with_factory(factory, ProcessOptions::test(), true))
+    }
+
     pub(crate) fn fixture() -> Self {
         let process = Self::start_factory(Self::powershell(
-            "$count=0; while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.ping) { continue }; $q=$r.query; if ($q -eq 'slow') { Start-Sleep -Milliseconds 1500 }; $count++; @{items=@(@{title=$q;description=[string]$count;resource=@{type='text';text=$q}})}|ConvertTo-Json -Compress -Depth 5 }",
+            "$count=0; while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.ping) { continue }; if ($r.init) { '{\"ready\":true}'; continue }; $q=$r.query; if ($q -eq 'slow') { Start-Sleep -Milliseconds 1500 }; $count++; @{items=@(@{title=$q;description=[string]$count;resource=@{type='text';text=$q}})}|ConvertTo-Json -Compress -Depth 5 }",
         ))
         .unwrap();
         process
@@ -607,5 +800,128 @@ mod tests {
             assert!(process.allow_restart());
         }
         assert!(!process.allow_restart());
+    }
+}
+
+#[cfg(all(test, unix))]
+mod startup_tests {
+    use super::*;
+
+    /// A plugin written in sh: `init` gets `on_init`, every search echoes `title`.
+    fn shell(on_init: &'static str) -> Factory {
+        Box::new(move || {
+            let mut command = Command::new("sh");
+            command.args([
+                "-c",
+                &format!(
+                    r#"while IFS= read -r line; do case "$line" in *'"init"'*) {on_init};; *'"ping"'*) ;; *) echo '{{"items":[{{"title":"hit","resource":{{"type":"text","text":"x"}}}}]}}';; esac; done"#
+                ),
+            ]);
+            command
+        })
+    }
+
+    fn process(
+        on_init: &'static str,
+        eager: bool,
+        timeout: Duration,
+    ) -> (SearchProcess, Arc<Board>) {
+        let board = Arc::new(Board::new(None));
+        board.register("fixture", State::Idle, None, None);
+        let options = ProcessOptions {
+            id: "fixture".into(),
+            name: "Fixture".into(),
+            startup_timeout: timeout,
+            board: board.clone(),
+        };
+        (
+            SearchProcess::with_factory(shell(on_init), options, eager),
+            board,
+        )
+    }
+
+    fn wait_for(process: &SearchProcess, state: State) -> Option<String> {
+        let until = Instant::now() + Duration::from_secs(5);
+        loop {
+            process.check();
+            let (current, detail) = process.state();
+            if current == state {
+                return detail;
+            }
+            assert!(
+                Instant::now() < until,
+                "still {current:?}, wanted {state:?}"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn eager_plugin_reports_progress_then_ready_and_searches() {
+        let (process, _) = process(
+            r#"echo '{"progress":"warming"}'; sleep 0.3; echo '{"ready":true}'"#,
+            true,
+            Duration::from_secs(5),
+        );
+        let until = Instant::now() + Duration::from_secs(5);
+        while process.state() != (State::Starting, Some("warming".into())) {
+            assert!(Instant::now() < until, "no progress: {:?}", process.state());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        wait_for(&process, State::Ready);
+        let reply = process.begin("q", SEARCH_TIMEOUT).unwrap();
+        let response = reply.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+        assert_eq!(response.items[0].title, "hit");
+    }
+
+    #[test]
+    fn lazy_plugin_waits_for_activation_and_watchdog_leaves_it_alone() {
+        let (process, _) = process(r#"echo '{"ready":true}'"#, false, Duration::from_secs(5));
+        process.check();
+        assert_eq!(process.state().0, State::Idle);
+        assert!(process.running.lock().unwrap().is_none());
+        process.activate();
+        wait_for(&process, State::Ready);
+    }
+
+    #[test]
+    fn failed_init_stops_the_plugin_until_restarted() {
+        let (process, board) = process(
+            r#"echo '{"error":"no database"}'"#,
+            true,
+            Duration::from_secs(5),
+        );
+        let reason = wait_for(&process, State::Failed).unwrap();
+        assert!(reason.contains("no database"), "{reason}");
+        assert_eq!(board.take_notices().len(), 1);
+        process.check();
+        process.activate();
+        assert!(process.running.lock().unwrap().is_none());
+        assert!(process.begin("q", SEARCH_TIMEOUT).is_err());
+        process.restart();
+        assert_eq!(process.state().0, State::Starting);
+        wait_for(&process, State::Failed);
+    }
+
+    #[test]
+    fn start_that_times_out_or_exits_fails_with_a_notice() {
+        let (slow, board) = process("sleep 5", true, Duration::from_millis(200));
+        let reason = wait_for(&slow, State::Failed).unwrap();
+        assert_eq!(
+            reason,
+            i18n::format("plugin.start_timeout", &[("seconds", "0")])
+        );
+        assert_eq!(board.take_notices()[0].message, reason);
+        let (exits, _) = process("exit 3", true, Duration::from_secs(5));
+        assert_eq!(
+            wait_for(&exits, State::Failed),
+            Some(i18n::t("plugin.exited_starting"))
+        );
+    }
+
+    #[test]
+    fn plugin_that_predates_init_is_ready_after_any_answer() {
+        let (process, _) = process(r#"echo '{"items":[]}'"#, true, Duration::from_secs(5));
+        wait_for(&process, State::Ready);
     }
 }

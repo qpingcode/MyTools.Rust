@@ -1,7 +1,11 @@
 use crate::i18n;
-use crate::search_process::SearchProcess;
+use crate::search_process::{ProcessOptions, SearchProcess};
+use crate::status::Board;
 use anyhow::{Context, Result, bail};
-use mytools_plugin_api::plugin_settings::Settings;
+use mytools_plugin_api::{
+    plugin_settings::{Settings, Startup},
+    plugin_status::State,
+};
 use serde::Deserialize;
 use std::{
     fs,
@@ -45,6 +49,12 @@ struct Manifest {
     hotkey: Option<String>,
     #[serde(default)]
     contributes: Contributes,
+    /// When the process starts; omitted means eager for global search plugins.
+    #[serde(default)]
+    startup: Option<Startup>,
+    /// How long `init` may take; omitted means the host's setting.
+    #[serde(default, rename = "startupTimeoutMs")]
+    startup_timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -152,6 +162,35 @@ fn alias_timeout(ms: Option<u64>) -> std::time::Duration {
         .clamp(crate::search_process::SEARCH_TIMEOUT, MAX_ALIAS_TIMEOUT)
 }
 
+/// A plugin's own startup timeout, else the host's, within the allowed range.
+pub fn startup_timeout(ms: Option<u64>, host: std::time::Duration) -> std::time::Duration {
+    use crate::search_process::{MAX_STARTUP_TIMEOUT, MIN_STARTUP_TIMEOUT};
+    ms.map(std::time::Duration::from_millis)
+        .unwrap_or(host)
+        .clamp(MIN_STARTUP_TIMEOUT, MAX_STARTUP_TIMEOUT)
+}
+
+/// How plugins are started; shared by every plugin of one catalog.
+pub struct LoadContext<'a> {
+    pub settings: &'a Settings,
+    pub board: &'a std::sync::Arc<Board>,
+    /// The host's default startup timeout.
+    pub startup_timeout: std::time::Duration,
+}
+
+/// A plugin turned off in the settings: kept so its alias can explain why it is silent.
+#[derive(Clone, Debug)]
+pub struct DisabledPlugin {
+    pub id: String,
+    pub name: String,
+    pub aliases: Vec<String>,
+}
+
+pub enum Loaded {
+    Enabled(Plugin),
+    Disabled(DisabledPlugin),
+}
+
 #[derive(Clone)]
 pub struct Plugin {
     pub id: String,
@@ -168,18 +207,47 @@ pub struct Plugin {
 }
 
 impl Plugin {
-    /// Loads a plugin with the user's overrides applied; a disabled plugin is not started
-    /// and yields `None`.
-    pub fn load(path: &Path, settings: &Settings) -> Result<Option<Self>> {
+    /// Loads a plugin with the user's overrides applied. A disabled plugin is not started;
+    /// an eager search plugin starts now, a lazy one on its first request.
+    pub fn load(path: &Path, context: &LoadContext) -> Result<Loaded> {
+        let settings = context.settings;
         let mut manifest: Manifest =
             serde_json::from_slice(&fs::read(path)?).context(i18n::t("error.manifest_invalid"))?;
-        if !settings.enabled(&manifest.id) {
-            return Ok(None);
-        }
         manifest.alias = settings.aliases(&manifest.id, &manifest.alias).to_vec();
-        let executable = manifest.validate(path)?;
         let language = mytools_plugin_api::i18n::language();
         let name = localized_name(&manifest.name, path, language)?;
+        let startup = (manifest.kind == PluginType::Search).then(|| {
+            settings.startup(
+                &manifest.id,
+                Startup::default_for(manifest.startup, manifest.search.global),
+            )
+        });
+        let board = context.board;
+        if !settings.enabled(&manifest.id) {
+            board.register(
+                &manifest.id,
+                State::Disabled,
+                Some(i18n::t("plugin.disabled_reason")),
+                startup,
+            );
+            return Ok(Loaded::Disabled(DisabledPlugin {
+                id: manifest.id,
+                name,
+                aliases: manifest.alias,
+            }));
+        }
+        let executable = match manifest.validate(path) {
+            Ok(executable) => executable,
+            Err(error) => {
+                board.register(
+                    &manifest.id,
+                    State::Failed,
+                    Some(format!("{error:#}")),
+                    startup,
+                );
+                return Err(error);
+            }
+        };
         // Only resident search plugins can receive the commands.
         let action_rules = if manifest.kind == PluginType::Search {
             manifest
@@ -212,12 +280,32 @@ impl Plugin {
         } else {
             Vec::new()
         };
-        let process = if manifest.kind == PluginType::Search {
-            Some(Arc::new(SearchProcess::start(&executable)?))
+        // Window plugins have no process: they are ready whenever they can be launched.
+        let initial = if startup.is_some() {
+            State::Idle
+        } else {
+            State::Ready
+        };
+        board.register(&manifest.id, initial, None, startup);
+        let process = if let Some(startup) = startup {
+            let options = ProcessOptions {
+                id: manifest.id.clone(),
+                name: name.clone(),
+                startup_timeout: startup_timeout(
+                    manifest.startup_timeout_ms,
+                    context.startup_timeout,
+                ),
+                board: context.board.clone(),
+            };
+            Some(Arc::new(SearchProcess::new(
+                &executable,
+                options,
+                startup == Startup::Eager,
+            )?))
         } else {
             None
         };
-        Ok(Some(Self {
+        Ok(Loaded::Enabled(Self {
             id: manifest.id,
             name,
             version: manifest.version,
@@ -370,6 +458,19 @@ pub fn manifest_paths(root: &Path) -> Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn startup_timeout_prefers_the_plugin_and_is_clamped() {
+        use std::time::Duration;
+        let host = Duration::from_secs(10);
+        assert_eq!(startup_timeout(None, host), host);
+        assert_eq!(startup_timeout(Some(30_000), host), Duration::from_secs(30));
+        assert_eq!(startup_timeout(Some(10), host), Duration::from_secs(1));
+        assert_eq!(
+            startup_timeout(Some(600_000), host),
+            Duration::from_secs(120)
+        );
+    }
 
     #[test]
     fn alias_timeout_defaults_and_is_clamped() {

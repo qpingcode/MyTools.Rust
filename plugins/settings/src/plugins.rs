@@ -127,6 +127,10 @@ pub fn save(paths: &Paths, entries: &[Entry]) -> Result<()> {
         let item = Override {
             enabled: entry.enabled || entry.locked(),
             alias: (entry.aliases != entry.default_aliases).then(|| entry.aliases.clone()),
+            startup: settings
+                .plugins
+                .get(&entry.id)
+                .and_then(|item| item.startup),
         };
         if item == Override::default() {
             settings.plugins.remove(&entry.id);

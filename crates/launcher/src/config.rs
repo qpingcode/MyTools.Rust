@@ -8,6 +8,9 @@ pub struct Config {
     pub plugin_shortcuts: std::collections::HashMap<String, String>,
     /// Optional overrides for `ui/theme.slint` (colors, font sizes, metrics).
     pub theme: crate::theme::Overrides,
+    /// How long a plugin may take to start before it is paused; plugins can override it
+    /// with `startupTimeoutMs` in their `plugin.json`.
+    pub plugin_startup_timeout_ms: Option<u64>,
 }
 
 impl Default for Config {
@@ -16,7 +19,19 @@ impl Default for Config {
             language: "auto".into(),
             plugin_shortcuts: Default::default(),
             theme: Default::default(),
+            plugin_startup_timeout_ms: None,
         }
+    }
+}
+
+impl Config {
+    pub fn load_options(&self) -> mytools_core::LoadOptions {
+        let mut options = mytools_core::LoadOptions::default();
+        if let Some(ms) = self.plugin_startup_timeout_ms {
+            options.startup_timeout =
+                mytools_core::startup_timeout(Some(ms), options.startup_timeout);
+        }
+        options
     }
 }
 
@@ -91,6 +106,19 @@ mod tests {
             "en"
         );
         assert!(serde_json::from_str::<Config>(r#"{"language":123}"#).is_err());
+    }
+
+    #[test]
+    fn plugin_startup_timeout_is_optional_and_clamped() {
+        use std::time::Duration;
+        let default = serde_json::from_str::<Config>("{}").unwrap().load_options();
+        assert_eq!(default.startup_timeout, Duration::from_secs(10));
+        let config: Config =
+            serde_json::from_str(r#"{"plugin_startup_timeout_ms":500000}"#).unwrap();
+        assert_eq!(
+            config.load_options().startup_timeout,
+            Duration::from_secs(120)
+        );
     }
 
     #[test]

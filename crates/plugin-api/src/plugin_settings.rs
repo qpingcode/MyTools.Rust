@@ -26,13 +26,35 @@ pub struct Override {
     /// Replaces the manifest's aliases when present; an empty list removes them all.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<Vec<String>>,
+    /// Replaces the plugin's own startup policy when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub startup: Option<Startup>,
 }
 impl Default for Override {
     fn default() -> Self {
         Self {
             enabled: true,
             alias: None,
+            startup: None,
         }
+    }
+}
+
+/// When the host starts a search plugin's process.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Startup {
+    /// When MyTools starts, so it is ready (and can work in the background) at once.
+    Eager,
+    /// On the first search or action that needs it.
+    Lazy,
+}
+
+impl Startup {
+    /// A plugin's own policy: its manifest's `startup`, else eager only for plugins that
+    /// take part in global search.
+    pub fn default_for(manifest: Option<Startup>, global: bool) -> Self {
+        manifest.unwrap_or(if global { Self::Eager } else { Self::Lazy })
     }
 }
 fn enabled() -> bool {
@@ -45,6 +67,14 @@ fn is_enabled(value: &bool) -> bool {
 impl Settings {
     pub fn enabled(&self, id: &str) -> bool {
         id == SETTINGS_PLUGIN || self.plugins.get(id).is_none_or(|item| item.enabled)
+    }
+
+    /// The startup policy in effect: the user's choice when set, otherwise `default`.
+    pub fn startup(&self, id: &str, default: Startup) -> Startup {
+        self.plugins
+            .get(id)
+            .and_then(|item| item.startup)
+            .unwrap_or(default)
     }
 
     /// The aliases in effect: the user's list when set, otherwise the manifest's.
@@ -102,6 +132,7 @@ mod tests {
             Override {
                 enabled: false,
                 alias: Some(vec!["c".into()]),
+                startup: Some(Startup::Eager),
             },
         );
         settings.plugins.insert(
@@ -109,11 +140,23 @@ mod tests {
             Override {
                 enabled: false,
                 alias: None,
+                startup: None,
             },
         );
         assert!(!settings.enabled("calculator"));
         assert!(settings.enabled(SETTINGS_PLUGIN));
         assert_eq!(settings.aliases("calculator", &manifest), ["c".to_string()]);
+        assert_eq!(
+            settings.startup("calculator", Startup::Lazy),
+            Startup::Eager
+        );
+        assert_eq!(settings.startup("translator", Startup::Lazy), Startup::Lazy);
+        assert_eq!(Startup::default_for(None, true), Startup::Eager);
+        assert_eq!(Startup::default_for(None, false), Startup::Lazy);
+        assert_eq!(
+            Startup::default_for(Some(Startup::Eager), false),
+            Startup::Eager
+        );
         let path =
             std::env::temp_dir().join(format!("plugin-settings-{}.json", std::process::id()));
         save(&path, &settings).unwrap();

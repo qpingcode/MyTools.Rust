@@ -4,6 +4,10 @@
 //! answered even while a request is running, and so a newer search can cancel an older one.
 //! Requests still run one at a time on the calling thread and every request gets exactly one
 //! response line, in order; a cancelled search answers with an empty response.
+//!
+//! The host's first request is `{"init":{}}`. The transport runs the handler registered
+//! with [`on_init`] (if any) and answers `{"ready":true}`, or `{"error":"..."}` when the
+//! handler fails; [`progress`] lines may precede the answer.
 use crate::{PluginActionRequest, SearchRequest, SearchResponse};
 use std::{
     cell::RefCell,
@@ -25,8 +29,57 @@ struct Current {
     latest: Arc<AtomicU64>,
 }
 
+type Output = Arc<Mutex<Box<dyn Write + Send>>>;
+type InitHandler = Box<dyn FnOnce() -> Result<(), String> + Send>;
+
+static INIT: Mutex<Option<InitHandler>> = Mutex::new(None);
+
 thread_local! {
     static CURRENT: RefCell<Option<Current>> = const { RefCell::new(None) };
+    /// Set while the init handler runs, so [`progress`] can report to the host.
+    static PROGRESS: RefCell<Option<Output>> = const { RefCell::new(None) };
+}
+
+/// Registers work the plugin must finish before it answers searches, such as opening a
+/// database. Call it before `serve`; the host waits for it (up to its startup timeout) and
+/// shows the plugin as starting meanwhile. Return `Err` with a short reason when the plugin
+/// cannot work; the host then stops it and shows the reason. Plugins without one are ready
+/// as soon as they serve. Long indexing should rather run in the background after init.
+pub fn on_init(handler: impl FnOnce() -> Result<(), String> + Send + 'static) {
+    *INIT.lock().unwrap() = Some(Box::new(handler));
+}
+
+/// Reports what a running init handler is doing, e.g. "Scanning the Start menu". Has no
+/// effect outside the handler.
+pub fn progress(message: &str) {
+    PROGRESS.with(|output| {
+        if let Some(output) = output.borrow().as_ref() {
+            let _ = write_line(
+                output,
+                &SearchResponse {
+                    progress: Some(message.into()),
+                    ..Default::default()
+                },
+            );
+        }
+    });
+}
+
+fn initialize(output: &Output) -> SearchResponse {
+    let handler = INIT.lock().unwrap().take();
+    PROGRESS.with(|current| *current.borrow_mut() = Some(output.clone()));
+    let result = handler.map_or(Ok(()), |handler| handler());
+    PROGRESS.with(|current| *current.borrow_mut() = None);
+    match result {
+        Ok(()) => SearchResponse {
+            ready: Some(true),
+            ..Default::default()
+        },
+        Err(error) => SearchResponse {
+            error: Some(error),
+            ..Default::default()
+        },
+    }
 }
 
 /// True when the host has sent a newer search than the one being handled, so its
@@ -80,7 +133,7 @@ pub(crate) fn run(
     output: impl Write + Send + 'static,
     handle: impl Fn(SearchRequest) -> SearchResponse,
 ) -> io::Result<()> {
-    let output: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(Box::new(output)));
+    let output: Output = Arc::new(Mutex::new(Box::new(output)));
     let queue = Arc::new(Queue {
         jobs: Mutex::new(VecDeque::new()),
         ready: Condvar::new(),
@@ -123,7 +176,9 @@ pub(crate) fn run(
                 latest: latest.clone(),
             })
         });
-        let response = if cancelled() {
+        let response = if request.init.is_some() {
+            initialize(&output)
+        } else if cancelled() {
             SearchResponse::default()
         } else {
             *queue.busy_since.lock().unwrap() = Some(Instant::now());
@@ -162,7 +217,7 @@ fn read(
             )?;
             continue;
         }
-        let sequence = if request.action.is_none() {
+        let sequence = if request.action.is_none() && request.init.is_none() {
             searches += 1;
             latest.store(searches, Ordering::SeqCst);
             searches
@@ -241,6 +296,37 @@ mod tests {
         }
         let (sender, receiver) = std::sync::mpsc::channel();
         (sender, BufReader::new(Pipe(receiver, vec![])))
+    }
+
+    #[test]
+    fn init_reports_progress_then_ready_before_searches() {
+        on_init(|| {
+            progress("warming up");
+            Ok(())
+        });
+        let sink = Sink::default();
+        let input = b"{\"init\":{}}\n{\"query\":\"q\"}\n".to_vec();
+        run(std::io::Cursor::new(input), sink.clone(), |request| {
+            SearchResponse {
+                error: Some(request.query),
+                ..Default::default()
+            }
+        })
+        .unwrap();
+        let all = responses(&sink);
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].progress.as_deref(), Some("warming up"));
+        assert_eq!(all[1].ready, Some(true));
+        assert_eq!(all[2].error.as_deref(), Some("q"));
+        // The handler runs once; a later init without one is ready at once.
+        let sink = Sink::default();
+        run(
+            std::io::Cursor::new(b"{\"init\":{}}\n".to_vec()),
+            sink.clone(),
+            |_| SearchResponse::default(),
+        )
+        .unwrap();
+        assert_eq!(responses(&sink)[0].ready, Some(true));
     }
 
     #[test]

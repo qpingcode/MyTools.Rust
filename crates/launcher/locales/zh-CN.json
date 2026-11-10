@@ -29,6 +29,7 @@
   "actions.copy_folder_name": "复制文件夹名称",
   "status.ready": "就绪 · {count} 条结果",
   "status.plugin": "{name} · {count} 条结果",
+  "status.partial": "已加载 {ready}/{total} 个插件，结果可能不完整 · {count} 条结果",
   "status.copied": "已复制 {text}",
   "status.completed": "{action}成功",
   "status.retrying": "正在重试（延长等待时间）…",

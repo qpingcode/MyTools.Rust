@@ -29,6 +29,7 @@
   "actions.copy_folder_name": "Copy Folder Name",
   "status.ready": "Ready · {count} results",
   "status.plugin": "{name} · {count} results",
+  "status.partial": "{ready}/{total} plugins loaded, results may be incomplete · {count} results",
   "status.copied": "Copied {text}",
   "status.completed": "{action} succeeded",
   "status.retrying": "Retrying with a longer timeout…",

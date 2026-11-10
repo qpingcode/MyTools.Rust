@@ -40,5 +40,16 @@
   "search.timed_out": "Search timed out after {seconds}s — press Enter to retry",
   "search.timed_out_detail": "{name} did not answer in time; the retry waits up to {seconds}s",
   "actions.retry": "Retry",
-  "error.plugin_settings": "Cannot read plugin-settings.json; using the defaults: {error}"
+  "error.plugin_settings": "Cannot read plugin-settings.json; using the defaults: {error}",
+  "plugin.failed_title": "{name} stopped",
+  "plugin.failed_detail": "{reason}. You can restart it in Settings",
+  "plugin.crash_loop": "Crashed repeatedly and was stopped",
+  "plugin.init_failed": "Initialization failed: {error}",
+  "plugin.exited_starting": "Exited while starting",
+  "plugin.start_timeout": "Did not start within {seconds}s and was paused",
+  "plugin.starting_title": "{name} is loading…",
+  "plugin.starting_detail": "Results appear when it is ready",
+  "plugin.disabled_title": "{name} is disabled",
+  "plugin.disabled_detail": "Disabled in Settings; you can enable it there",
+  "plugin.disabled_reason": "Disabled in Settings"
 }

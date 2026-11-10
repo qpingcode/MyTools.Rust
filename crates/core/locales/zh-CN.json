@@ -40,5 +40,16 @@
   "search.timed_out": "搜索超时（{seconds} 秒）— 按 Enter 重试",
   "search.timed_out_detail": "{name} 未在时限内返回结果，重试最多等待 {seconds} 秒",
   "actions.retry": "重试",
-  "error.plugin_settings": "无法读取 plugin-settings.json，已使用默认设置：{error}"
+  "error.plugin_settings": "无法读取 plugin-settings.json，已使用默认设置：{error}",
+  "plugin.failed_title": "{name} 已停止",
+  "plugin.failed_detail": "{reason}。可在设置中重启",
+  "plugin.crash_loop": "反复崩溃，已停止运行",
+  "plugin.init_failed": "初始化失败：{error}",
+  "plugin.exited_starting": "启动过程中退出",
+  "plugin.start_timeout": "{seconds} 秒内未完成启动，已暂时停用",
+  "plugin.starting_title": "{name} 正在加载…",
+  "plugin.starting_detail": "加载完成后自动显示结果",
+  "plugin.disabled_title": "{name} 已停用",
+  "plugin.disabled_detail": "已在设置中停用，可在设置中重新启用",
+  "plugin.disabled_reason": "已在设置中停用"
 }
