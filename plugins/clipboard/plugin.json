@@ -9,7 +9,7 @@
   "entry": "mytools-clipboard",
   "icon": "builtin:clipboard",
   "alias": [
-    "clip",
+    "cb",
     "clipboard"
   ],
   "search": {
