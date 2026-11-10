@@ -30,3 +30,4 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 
 [build-dependencies]
 slint-build.workspace = true
+winresource = { version = "0.1", default-features = false }

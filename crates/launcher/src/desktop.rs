@@ -127,10 +127,28 @@ pub fn show(ui: &MainWindow) {
         ui.set_status(i18n::format("desktop.show_failed", &[("error", &error.to_string())]).into());
         return;
     }
+    #[cfg(windows)]
+    set_taskbar_icon(ui);
     ui.window().set_minimized(false);
     ui.invoke_focus_search();
     ui.window()
         .with_winit_window(|window| window.focus_window());
+}
+
+/// Slint applies `Window.icon` before the native window exists, which on Windows sets only
+/// the small (title bar / Alt+Tab) icon; the taskbar shows the big one. Load it from the icon
+/// resource that build.rs embeds.
+#[cfg(windows)]
+fn set_taskbar_icon(ui: &MainWindow) {
+    use slint::winit_030::winit::{
+        platform::windows::{IconExtWindows, WindowExtWindows},
+        window::Icon,
+    };
+    ui.window().with_winit_window(|window| {
+        if let Ok(icon) = Icon::from_resource(1, None) {
+            window.set_taskbar_icon(Some(icon));
+        }
+    });
 }
 
 #[path = "desktop/paste.rs"]
