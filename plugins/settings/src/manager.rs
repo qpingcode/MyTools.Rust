@@ -1,11 +1,18 @@
-//! The settings window: edits plugin aliases and enabled state, then saves them for the
-//! host to apply on its next search.
+//! The settings window: edits plugin aliases, startup and enabled state, then saves them
+//! for the host to apply; shows each plugin's live state and can ask for a restart.
 use crate::{
     I18n, PluginRow, SettingsWindow, i18n,
     plugins::{self, Entry, Paths},
 };
+use mytools_plugin_api::{
+    plugin_settings::Startup,
+    plugin_status::{self, PluginStatus, State as PluginState, StatusFile},
+};
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
+
+/// How often the window looks for state changes published by MyTools.
+const STATUS_POLL: Duration = Duration::from_millis(500);
 
 struct State {
     paths: Paths,
@@ -13,6 +20,8 @@ struct State {
     saved: Vec<Entry>,
     /// As edited in the form.
     edited: Vec<Entry>,
+    /// What MyTools last published; empty when it is not running.
+    status: StatusFile,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -20,12 +29,52 @@ pub fn run() -> anyhow::Result<()> {
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
     let paths = Paths::current()?;
     let entries = plugins::list(&paths)?;
+    let status = plugin_status::load(&plugin_status::path(&paths.settings)).unwrap_or_default();
     let state = Rc::new(RefCell::new(State {
         paths,
         saved: entries.clone(),
         edited: entries,
+        status,
     }));
     show(&ui, &state.borrow());
+
+    let (weak, copy) = (ui.as_weak(), state.clone());
+    let poll = slint::Timer::default();
+    poll.start(slint::TimerMode::Repeated, STATUS_POLL, move || {
+        if let Some(ui) = weak.upgrade() {
+            refresh_status(&ui, &mut copy.borrow_mut());
+        }
+    });
+    let (weak, copy) = (ui.as_weak(), state.clone());
+    ui.on_restart(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let state = copy.borrow();
+        let Some(entry) = usize::try_from(index)
+            .ok()
+            .and_then(|i| state.edited.get(i))
+        else {
+            return;
+        };
+        match plugin_status::request_restart(&state.paths.settings, &entry.id) {
+            Ok(()) => {
+                ui.set_failed(false);
+                ui.set_status(i18n::format("status.restarting", &[("name", &entry.name)]).into());
+            }
+            Err(error) => {
+                ui.set_failed(true);
+                ui.set_status(format!("{error:#}").into());
+            }
+        }
+    });
+    let (weak, copy) = (ui.as_weak(), state.clone());
+    ui.on_startup_toggled(move |index| {
+        edit(&weak, &copy, index, |entry| {
+            entry.startup = entry.startup.map(|startup| match startup {
+                Startup::Eager => Startup::Lazy,
+                Startup::Lazy => Startup::Eager,
+            });
+        });
+    });
 
     let (weak, copy) = (ui.as_weak(), state.clone());
     ui.on_aliases_edited(move |index, text| {
@@ -80,6 +129,7 @@ fn edit(
 ) {
     let Some(ui) = weak.upgrade() else { return };
     let mut state = state.borrow_mut();
+    let state = &mut *state;
     let Some(entry) = usize::try_from(index)
         .ok()
         .and_then(|i| state.edited.get_mut(i))
@@ -87,7 +137,7 @@ fn edit(
         return;
     };
     change(entry);
-    let row = row(entry, &ui.get_filter());
+    let row = row(entry, &ui.get_filter(), state.status.get(&entry.id));
     if let Some(model) = ui
         .get_plugins()
         .as_any()
@@ -98,9 +148,10 @@ fn edit(
         let mut current = model.row_data(index).unwrap_or(row.clone());
         current.enabled = row.enabled;
         current.aliases = row.aliases;
+        current.startup = row.startup;
         model.set_row_data(index, current);
     }
-    summarize(&ui, &state);
+    summarize(&ui, state);
 }
 
 /// Rebuilds the whole list, e.g. after loading, saving or discarding.
@@ -109,7 +160,7 @@ fn show(ui: &SettingsWindow, state: &State) {
     let rows: Vec<PluginRow> = state
         .edited
         .iter()
-        .map(|entry| row(entry, &filter))
+        .map(|entry| row(entry, &filter, state.status.get(&entry.id)))
         .collect();
     ui.set_plugins(ModelRc::new(VecModel::from(rows)));
     ui.set_status("".into());
@@ -156,7 +207,51 @@ fn summarize(ui: &SettingsWindow, state: &State) {
     }
 }
 
-fn row(entry: &Entry, filter: &str) -> PluginRow {
+/// Picks up state changes MyTools published, updating rows in place so edits and focus stay.
+fn refresh_status(ui: &SettingsWindow, state: &mut State) {
+    let status =
+        plugin_status::load(&plugin_status::path(&state.paths.settings)).unwrap_or_default();
+    if status == state.status {
+        return;
+    }
+    state.status = status;
+    let model = ui.get_plugins();
+    for (index, entry) in state.edited.iter().enumerate() {
+        if let Some(mut current) = model.row_data(index) {
+            let (live, text) = describe(state.status.get(&entry.id));
+            if current.state != live || current.status_text != text {
+                current.state = live.into();
+                current.status_text = text.into();
+                model.set_row_data(index, current);
+            }
+        }
+    }
+}
+
+/// The dot's state name and the words shown when hovering it.
+fn describe(status: Option<&PluginStatus>) -> (&'static str, String) {
+    let Some(status) = status else {
+        return ("", i18n::t("state.unknown"));
+    };
+    let (name, key) = match status.state {
+        PluginState::Ready => ("ready", "state.ready"),
+        PluginState::Starting => ("starting", "state.starting"),
+        PluginState::Idle => ("idle", "state.idle"),
+        PluginState::Failed => ("failed", "state.failed"),
+        PluginState::Disabled => ("disabled", "state.disabled"),
+    };
+    let text = match &status.detail {
+        Some(detail) => i18n::format(
+            "state.detail",
+            &[("state", &i18n::t(key)), ("detail", detail)],
+        ),
+        None => i18n::t(key),
+    };
+    (name, text)
+}
+
+fn row(entry: &Entry, filter: &str, status: Option<&PluginStatus>) -> PluginRow {
+    let (live, status_text) = describe(status);
     PluginRow {
         id: entry.id.clone().into(),
         name: entry.name.clone().into(),
@@ -166,6 +261,14 @@ fn row(entry: &Entry, filter: &str) -> PluginRow {
         enabled: entry.enabled,
         locked: entry.locked(),
         shown: matches(entry, filter),
+        state: live.into(),
+        status_text: status_text.into(),
+        startup: match entry.startup {
+            Some(Startup::Eager) => "eager",
+            Some(Startup::Lazy) => "lazy",
+            None => "",
+        }
+        .into(),
     }
 }
 

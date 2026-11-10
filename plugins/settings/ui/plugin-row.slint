@@ -18,13 +18,85 @@ export struct PluginRow {
     locked: bool,
     /// Whether the current filter matches this plugin.
     shown: bool,
+    /// What MyTools reports: "ready", "starting", "idle", "failed", "disabled", or "" when
+    /// unknown (MyTools is not running).
+    state: string,
+    /// The state in words, with its reason; shown when hovering the dot.
+    status-text: string,
+    /// "eager" or "lazy" as edited; "" for plugins without a resident process.
+    startup: string,
 }
 
-/// A card with the plugin's identity, an alias field and an enable switch.
+/// A small colored dot for a plugin's state; hollow while it waits to be needed.
+component StatusDot inherits Rectangle {
+    in property <string> state;
+    callback hovered(bool, length, length);
+    private property <color> tone: root.state == "ready" ? Theme.success
+        : root.state == "starting" ? Theme.pending
+        : root.state == "failed" ? Theme.danger
+        : Theme.disabled;
+    width: 18px; height: 18px;
+    Rectangle {
+        width: 9px; height: 9px; border-radius: 4.5px;
+        background: root.state == "idle" || root.state == "" ? transparent : root.tone;
+        border-width: root.state == "idle" || root.state == "" ? 1.5px : 0px;
+        border-color: root.tone;
+    }
+    touch := TouchArea {
+        changed has-hover => {
+            root.hovered(self.has-hover, self.absolute-position.x, self.absolute-position.y);
+        }
+    }
+    accessible-role: image;
+}
+
+/// A small rounded label that can be clicked, e.g. the startup policy.
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <bool> enabled: true;
+    in property <color> tint: Theme.muted;
+    callback clicked();
+    height: 18px;
+    width: chip-layout.preferred-width;
+    border-radius: 9px;
+    background: touch.has-hover && root.enabled ? Theme.hover : Theme.selected;
+    animate background { duration: 90ms; }
+    chip-layout := HorizontalLayout {
+        padding-left: 7px; padding-right: 8px; spacing: 4px;
+        if root.icon != "": VerticalLayout {
+            alignment: center;
+            Icon {
+                name: root.icon; width: 11px; height: 11px;
+                tint: root.enabled ? root.tint : Theme.disabled;
+            }
+        }
+        Text {
+            text: root.text; font-size: Theme.font-caption;
+            color: root.enabled ? root.tint : Theme.disabled;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+}
+
+/// A card with the plugin's identity and state, an alias field and an enable switch.
 export component PluginCard inherits Rectangle {
     in property <PluginRow> plugin;
     callback aliases-edited(string);
     callback toggled(bool);
+    callback restart();
+    callback startup-toggled();
+    /// The pointer entered or left the status dot at this window position.
+    callback status-hovered(bool, length, length);
     // Typing replaces this binding, so "Reset" writes the field directly; a reloaded list
     // builds new cards that start from the saved value again.
     private property <string> alias-text: root.plugin.aliases;
@@ -53,11 +125,16 @@ export component PluginCard inherits Rectangle {
             alignment: center; spacing: 3px; horizontal-stretch: 1;
             min-width: 120px;
             HorizontalLayout {
-                spacing: 8px; alignment: start;
+                spacing: 4px; alignment: start;
                 Text {
                     text: root.plugin.name; font-size: Theme.font-title; font-weight: 600;
                     color: root.plugin.enabled ? Theme.foreground : Theme.muted;
                     overflow: elide; vertical-alignment: center;
+                }
+                StatusDot {
+                    state: root.plugin.state;
+                    accessible-label: root.plugin.status-text;
+                    hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
                 }
                 if !root.plugin.enabled: Rectangle {
                     height: 18px; width: off.preferred-width + 12px; border-radius: 9px;
@@ -68,10 +145,27 @@ export component PluginCard inherits Rectangle {
                         horizontal-alignment: center; vertical-alignment: center;
                     }
                 }
+                if root.plugin.state == "failed": Chip {
+                    text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
+                    tint: Theme.danger;
+                    clicked => { root.restart(); }
+                }
             }
-            Text {
-                text: root.plugin.id; color: Theme.placeholder; font-size: Theme.font-caption;
-                font-family: "Cascadia Mono"; overflow: elide;
+            HorizontalLayout {
+                spacing: 8px; alignment: start;
+                Text {
+                    text: root.plugin.id; color: Theme.placeholder; font-size: Theme.font-caption;
+                    font-family: "Cascadia Mono"; overflow: elide; vertical-alignment: center;
+                }
+                // Switches between starting with MyTools and starting on first use.
+                if root.plugin.startup != "": Chip {
+                    text: root.plugin.startup == "eager"
+                        ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
+                    icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
+                    enabled: root.plugin.enabled;
+                    clicked => { root.startup-toggled(); }
+                    accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
+                }
             }
         }
         VerticalLayout {

@@ -105,12 +105,7 @@ impl SearchWorker {
                 {
                     break;
                 }
-                // Enabled plugins and aliases edited in Settings apply from the next search.
-                if worker.catalog.settings_changed() {
-                    worker.catalog.shutdown();
-                    worker.catalog = Catalog::load_with(&worker.options);
-                    worker.publish_aliases();
-                }
+                worker.reload_if_changed();
                 if !worker.search(query) {
                     break;
                 }
@@ -149,6 +144,20 @@ struct Worker {
 }
 
 impl Worker {
+    /// Applies what was saved in Settings: enabled plugins, aliases and startup policies.
+    fn reload_if_changed(&mut self) {
+        if !self.catalog.settings_changed() {
+            return;
+        }
+        self.catalog.shutdown();
+        self.catalog = Catalog::load_with(&self.options);
+        self.publish_aliases();
+        // The new catalog counts revisions afresh; repeat a waiting search regardless.
+        if let Some((_, revision)) = &mut self.waiting {
+            *revision = u64::MAX;
+        }
+    }
+
     fn publish_aliases(&self) {
         *self.aliases.write().unwrap_or_else(|e| e.into_inner()) = Some(self.catalog.alias_table());
     }
@@ -181,6 +190,7 @@ impl Worker {
 
     /// Background work between searches; `false` once the UI is gone.
     fn tick(&mut self) -> bool {
+        self.reload_if_changed();
         self.catalog.apply_requests();
         if !self.forward_notices() {
             return false;

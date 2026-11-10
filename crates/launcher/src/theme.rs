@@ -87,6 +87,8 @@ fn color_setter(key: &str) -> Option<ColorSetter> {
         "button-hover" => |t, v| t.set_button_hover(v),
         "success" => |t, v| t.set_success(v),
         "warning" => |t, v| t.set_warning(v),
+        "pending" => |t, v| t.set_pending(v),
+        "danger" => |t, v| t.set_danger(v),
         _ => return None,
     })
 }

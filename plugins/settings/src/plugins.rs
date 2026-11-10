@@ -2,7 +2,7 @@
 //! user's overrides in `plugin-settings.json`.
 use crate::i18n;
 use anyhow::{Context, Result, ensure};
-use mytools_plugin_api::plugin_settings::{self, Override, SETTINGS_PLUGIN, Settings};
+use mytools_plugin_api::plugin_settings::{self, Override, SETTINGS_PLUGIN, Settings, Startup};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
@@ -14,6 +14,17 @@ struct Manifest {
     icon: Option<String>,
     #[serde(default)]
     alias: Vec<String>,
+    #[serde(default, rename = "type")]
+    kind: Option<String>,
+    #[serde(default)]
+    startup: Option<Startup>,
+    #[serde(default)]
+    search: Search,
+}
+#[derive(Default, Deserialize)]
+struct Search {
+    #[serde(default)]
+    global: bool,
 }
 #[derive(Deserialize)]
 struct Name {
@@ -32,6 +43,9 @@ pub struct Entry {
     pub default_aliases: Vec<String>,
     pub aliases: Vec<String>,
     pub enabled: bool,
+    /// The plugin's own startup policy; `None` for plugins without a resident process.
+    pub default_startup: Option<Startup>,
+    pub startup: Option<Startup>,
 }
 impl Entry {
     /// The settings plugin cannot be disabled, or nothing could turn it back on.
@@ -85,7 +99,11 @@ pub fn list(paths: &Paths) -> Result<Vec<Entry>> {
             .unwrap_or(manifest.name.default_value),
             None => manifest.name.default_value,
         };
+        let default_startup = (manifest.kind.as_deref() == Some("search"))
+            .then(|| Startup::default_for(manifest.startup, manifest.search.global));
         entries.push(Entry {
+            startup: default_startup.map(|default| settings.startup(&manifest.id, default)),
+            default_startup,
             name,
             icon: manifest
                 .icon
@@ -127,10 +145,9 @@ pub fn save(paths: &Paths, entries: &[Entry]) -> Result<()> {
         let item = Override {
             enabled: entry.enabled || entry.locked(),
             alias: (entry.aliases != entry.default_aliases).then(|| entry.aliases.clone()),
-            startup: settings
-                .plugins
-                .get(&entry.id)
-                .and_then(|item| item.startup),
+            startup: entry
+                .startup
+                .filter(|startup| Some(*startup) != entry.default_startup),
         };
         if item == Override::default() {
             settings.plugins.remove(&entry.id);
@@ -176,6 +193,7 @@ mod tests {
         let manifest = serde_json::json!({
             "id": id, "name": {"key": "name", "defaultValue": id},
             "icon": "builtin:calculator", "alias": alias,
+            "type": "search", "search": {"global": id != "translator"},
         });
         std::fs::write(directory.join("plugin.json"), manifest.to_string()).unwrap();
         std::fs::write(
@@ -199,6 +217,22 @@ mod tests {
         assert_eq!(entries.len(), 3);
         assert_eq!(entries[0].name, "calculator plugin");
         assert!(entries.iter().all(|entry| entry.enabled));
+        assert_eq!(entries[0].startup, Some(Startup::Eager));
+        assert_eq!(entries[2].startup, Some(Startup::Lazy));
+
+        // Only a policy that differs from the plugin's own is saved.
+        entries[2].startup = Some(Startup::Eager);
+        save(&paths, &entries).unwrap();
+        let saved = plugin_settings::load(&paths.settings).unwrap();
+        assert_eq!(saved.plugins["translator"].startup, Some(Startup::Eager));
+        entries[2].startup = Some(Startup::Lazy);
+        save(&paths, &entries).unwrap();
+        assert!(
+            plugin_settings::load(&paths.settings)
+                .unwrap()
+                .plugins
+                .is_empty()
+        );
 
         entries[0].aliases = parse_aliases("c， calc,c ");
         entries[2].enabled = false;

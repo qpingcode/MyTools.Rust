@@ -61,11 +61,17 @@ export component SettingsWindow inherits Window {
     in-out property <string> filter;
     callback aliases-edited(int, string);
     callback toggled(int, bool);
+    callback restart(int);
+    callback startup-toggled(int);
     callback filter-edited(string);
     callback save();
     callback discard();
     // Standard text widgets follow the dark theme instead of the light default.
     init => { Palette.color-scheme = ColorScheme.dark; }
+    // The status tooltip floats above the list, so the scroll area never clips it.
+    private property <string> tip;
+    private property <length> tip-x;
+    private property <length> tip-y;
 
     FocusScope {
         capture-key-pressed(event) => {
@@ -149,6 +155,13 @@ export component SettingsWindow inherits Window {
                             height: plugin.shown ? 68px : 0px;
                             aliases-edited(text) => { root.aliases-edited(index, text); }
                             toggled(value) => { root.toggled(index, value); }
+                            restart => { root.restart(index); }
+                            startup-toggled => { root.startup-toggled(index); }
+                            status-hovered(inside, x, y) => {
+                                root.tip = inside ? plugin.status-text : "";
+                                root.tip-x = x;
+                                root.tip-y = y + 22px;
+                            }
                         }
                         if root.shown-count == 0: Text {
                             text: I18n.text("plugins.none"); color: Theme.muted;
@@ -184,6 +197,25 @@ export component SettingsWindow inherits Window {
                         clicked => { root.save(); }
                     }
                 }
+            }
+        }
+    }
+    if root.tip != "": Rectangle {
+        x: min(root.tip-x, root.width - self.width - 12px);
+        y: root.tip-y;
+        width: min(tip-layout.preferred-width, 360px);
+        height: tip-layout.preferred-height;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: Theme.control-border;
+        background: Theme.popup;
+        drop-shadow-blur: 8px;
+        drop-shadow-color: #00000080;
+        tip-layout := VerticalLayout {
+            padding-left: 10px; padding-right: 10px; padding-top: 6px; padding-bottom: 6px;
+            Text {
+                text: root.tip; color: Theme.foreground; font-size: Theme.font-small;
+                wrap: word-wrap;
             }
         }
     }
