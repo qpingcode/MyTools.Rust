@@ -51,6 +51,7 @@ fn generate(query: &str, catalog: &Catalog) -> Vec<SearchItem> {
 }
 
 fn main() -> std::io::Result<()> {
+    mytools_plugin_api::crash::install();
     let catalog = Catalog::for_language(
         include_str!("../locales/en.json"),
         include_str!("../locales/zh-CN.json"),

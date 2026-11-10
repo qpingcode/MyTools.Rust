@@ -5,10 +5,13 @@ use windows_sys::Win32::{
         BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS,
         DeleteDC, DeleteObject, GdiFlush, HBITMAP, HDC, HGDIOBJ, SelectObject,
     },
-    System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize},
+    System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoTaskMemFree, CoUninitialize},
     UI::{
         Controls::{ILD_TRANSPARENT, ImageList_GetIcon},
-        Shell::{SHFILEINFOW, SHGFI_LARGEICON, SHGFI_SYSICONINDEX, SHGetFileInfoW},
+        Shell::{
+            SHFILEINFOW, SHGFI_LARGEICON, SHGFI_PIDL, SHGFI_SYSICONINDEX, SHGetFileInfoW,
+            SHParseDisplayName,
+        },
         WindowsAndMessaging::{DI_MASK, DI_NORMAL, DestroyIcon, DrawIconEx, HICON},
     },
 };
@@ -115,18 +118,38 @@ pub fn load(path: &Path) -> Option<Pixels> {
         .chain(Some(0))
         .collect();
     let mut info: SHFILEINFOW = unsafe { std::mem::zeroed() };
+    // Packaged apps (`shell:AppsFolder\<id>`) are shell items, not files: query them by ID list.
+    let mut item = ptr::null_mut();
+    let packaged = path_is_packaged(&path)
+        && unsafe {
+            SHParseDisplayName(
+                path.as_ptr(),
+                ptr::null_mut(),
+                &mut item,
+                0,
+                ptr::null_mut(),
+            )
+        } >= 0
+        && !item.is_null();
     // SHGFI_ICON always adds an arrow for shortcuts. Request only the system
     // image-list index, then copy its base icon without any overlay flags.
     // This preserves custom shortcut icons instead of guessing the target icon.
     let images = unsafe {
         SHGetFileInfoW(
-            path.as_ptr(),
+            if packaged {
+                item as *const u16
+            } else {
+                path.as_ptr()
+            },
             0,
             &mut info,
             size_of::<SHFILEINFOW>() as u32,
-            SHGFI_SYSICONINDEX | SHGFI_LARGEICON,
+            SHGFI_SYSICONINDEX | SHGFI_LARGEICON | if packaged { SHGFI_PIDL } else { 0 },
         )
     };
+    if !item.is_null() {
+        unsafe { CoTaskMemFree(item as *const _) };
+    }
     if images == 0 {
         return None;
     }
@@ -159,6 +182,11 @@ pub fn load(path: &Path) -> Option<Pixels> {
         height: 48,
         rgba,
     })
+}
+
+fn path_is_packaged(path: &[u16]) -> bool {
+    let text = String::from_utf16_lossy(path.strip_suffix(&[0]).unwrap_or(path));
+    mytools_plugin_api::paths::is_packaged_app(Path::new(&text))
 }
 
 #[cfg(test)]

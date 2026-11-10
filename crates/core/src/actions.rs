@@ -91,6 +91,10 @@ impl Action {
                 std::process::Command::new(path)
                     .current_dir(path.parent().unwrap_or(Path::new(".")))
                     .env("MYTOOLS_LOCALE", mytools_plugin_api::i18n::language())
+                    .env(
+                        mytools_plugin_api::crash::ENV,
+                        mytools_plugin_api::crash::directory(),
+                    )
                     .spawn()?;
             }
         }
@@ -216,6 +220,9 @@ fn default_ids(resource: &Resource) -> Vec<ActionId> {
         Resource::Url { .. } => vec![OpenInBrowser, CopyText],
         Resource::Text { .. } => vec![CopyText],
         Resource::PluginItem { .. } => vec![],
+        Resource::Application { path } if mytools_plugin_api::paths::is_packaged_app(path) => {
+            vec![Open]
+        }
         Resource::Application { path } => {
             let mut ids = vec![Open];
             if platform::can_run_as_admin(path) {
@@ -237,6 +244,8 @@ fn default_ids(resource: &Resource) -> Vec<ActionId> {
 
 fn resource_path(resource: &Resource) -> Option<&Path> {
     match resource {
+        // A packaged app's target is not a file path to validate, copy or reveal.
+        Resource::Application { path } if mytools_plugin_api::paths::is_packaged_app(path) => None,
         Resource::File { path } | Resource::Folder { path } | Resource::Application { path } => {
             Some(path)
         }

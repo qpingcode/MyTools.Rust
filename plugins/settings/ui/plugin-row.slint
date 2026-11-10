@@ -1,0 +1,118 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "../../../ui/theme.slint";
+import { I18n } from "../../../ui/i18n.slint";
+import { Icon } from "../../../ui/components/icon.slint";
+import { Button, Toggle } from "controls.slint";
+
+/// One installed plugin as the form shows it.
+export struct PluginRow {
+    id: string,
+    name: string,
+    icon: string,
+    /// Aliases as edited, separated by spaces.
+    aliases: string,
+    /// The manifest's aliases, shown as the placeholder and restored by "Reset".
+    default-aliases: string,
+    enabled: bool,
+    /// The settings plugin itself cannot be turned off.
+    locked: bool,
+    /// Whether the current filter matches this plugin.
+    shown: bool,
+}
+
+/// A card with the plugin's identity, an alias field and an enable switch.
+export component PluginCard inherits Rectangle {
+    in property <PluginRow> plugin;
+    callback aliases-edited(string);
+    callback toggled(bool);
+    // Typing replaces this binding, so "Reset" writes the field directly; a reloaded list
+    // builds new cards that start from the saved value again.
+    private property <string> alias-text: root.plugin.aliases;
+    height: 68px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: area.has-hover ? Theme.control-border.transparentize(0.4) : Theme.border;
+    background: Theme.panel;
+    animate border-color { duration: 120ms; }
+    area := TouchArea { }
+    HorizontalLayout {
+        padding-left: 16px; padding-right: 16px; spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: 36px; height: 36px; border-radius: 9px;
+                background: root.plugin.enabled ? Theme.icon-background : Theme.selected;
+                Icon {
+                    x: 9px; y: 9px; width: 18px; height: 18px;
+                    name: root.plugin.icon;
+                    tint: root.plugin.enabled ? Theme.accent : Theme.disabled;
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center; spacing: 3px; horizontal-stretch: 1;
+            min-width: 120px;
+            HorizontalLayout {
+                spacing: 8px; alignment: start;
+                Text {
+                    text: root.plugin.name; font-size: Theme.font-title; font-weight: 600;
+                    color: root.plugin.enabled ? Theme.foreground : Theme.muted;
+                    overflow: elide; vertical-alignment: center;
+                }
+                if !root.plugin.enabled: Rectangle {
+                    height: 18px; width: off.preferred-width + 12px; border-radius: 9px;
+                    background: Theme.selected;
+                    off := Text {
+                        text: I18n.text("plugins.off"); color: Theme.muted;
+                        font-size: Theme.font-caption;
+                        horizontal-alignment: center; vertical-alignment: center;
+                    }
+                }
+            }
+            Text {
+                text: root.plugin.id; color: Theme.placeholder; font-size: Theme.font-caption;
+                font-family: "Cascadia Mono"; overflow: elide;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 6px;
+                Rectangle {
+                    width: 210px;
+                    VerticalLayout {
+                        alignment: center;
+                        LineEdit {
+                            text <=> root.alias-text;
+                            placeholder-text: I18n.text("plugins.no_alias");
+                            enabled: root.plugin.enabled;
+                            edited(text) => { root.aliases-edited(text); }
+                            accessible-label: I18n.text("plugins.alias") + " " + root.plugin.name;
+                        }
+                    }
+                }
+                // Keeps its space so the switches stay aligned whether or not it shows.
+                Rectangle {
+                    width: 32px;
+                    if root.alias-text != root.plugin.default-aliases: Button {
+                        icon: "builtin:refresh-cw"; kind: "ghost"; enabled: root.plugin.enabled;
+                        accessible-label: I18n.text("plugins.reset");
+                        clicked => {
+                            root.alias-text = root.plugin.default-aliases;
+                            root.aliases-edited(root.alias-text);
+                        }
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Toggle {
+                checked: root.plugin.enabled;
+                enabled: !root.plugin.locked;
+                label: root.plugin.name;
+                toggled(value) => { root.toggled(value); }
+            }
+        }
+    }
+}

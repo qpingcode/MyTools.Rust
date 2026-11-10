@@ -39,5 +39,6 @@
   "error.history_directory": "搜索历史目录不可用",
   "search.timed_out": "搜索超时（{seconds} 秒）— 按 Enter 重试",
   "search.timed_out_detail": "{name} 未在时限内返回结果，重试最多等待 {seconds} 秒",
-  "actions.retry": "重试"
+  "actions.retry": "重试",
+  "error.plugin_settings": "无法读取 plugin-settings.json，已使用默认设置：{error}"
 }

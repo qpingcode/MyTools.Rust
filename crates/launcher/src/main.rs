@@ -16,5 +16,6 @@ mod window_geometry;
 slint::include_modules!();
 
 fn main() -> anyhow::Result<()> {
-    app::run()
+    mytools_plugin_api::crash::install();
+    app::run().inspect_err(|error| mytools_plugin_api::crash::report_error(&format!("{error:#}")))
 }

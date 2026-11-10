@@ -15,7 +15,8 @@ mod platform;
 mod platform;
 
 pub fn load(path: &Path) -> Option<Pixels> {
-    if !path.is_absolute() || !path.exists() {
+    let packaged = cfg!(windows) && mytools_plugin_api::paths::is_packaged_app(path);
+    if !packaged && (!path.is_absolute() || !path.exists()) {
         return None;
     }
     #[cfg(any(windows, target_os = "macos"))]

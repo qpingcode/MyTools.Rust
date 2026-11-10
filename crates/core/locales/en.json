@@ -39,5 +39,6 @@
   "error.history_directory": "Search history directory is unavailable",
   "search.timed_out": "Search timed out after {seconds}s — press Enter to retry",
   "search.timed_out_detail": "{name} did not answer in time; the retry waits up to {seconds}s",
-  "actions.retry": "Retry"
+  "actions.retry": "Retry",
+  "error.plugin_settings": "Cannot read plugin-settings.json; using the defaults: {error}"
 }

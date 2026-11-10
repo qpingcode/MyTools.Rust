@@ -8,6 +8,7 @@ mod elevation;
 
 pub fn can_run_as_admin(path: &Path) -> bool {
     cfg!(windows)
+        && !mytools_plugin_api::paths::is_packaged_app(path)
         && path.extension().is_some_and(|ext| {
             ["exe", "com", "lnk"]
                 .iter()
@@ -28,6 +29,11 @@ pub fn run_as_admin(path: &Path) -> Result<()> {
 }
 
 pub fn open_application(path: &Path) -> Result<()> {
+    // Packaged apps have no file; the shell resolves their `shell:AppsFolder` target itself.
+    #[cfg(windows)]
+    if mytools_plugin_api::paths::is_packaged_app(path) {
+        return open_target(path.as_os_str());
+    }
     ensure!(
         path.exists(),
         "{}",

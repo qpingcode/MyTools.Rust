@@ -1,7 +1,7 @@
 use mytools_core::{AliasTable, Catalog, SearchOptions, SearchResults};
 use std::{
     sync::{
-        Arc, OnceLock,
+        Arc, RwLock,
         atomic::{AtomicU32, AtomicU64, Ordering},
         mpsc,
     },
@@ -49,7 +49,7 @@ pub struct SearchWorker {
     requests: mpsc::Sender<Option<Query>>,
     /// Generation of the newest query sent; a search for an older one stops waiting.
     latest: Arc<AtomicU64>,
-    aliases: Arc<OnceLock<AliasTable>>,
+    aliases: Arc<RwLock<Option<AliasTable>>>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -59,11 +59,12 @@ impl SearchWorker {
         let (events, results) = async_channel::unbounded();
         let latest = Arc::new(AtomicU64::new(0));
         let worker_latest = latest.clone();
-        let aliases = Arc::new(OnceLock::new());
+        let aliases = Arc::new(RwLock::new(None));
         let worker_aliases = aliases.clone();
         let thread = thread::spawn(move || {
-            let catalog = Catalog::load();
-            let _ = worker_aliases.set(catalog.alias_table());
+            let mut catalog = Catalog::load();
+            *worker_aliases.write().unwrap_or_else(|e| e.into_inner()) =
+                Some(catalog.alias_table());
             'requests: while let Ok(Some(mut query)) = receiver.recv() {
                 // Typed input settles for a moment; an explicit retry runs at once.
                 while query.attempt == 0 {
@@ -76,6 +77,13 @@ impl SearchWorker {
                 let generation = query.generation;
                 if events.send_blocking(Event::Started { generation }).is_err() {
                     break;
+                }
+                // Enabled plugins and aliases edited in Settings apply from the next search.
+                if catalog.settings_changed() {
+                    catalog.shutdown();
+                    catalog = Catalog::load();
+                    *worker_aliases.write().unwrap_or_else(|e| e.into_inner()) =
+                        Some(catalog.alias_table());
                 }
                 let is_stale = || worker_latest.load(Ordering::SeqCst) != generation;
                 let results = catalog.search_with(
@@ -125,14 +133,19 @@ impl SearchWorker {
 pub struct QuerySender {
     requests: mpsc::Sender<Option<Query>>,
     latest: Arc<AtomicU64>,
-    aliases: Arc<OnceLock<AliasTable>>,
+    aliases: Arc<RwLock<Option<AliasTable>>>,
 }
 
 impl QuerySender {
     /// The plugin an alias query will search; `None` for global search or while the
     /// catalog is still loading.
     pub fn plugin_for(&self, text: &str) -> Option<String> {
-        self.aliases.get()?.plugin_for(text).map(str::to_owned)
+        self.aliases
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()?
+            .plugin_for(text)
+            .map(str::to_owned)
     }
 
     pub fn send(&self, query: Query) {

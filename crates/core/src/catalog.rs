@@ -55,6 +55,14 @@ impl Entry {
 pub struct Catalog {
     plugins: Vec<Plugin>,
     errors: Vec<String>,
+    /// When the plugin settings file was last changed as of this load.
+    settings_stamp: Option<std::time::SystemTime>,
+}
+
+fn settings_stamp() -> Option<std::time::SystemTime> {
+    std::fs::metadata(crate::plugins::settings_path())
+        .and_then(|metadata| metadata.modified())
+        .ok()
 }
 
 pub struct SearchResults {
@@ -148,9 +156,12 @@ fn retry_entry(plugin: &Plugin, input: &str, waited: std::time::Duration, attemp
 
 impl Catalog {
     pub fn load() -> Self {
+        let settings_stamp = settings_stamp();
+        let (settings, settings_error) = crate::plugins::load_settings();
         let mut catalog = Self {
             plugins: vec![],
-            errors: vec![],
+            errors: settings_error.into_iter().collect(),
+            settings_stamp,
         };
         let root = crate::plugins::directory();
         match manifest_paths(&root) {
@@ -158,8 +169,9 @@ impl Catalog {
                 let mut ids = HashSet::new();
                 let mut aliases = HashSet::new();
                 for path in paths {
-                    match Plugin::load(&path) {
-                        Ok(plugin) => {
+                    match Plugin::load(&path, &settings) {
+                        Ok(None) => {}
+                        Ok(Some(plugin)) => {
                             if !ids.insert(plugin.id.clone()) {
                                 catalog.errors.push(i18n::format(
                                     "error.duplicate_id",
@@ -199,6 +211,11 @@ impl Catalog {
                 .collect(),
         );
         catalog
+    }
+
+    /// Whether the plugin settings file changed since this catalog was loaded.
+    pub fn settings_changed(&self) -> bool {
+        settings_stamp() != self.settings_stamp
     }
 
     pub fn shutdown(&self) {
@@ -667,6 +684,7 @@ mod tests {
         let catalog = Catalog {
             plugins: vec![plugin(), rider],
             errors: vec![],
+            settings_stamp: None,
         };
         assert!(catalog.search("计算器").entries.is_empty());
         let scoped = catalog.search("calc 1+1");
@@ -692,6 +710,7 @@ mod tests {
         let mut catalog = Catalog {
             plugins: vec![first, second],
             errors: vec![],
+            settings_stamp: None,
         };
         let results = catalog.search("1+1");
         assert!(results.errors.is_empty(), "{:?}", results.errors);

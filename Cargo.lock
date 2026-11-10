@@ -2937,6 +2937,7 @@ version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde_json",
+ "windows 0.61.3",
 ]
 
 [[package]]
@@ -3042,6 +3043,7 @@ dependencies = [
  "serde_json",
  "sys-locale",
  "unicode-normalization",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3075,6 +3077,18 @@ dependencies = [
  "uuid",
  "windows 0.62.2",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mytools-settings"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "mytools-plugin-api",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
 ]
 
 [[package]]

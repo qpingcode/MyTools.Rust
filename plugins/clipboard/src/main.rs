@@ -7,6 +7,7 @@ mod presentation;
 mod store;
 
 fn main() -> anyhow::Result<()> {
+    mytools_plugin_api::crash::install();
     let store = Arc::new(Mutex::new(store::Store::open(store::directory()?)?));
     if std::env::var_os("MYTOOLS_CLIPBOARD_NO_MONITOR").is_none() {
         clipboard::start(store.clone());

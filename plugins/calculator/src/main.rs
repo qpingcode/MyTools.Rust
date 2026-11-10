@@ -23,6 +23,7 @@ fn search(query: &str) -> Vec<SearchItem> {
 }
 
 fn main() -> std::io::Result<()> {
+    mytools_plugin_api::crash::install();
     serve(search)
 }
 

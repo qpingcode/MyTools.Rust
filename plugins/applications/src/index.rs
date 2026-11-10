@@ -15,8 +15,9 @@ struct Application {
 }
 
 impl Index {
-    pub fn new(paths: Vec<PathBuf>) -> Self {
-        let mut entries: Vec<_> = paths
+    /// Indexes shortcut files by file name, plus packaged apps that no shortcut already covers.
+    pub fn new(paths: Vec<PathBuf>, packaged: Vec<crate::packaged::App>) -> Self {
+        let mut named: Vec<(PathBuf, String)> = paths
             .into_iter()
             .map(|path| {
                 let name = path
@@ -24,6 +25,20 @@ impl Index {
                     .unwrap_or_default()
                     .to_string_lossy()
                     .into_owned();
+                (path, name)
+            })
+            .collect();
+        let shortcuts: std::collections::HashSet<String> =
+            named.iter().map(|(_, name)| name.to_lowercase()).collect();
+        named.extend(
+            packaged
+                .into_iter()
+                .filter(|app| !shortcuts.contains(&app.name.to_lowercase()))
+                .map(|app| (app.path, app.name)),
+        );
+        let mut entries: Vec<_> = named
+            .into_iter()
+            .map(|(path, name)| {
                 let lowercase = name.to_lowercase();
                 let initials = lowercase
                     .split(|ch: char| !ch.is_alphanumeric())
@@ -60,7 +75,8 @@ impl Index {
                     || (!compact.is_empty()
                         && (entry.compact.contains(&compact)
                             || entry.initials.starts_with(&compact))))
-                    && entry.path.exists()
+                    && (entry.path.exists()
+                        || mytools_plugin_api::paths::is_packaged_app(&entry.path))
             })
             .collect();
         // Preserve alphabetical order within each rank, preferring direct prefixes.
@@ -110,13 +126,26 @@ mod tests {
                 path
             })
             .collect();
-        let index = Index::new(paths.clone());
+        let packaged = vec![
+            crate::packaged::App {
+                name: "Claude".into(),
+                path: mytools_plugin_api::paths::packaged_app("Claude_x!Claude"),
+            },
+            // Already covered by a shortcut of the same name.
+            crate::packaged::App {
+                name: "记事本".into(),
+                path: mytools_plugin_api::paths::packaged_app("Notepad_x!App"),
+            },
+        ];
+        let index = Index::new(paths.clone(), packaged);
+        assert_eq!(index.search("claude")[0].title, "Claude");
+        assert_eq!(index.search("记事").len(), 1);
         for query in ["studio VISUAL", "visualstudio", "vsc"] {
             assert_eq!(index.search(query)[0].title, "Visual Studio Code");
         }
         assert_eq!(index.search("code")[0].title, "Code Editor");
         assert_eq!(index.search("记事")[0].title, "记事本");
-        assert_eq!(index.search(" ").len(), 3);
+        assert_eq!(index.search(" ").len(), 4);
         assert!(index.search("unmatched").is_empty());
         std::fs::remove_file(&paths[0]).unwrap();
         assert!(index.search("vsc").is_empty());

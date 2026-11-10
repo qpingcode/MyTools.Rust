@@ -1,0 +1,17 @@
+{
+  "id": "settings",
+  "name": {
+    "key": "name",
+    "defaultValue": "Settings"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-settings",
+  "icon": "builtin:settings",
+  "alias": [
+    "settings"
+  ],
+  "search": {
+    "global": true
+  }
+}

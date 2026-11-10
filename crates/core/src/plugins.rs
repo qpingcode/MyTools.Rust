@@ -1,6 +1,7 @@
 use crate::i18n;
 use crate::search_process::SearchProcess;
 use anyhow::{Context, Result, bail};
+use mytools_plugin_api::plugin_settings::Settings;
 use serde::Deserialize;
 use std::{
     fs,
@@ -167,9 +168,15 @@ pub struct Plugin {
 }
 
 impl Plugin {
-    pub fn load(path: &Path) -> Result<Self> {
-        let manifest: Manifest =
+    /// Loads a plugin with the user's overrides applied; a disabled plugin is not started
+    /// and yields `None`.
+    pub fn load(path: &Path, settings: &Settings) -> Result<Option<Self>> {
+        let mut manifest: Manifest =
             serde_json::from_slice(&fs::read(path)?).context(i18n::t("error.manifest_invalid"))?;
+        if !settings.enabled(&manifest.id) {
+            return Ok(None);
+        }
+        manifest.alias = settings.aliases(&manifest.id, &manifest.alias).to_vec();
         let executable = manifest.validate(path)?;
         let language = mytools_plugin_api::i18n::language();
         let name = localized_name(&manifest.name, path, language)?;
@@ -210,7 +217,7 @@ impl Plugin {
         } else {
             None
         };
-        Ok(Self {
+        Ok(Some(Self {
             id: manifest.id,
             name,
             version: manifest.version,
@@ -225,7 +232,27 @@ impl Plugin {
             process,
             view: manifest.view,
             action_rules,
-        })
+        }))
+    }
+}
+
+/// The user's plugin overrides file, next to `config.json`.
+pub fn settings_path() -> PathBuf {
+    mytools_plugin_api::plugin_settings::path()
+        .unwrap_or_else(|| directory().with_file_name("plugin-settings.json"))
+}
+
+/// The overrides in effect, or none (with the error) when the file cannot be read.
+pub fn load_settings() -> (Settings, Option<String>) {
+    match mytools_plugin_api::plugin_settings::load(&settings_path()) {
+        Ok(settings) => (settings, None),
+        Err(error) => (
+            Settings::default(),
+            Some(i18n::format(
+                "error.plugin_settings",
+                &[("error", &error.to_string())],
+            )),
+        ),
     }
 }
 
@@ -248,6 +275,7 @@ pub struct ActivationShortcut {
 /// Read activation metadata without starting another plugin process.
 pub fn activation_shortcuts() -> Result<Vec<ActivationShortcut>> {
     let mut shortcuts = Vec::new();
+    let (settings, _) = load_settings();
     for path in manifest_paths(&directory())? {
         // Catalog reports invalid manifests; other plugins keep their shortcuts.
         let Ok(bytes) = fs::read(path) else {
@@ -257,7 +285,11 @@ pub fn activation_shortcuts() -> Result<Vec<ActivationShortcut>> {
             continue;
         };
         if manifest.kind == PluginType::Search
-            && let (Some(hotkey), Some(alias)) = (manifest.hotkey, manifest.alias.first())
+            && settings.enabled(&manifest.id)
+            && let (Some(hotkey), Some(alias)) = (
+                manifest.hotkey,
+                settings.aliases(&manifest.id, &manifest.alias).first(),
+            )
         {
             shortcuts.push(ActivationShortcut {
                 plugin_id: manifest.id,
@@ -275,17 +307,13 @@ fn localized_name(name: &PluginName, manifest: &Path, language: &str) -> Result<
     };
     let directory = manifest
         .parent()
-        .context(i18n::t("error.manifest_directory"))?
-        .join("locales");
-    let read = |language: &str| -> Result<String> {
-        match fs::read_to_string(directory.join(format!("{language}.json"))) {
-            Ok(json) => Ok(json),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok("{}".into()),
-            Err(error) => Err(error.into()),
-        }
-    };
-    let catalog = mytools_plugin_api::i18n::Catalog::from_json(&read(language)?, &read("en")?)?;
-    Ok(catalog.lookup(key).unwrap_or(&name.default_value).into())
+        .context(i18n::t("error.manifest_directory"))?;
+    Ok(mytools_plugin_api::i18n::plugin_text(
+        directory,
+        key,
+        &name.default_value,
+        language,
+    )?)
 }
 
 impl Manifest {

@@ -79,10 +79,12 @@ fn serve_io(
     })
 }
 
+pub mod crash;
 pub mod i18n;
 pub mod icons;
 pub mod matching;
 pub mod paths;
+pub mod plugin_settings;
 pub mod text;
 
 fn is_false(value: &bool) -> bool {

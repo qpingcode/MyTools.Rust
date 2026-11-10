@@ -39,6 +39,26 @@ pub struct Catalog {
     english: HashMap<String, String>,
 }
 
+/// A plugin's text from its `locales/<language>.json`, falling back to English and then
+/// to `default`. Missing locale files are not an error.
+pub fn plugin_text(
+    plugin_directory: &std::path::Path,
+    key: &str,
+    default: &str,
+    language: &str,
+) -> std::io::Result<String> {
+    let read = |language: &str| -> std::io::Result<String> {
+        match std::fs::read_to_string(plugin_directory.join(format!("locales/{language}.json"))) {
+            Ok(json) => Ok(json),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok("{}".into()),
+            Err(error) => Err(error),
+        }
+    };
+    let catalog =
+        Catalog::from_json(&read(language)?, &read("en")?).map_err(std::io::Error::other)?;
+    Ok(catalog.lookup(key).unwrap_or(default).into())
+}
+
 impl Catalog {
     pub fn for_language(english: &str, chinese: &str) -> serde_json::Result<Self> {
         Self::from_json(

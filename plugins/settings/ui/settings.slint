@@ -1,0 +1,190 @@
+import { LineEdit, ScrollView, Palette } from "std-widgets.slint";
+import { Theme } from "../../../ui/theme.slint";
+import { I18n } from "../../../ui/i18n.slint";
+import { Icon } from "../../../ui/components/icon.slint";
+import { Button } from "controls.slint";
+import { PluginCard, PluginRow } from "plugin-row.slint";
+export { I18n } from "../../../ui/i18n.slint";
+export { PluginRow } from "plugin-row.slint";
+
+/// One entry of the sidebar; each tab is a page of settings.
+component NavItem inherits Rectangle {
+    in property <string> text;
+    in property <string> icon;
+    in property <bool> selected;
+    callback clicked();
+    height: 36px;
+    border-radius: 7px;
+    background: root.selected ? Theme.selected : touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: 90ms; }
+    Rectangle {
+        x: 0px; y: (parent.height - self.height) / 2;
+        width: 3px; height: 16px; border-radius: 2px;
+        background: Theme.accent;
+        visible: root.selected;
+    }
+    HorizontalLayout {
+        padding-left: 12px; padding-right: 10px; spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            Icon {
+                name: root.icon; width: 16px; height: 16px;
+                tint: root.selected ? Theme.accent : Theme.muted;
+            }
+        }
+        Text {
+            text: root.text; font-size: Theme.font-body;
+            color: root.selected ? Theme.foreground : Theme.muted;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+    accessible-role: tab;
+    accessible-label: root.text;
+    accessible-item-selected: root.selected;
+}
+
+export component SettingsWindow inherits Window {
+    title: I18n.text("window.title");
+    icon: @image-url("../../../ui/assets/app.png");
+    preferred-width: 920px; preferred-height: 660px;
+    min-width: 760px; min-height: 480px;
+    background: Theme.background;
+    default-font-family: "Microsoft YaHei UI";
+    in property <[PluginRow]> plugins;
+    /// "N of M enabled", formatted by Rust.
+    in property <string> summary;
+    in property <int> shown-count;
+    in property <bool> dirty;
+    in property <string> status;
+    in property <bool> failed;
+    in-out property <string> filter;
+    callback aliases-edited(int, string);
+    callback toggled(int, bool);
+    callback filter-edited(string);
+    callback save();
+    callback discard();
+    // Standard text widgets follow the dark theme instead of the light default.
+    init => { Palette.color-scheme = ColorScheme.dark; }
+
+    FocusScope {
+        capture-key-pressed(event) => {
+            if (event.modifiers.control && (event.text == "s" || event.text == "S")) {
+                if (root.dirty) { root.save(); }
+                return accept;
+            }
+            return reject;
+        }
+        HorizontalLayout {
+            // Sidebar: settings pages.
+            Rectangle {
+                width: 220px;
+                background: Theme.panel;
+                VerticalLayout {
+                    padding: 14px; padding-top: 20px; spacing: 4px;
+                    HorizontalLayout {
+                        padding-left: 8px; padding-bottom: 14px; spacing: 10px;
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 28px; height: 28px; border-radius: 7px;
+                                background: Theme.icon-background;
+                                Icon { x: 6px; y: 6px; width: 16px; height: 16px; name: "builtin:settings"; }
+                            }
+                        }
+                        Text {
+                            text: I18n.text("name"); color: Theme.foreground;
+                            font-size: Theme.font-heading; font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
+                    NavItem { text: I18n.text("tab.plugins"); icon: "builtin:puzzle"; selected: true; }
+                    Rectangle { vertical-stretch: 1; }
+                }
+            }
+            Rectangle { width: 1px; background: Theme.border; }
+
+            // Plugins page.
+            VerticalLayout {
+                padding: 28px; padding-top: 24px; padding-bottom: 18px; spacing: 18px;
+                HorizontalLayout {
+                    spacing: 16px;
+                    VerticalLayout {
+                        alignment: center; spacing: 4px; horizontal-stretch: 1;
+                        Text {
+                            text: I18n.text("tab.plugins"); color: Theme.foreground;
+                            font-size: Theme.font-heading + 6px; font-weight: 600;
+                        }
+                        Text {
+                            text: root.summary;
+                            color: Theme.muted; font-size: Theme.font-small;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 240px;
+                            LineEdit {
+                                text <=> root.filter;
+                                placeholder-text: I18n.text("plugins.filter");
+                                edited(text) => { root.filter-edited(text); }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    text: I18n.text("plugins.hint"); color: Theme.placeholder;
+                    font-size: Theme.font-small; wrap: word-wrap;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        alignment: start; spacing: 8px; padding-right: 10px;
+                        for plugin[index] in root.plugins: PluginCard {
+                            plugin: plugin;
+                            // Filtered-out cards collapse instead of leaving gaps.
+                            visible: plugin.shown;
+                            height: plugin.shown ? 68px : 0px;
+                            aliases-edited(text) => { root.aliases-edited(index, text); }
+                            toggled(value) => { root.toggled(index, value); }
+                        }
+                        if root.shown-count == 0: Text {
+                            text: I18n.text("plugins.none"); color: Theme.muted;
+                            font-size: Theme.font-small; horizontal-alignment: center;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    VerticalLayout {
+                        alignment: center; horizontal-stretch: 1;
+                        HorizontalLayout {
+                            spacing: 7px; alignment: start;
+                            if root.dirty && !root.failed: VerticalLayout {
+                                alignment: center;
+                                Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: Theme.warning; }
+                            }
+                            Text {
+                                text: root.status != "" ? root.status : root.dirty ? I18n.text("status.unsaved") : "";
+                                color: root.failed || root.dirty ? Theme.warning : Theme.muted;
+                                font-size: Theme.font-small; wrap: word-wrap;
+                            }
+                        }
+                    }
+                    Button {
+                        text: I18n.text("discard"); enabled: root.dirty;
+                        clicked => { root.discard(); }
+                    }
+                    Button {
+                        text: I18n.text("save"); shortcut: "Ctrl+S"; icon: "builtin:check"; kind: "primary";
+                        enabled: root.dirty;
+                        clicked => { root.save(); }
+                    }
+                }
+            }
+        }
+    }
+}

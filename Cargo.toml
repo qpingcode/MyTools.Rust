@@ -15,6 +15,7 @@ members = [
     "plugins/translator",
     "plugins/quick-text",
     "plugins/scripts-runner",
+    "plugins/settings",
     "plugins/everything",
     "plugins/dev-open",
 ]

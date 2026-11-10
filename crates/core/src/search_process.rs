@@ -186,7 +186,15 @@ impl SearchProcess {
             let mut command = Command::new(&program);
             command
                 .current_dir(&directory)
-                .env("MYTOOLS_LOCALE", mytools_plugin_api::i18n::language());
+                .env("MYTOOLS_LOCALE", mytools_plugin_api::i18n::language())
+                .env(
+                    mytools_plugin_api::plugin_settings::ENV,
+                    crate::plugins::settings_path(),
+                )
+                .env(
+                    mytools_plugin_api::crash::ENV,
+                    mytools_plugin_api::crash::directory(),
+                );
             command
         }))
     }

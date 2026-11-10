@@ -8,6 +8,7 @@ mod search;
 mod store;
 slint::include_modules!();
 fn main() -> anyhow::Result<()> {
+    mytools_plugin_api::crash::install();
     mytools_plugin_api::i18n::language();
     if std::env::args().nth(1).as_deref() == Some("--manage") {
         return manager::run(std::env::args().nth(2));

@@ -124,6 +124,7 @@ fn search(entries: &[Bookmark], query: &str, catalog: &Catalog) -> Vec<SearchIte
 }
 
 fn main() -> std::io::Result<()> {
+    mytools_plugin_api::crash::install();
     let catalog = Catalog::for_language(
         include_str!("../locales/en.json"),
         include_str!("../locales/zh-CN.json"),
