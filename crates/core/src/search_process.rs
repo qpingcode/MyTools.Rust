@@ -629,12 +629,15 @@ impl Drop for SearchProcess {
 
 #[cfg(all(test, windows))]
 impl ProcessOptions {
+    /// A fixture reporting to its own board, registered so its state is tracked.
     fn test() -> Self {
+        let board = Arc::new(Board::new(None));
+        board.register("fixture", State::Idle, None, None);
         Self {
             id: "fixture".into(),
             name: "Fixture".into(),
             startup_timeout: STARTUP_TIMEOUT,
-            board: Arc::new(Board::new(None)),
+            board,
         }
     }
 }
