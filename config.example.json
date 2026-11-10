@@ -4,6 +4,7 @@
     "clipboard": "Ctrl+Shift+V",
     "translator": "Alt+V"
   },
+  "plugin_startup_timeout_ms": 10000,
   "theme": {
     "font-search": 18,
     "font-title": 14,
