@@ -353,9 +353,9 @@ impl Catalog {
 
     /// Lists the commands of every plugin for input such as `>paste`.
     fn search_commands(&self, query: &str) -> SearchResults {
-        use mytools_plugin_api::matching::{normalize, rank};
+        use mytools_plugin_api::matching::{normalize, tier};
         let mut entries = crate::commands::entries(&self.plugins, query);
-        entries.sort_by_cached_key(|entry| (rank(&entry.name, query), normalize(&entry.name)));
+        entries.sort_by_cached_key(|entry| (tier(&entry.name, query), normalize(&entry.name)));
         SearchResults {
             entries,
             errors: self.errors.clone(),
@@ -625,7 +625,8 @@ fn contributed_item(resource: &Resource) -> String {
 
 fn rank_global(entries: &mut [Entry], query: &str, history: &crate::history::History, time: u64) {
     use crate::history::Selection;
-    use mytools_plugin_api::matching::{normalize, rank};
+    // The fine tier, so that e.g. "cw" ranks CargoWise (word starts) above Screwdriver.
+    use mytools_plugin_api::matching::{normalize, tier};
     for entry in entries.iter_mut() {
         let selection = Selection::new(&entry.source_id, &entry.resource, query);
         if let Some(action) = entry.actions.first_mut() {
@@ -652,7 +653,7 @@ fn rank_global(entries: &mut [Entry], query: &str, history: &crate::history::His
         let score = quality * 70 + u64::from(history.frequency(&selection.key, time)) * 5;
         (
             !entry.rank_intent,
-            rank(&entry.name, query),
+            tier(&entry.name, query),
             std::cmp::Reverse(score),
             normalize(&entry.name),
             selection.key,
