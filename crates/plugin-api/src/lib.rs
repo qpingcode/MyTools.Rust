@@ -112,6 +112,7 @@ fn serve_io(
 pub mod crash;
 pub mod i18n;
 pub mod icons;
+pub mod log;
 pub mod matching;
 pub mod paths;
 pub mod plugin_settings;

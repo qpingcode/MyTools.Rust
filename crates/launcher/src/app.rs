@@ -83,6 +83,15 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     // Startup problems are shown once the event loop runs, next to plugin notices.
     let mut startup_notices = Vec::new();
     let mut initial = State::default();
+    if let Err(error) = &config {
+        mytools_plugin_api::log::error(
+            "config.invalid",
+            format!("config.json is invalid: {error:#}"),
+        );
+    }
+    for error in &theme_errors {
+        mytools_plugin_api::log::error("config.invalid", format!("theme setting ignored: {error}"));
+    }
     if let Err(error) = config {
         initial.desktop_error = Some(i18n::format(
             "config.invalid",

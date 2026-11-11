@@ -169,7 +169,7 @@ impl Plugin {
     fn initialize(&mut self) -> SearchResponse {
         let config = &self.config;
         if config.startup_crash {
-            crash(self.catalog.get("startup_crash"));
+            crash("simulated startup crash");
         }
         let total = Duration::from_millis(config.startup_delay_ms);
         let started = Instant::now();
@@ -202,10 +202,9 @@ impl Plugin {
         }
         if config.runtime_crash {
             let every = Duration::from_secs(config.crash_interval_secs);
-            let reason = self.catalog.get("runtime_crash").to_owned();
             std::thread::spawn(move || {
                 std::thread::sleep(every);
-                crash(&reason);
+                crash("simulated crash while running");
             });
             self.crash_at = Some(Instant::now() + every);
         }

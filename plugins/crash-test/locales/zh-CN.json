@@ -2,8 +2,6 @@
   "name": "崩溃测试",
   "status": "崩溃测试插件运行中",
   "next": "{seconds} 秒后模拟崩溃（进程 {pid}）",
-  "startup_crash": "模拟启动崩溃",
-  "runtime_crash": "模拟运行期间崩溃",
   "off": "崩溃模拟已关闭",
   "off_detail": "在插件目录的 config.json 中设置 \"enabled\": true，且不设 MYTOOLS_CRASH_TEST=off",
   "running": "进程 {pid}，不模拟运行期间崩溃",

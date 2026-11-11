@@ -6,7 +6,11 @@ use crate::{
     status::{Board, Notice},
 };
 use anyhow::Result;
-use mytools_plugin_api::{ActionId, ActionSpec, Icon, Resource, SearchItem, plugin_status::State};
+use mytools_plugin_api::{
+    ActionId, ActionSpec, Icon, Resource, SearchItem,
+    log::{self, Level, Record},
+    plugin_status::State,
+};
 use std::{collections::HashSet, sync::Arc, time::Instant};
 
 #[derive(Clone, Debug)]
@@ -408,6 +412,7 @@ impl Catalog {
                         output.revision = response.revision;
                     }
                     if let Some(error) = response.error {
+                        log_search(plugin, Level::Warn, "search.error", &error);
                         output.errors.push(format!("{}：{error}", plugin.name));
                     }
                     for item in response.items {
@@ -422,18 +427,24 @@ impl Catalog {
                 }
                 // The plugin is not killed: it skips or finishes the abandoned search, and
                 // the heartbeat restarts it only if it really stops responding.
-                Waited::TimedOut if target.is_some() => output.entries.push(retry_entry(
-                    plugin,
-                    input,
-                    timeout(plugin),
-                    options.attempt,
-                )),
+                Waited::TimedOut if target.is_some() => {
+                    log_timeout(plugin, Level::Warn, timeout(plugin));
+                    output.entries.push(retry_entry(
+                        plugin,
+                        input,
+                        timeout(plugin),
+                        options.attempt,
+                    ))
+                }
+                // Common while typing fast, so only worth a debug record.
                 Waited::TimedOut => {
+                    log_timeout(plugin, Level::Debug, timeout(plugin));
                     output
                         .errors
                         .push(format!("{}：{}", plugin.name, i18n::t("error.timeout")))
                 }
                 Waited::Response(Err(error)) => {
+                    log_search(plugin, Level::Warn, "search.error", &format!("{error:#}"));
                     output.errors.push(format!("{}：{error}", plugin.name));
                 }
             }
@@ -523,6 +534,25 @@ fn ready(
         });
     }
     false
+}
+
+/// Search problems are logged without the query, which may hold private text.
+fn log_search(plugin: &Plugin, level: Level, event: &str, error: &str) {
+    log::write_from(
+        &plugin.id,
+        Record::new(level, event, format!("search failed: {error}")),
+    );
+}
+
+fn log_timeout(plugin: &Plugin, level: Level, waited: std::time::Duration) {
+    log::write_from(
+        &plugin.id,
+        Record::new(
+            level,
+            "search.timeout",
+            format!("no search results within {}s", seconds(waited)),
+        ),
+    );
 }
 
 /// An informational result describing a plugin rather than coming from it.

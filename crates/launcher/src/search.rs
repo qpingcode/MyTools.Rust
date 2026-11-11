@@ -149,6 +149,7 @@ impl Worker {
         if !self.catalog.settings_changed() {
             return;
         }
+        mytools_plugin_api::log::info("settings.reload", "settings changed; reloading plugins");
         self.catalog.shutdown();
         self.catalog = Catalog::load_with(&self.options);
         self.publish_aliases();

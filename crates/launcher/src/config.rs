@@ -11,6 +11,8 @@ pub struct Config {
     /// How long a plugin may take to start before it is paused; plugins can override it
     /// with `startupTimeoutMs` in their `plugin.json`.
     pub plugin_startup_timeout_ms: Option<u64>,
+    /// The least severe log records kept: `debug`, `info` (default), `warn` or `error`.
+    pub log_level: Option<String>,
 }
 
 impl Default for Config {
@@ -20,6 +22,7 @@ impl Default for Config {
             plugin_shortcuts: Default::default(),
             theme: Default::default(),
             plugin_startup_timeout_ms: None,
+            log_level: None,
         }
     }
 }

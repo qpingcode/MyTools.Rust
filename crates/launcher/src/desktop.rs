@@ -49,11 +49,25 @@ impl Desktop {
         ui: &MainWindow,
         overrides: &std::collections::HashMap<String, String>,
     ) -> Result<Self> {
-        let manager = GlobalHotKeyManager::new().context(i18n::t("desktop.init_failed"))?;
+        use mytools_plugin_api::log;
+        let manager = GlobalHotKeyManager::new()
+            .inspect_err(|error| {
+                log::error(
+                    "hotkey.failed",
+                    format!("global shortcuts unavailable: {error}"),
+                )
+            })
+            .context(i18n::t("desktop.init_failed"))?;
         let hotkey = HotKey::new(Some(Modifiers::ALT), Code::Space);
         let weak = ui.as_weak();
         manager
             .register(hotkey)
+            .inspect_err(|error| {
+                log::error(
+                    "hotkey.failed",
+                    format!("could not register Alt+Space: {error}"),
+                )
+            })
             .context(i18n::t("desktop.register_failed"))?;
         let mut plugin_hotkeys = Vec::new();
         let mut routes = Vec::new();
@@ -76,6 +90,13 @@ impl Desktop {
                         Ok(())
                     });
                 if let Err(error) = result {
+                    log::warn(
+                        "hotkey.failed",
+                        format!(
+                            "could not register {text} for {}: {error}",
+                            shortcut.plugin_id
+                        ),
+                    );
                     registration_errors.push(i18n::format(
                         "desktop.plugin_hotkey_failed",
                         &[

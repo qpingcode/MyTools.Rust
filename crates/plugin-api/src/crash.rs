@@ -24,21 +24,26 @@ pub fn directory() -> PathBuf {
 }
 
 /// Records panics (and on Windows, unhandled native exceptions) before the process dies.
-/// The previous panic hook still runs, so stderr output and test reports are unchanged.
+/// The previous panic hook still runs when someone reads stderr in a terminal; a plugin's
+/// stderr goes to the host's log, which already has the report.
 pub fn install() {
+    use std::io::IsTerminal;
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let thread = std::thread::current();
+        let location = info
+            .location()
+            .map_or_else(|| "<unknown>".to_owned(), ToString::to_string);
+        let message = panic_message(info.payload());
         let report = format!(
-            "panic on thread '{}' at {}:\n{}\n\nbacktrace:\n{}",
+            "panic on thread '{}' at {location}:\n{message}\n\nbacktrace:\n{}",
             thread.name().unwrap_or("<unnamed>"),
-            info.location()
-                .map_or_else(|| "<unknown>".to_owned(), ToString::to_string),
-            panic_message(info.payload()),
             std::backtrace::Backtrace::force_capture(),
         );
-        write_report(&report);
-        previous(info);
+        write_report(&format!("panic: {message} ({location})"), &report);
+        if std::io::stderr().is_terminal() {
+            previous(info);
+        }
     }));
     #[cfg(windows)]
     native::install();
@@ -46,7 +51,12 @@ pub fn install() {
 
 /// Records an error that ends the process, such as one returned from `main`.
 pub fn report_error(error: &dyn Display) {
-    write_report(&format!("fatal error:\n{error}"));
+    let error = error.to_string();
+    let summary = error.lines().next().unwrap_or_default().to_owned();
+    write_report(
+        &format!("fatal error: {summary}"),
+        &format!("fatal error:\n{error}"),
+    );
 }
 
 fn panic_message(payload: &dyn std::any::Any) -> &str {
@@ -57,9 +67,13 @@ fn panic_message(payload: &dyn std::any::Any) -> &str {
         .unwrap_or("<non-string panic payload>")
 }
 
-/// Best effort: a crash report must never cause a second failure.
-fn write_report(body: &str) {
+/// Best effort: a crash report must never cause a second failure. It also goes to the
+/// MyTools log as an error, with the whole report as its detail.
+fn write_report(summary: &str, body: &str) {
     let _ = append(&directory(), &format!("{}\n{body}\n\n", header()));
+    crate::log::write(
+        crate::log::Record::new(crate::log::Level::Error, "crash", summary).with_detail(body),
+    );
 }
 
 fn header() -> String {
@@ -92,8 +106,9 @@ fn append(directory: &Path, text: &str) -> std::io::Result<()> {
         .write_all(text.as_bytes())
 }
 
+/// The local time as `YYYY-MM-DD HH:MM:SS.mmm`.
 #[cfg(windows)]
-fn timestamp() -> String {
+pub(crate) fn timestamp() -> String {
     use windows_sys::Win32::System::SystemInformation::GetLocalTime;
     // SAFETY: GetLocalTime only writes the SYSTEMTIME it is given.
     let time = unsafe {
@@ -113,12 +128,31 @@ fn timestamp() -> String {
     )
 }
 
+/// UTC as `YYYY-MM-DD HH:MM:SS.mmm`; MyTools runs on Windows, this keeps other builds and
+/// tests readable without a time zone database.
 #[cfg(not(windows))]
-fn timestamp() -> String {
-    let seconds = std::time::SystemTime::now()
+pub(crate) fn timestamp() -> String {
+    let elapsed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs());
-    format!("unix {seconds}")
+        .unwrap_or_default();
+    let (days, rest) = (elapsed.as_secs() / 86_400, elapsed.as_secs() % 86_400);
+    // Days to a civil date (Howard Hinnant's algorithm).
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}.{:03}",
+        rest / 3600,
+        rest % 3600 / 60,
+        rest % 60,
+        elapsed.subsec_millis()
+    )
 }
 
 #[cfg(windows)]
@@ -149,12 +183,13 @@ mod native {
         if let Some(record) = unsafe { pointers.as_ref().and_then(|p| p.ExceptionRecord.as_ref()) }
         {
             let address = record.ExceptionAddress as usize;
-            super::write_report(&format!(
+            let report = format!(
                 "native exception 0x{:08X} ({}) at 0x{address:X} {}",
                 record.ExceptionCode as u32,
                 describe(record.ExceptionCode as u32),
                 module_offset(address),
-            ));
+            );
+            super::write_report(&report, &report);
         }
         EXCEPTION_CONTINUE_SEARCH
     }

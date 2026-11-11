@@ -2,7 +2,9 @@ use crate::i18n;
 use crate::status::{Board, Notice};
 use anyhow::{Context, Result, anyhow, bail};
 use mytools_plugin_api::{
-    PluginActionRequest, PluginEffect, SearchRequest, SearchResponse, plugin_status::State,
+    PluginActionRequest, PluginEffect, SearchRequest, SearchResponse,
+    log::{self, Level, Record},
+    plugin_status::State,
 };
 use std::{
     collections::VecDeque,
@@ -64,6 +66,8 @@ struct Shared {
     pending: Mutex<VecDeque<Pending>>,
     /// Cleared when the pipe breaks, a response is invalid or the plugin is stuck.
     healthy: AtomicBool,
+    /// Why `healthy` was first cleared, for the log.
+    unhealthy: Mutex<Option<String>>,
     /// Set when the plugin answers `init`: it takes searches and heartbeats from now on.
     ready: AtomicBool,
     /// The reason the plugin gave for failing `init`.
@@ -84,9 +88,20 @@ impl Status {
     fn set(&self, state: State, detail: Option<String>) {
         self.board.set(&self.id, state, detail);
     }
+
+    fn log(&self, level: Level, event: &str, message: impl Into<String>) {
+        log::write_from(&self.id, Record::new(level, event, message));
+    }
 }
 
 impl Shared {
+    /// Marks the process for restart, remembering the first reason.
+    fn unhealthy(&self, reason: impl FnOnce() -> String) {
+        if self.healthy.swap(false, Ordering::Relaxed) {
+            *self.unhealthy.lock().unwrap() = Some(reason());
+        }
+    }
+
     fn write(&self, wire: &SearchRequest) -> Result<()> {
         let mut stdin = self.stdin.lock().unwrap();
         let written = (|| -> std::io::Result<()> {
@@ -94,8 +109,8 @@ impl Shared {
             writeln!(stdin)?;
             stdin.flush()
         })();
-        if written.is_err() {
-            self.healthy.store(false, Ordering::Relaxed);
+        if let Err(error) = &written {
+            self.unhealthy(|| format!("could not send a request to the plugin: {error}"));
         }
         Ok(written?)
     }
@@ -106,7 +121,9 @@ impl Shared {
         let mut heartbeat = self.heartbeat.lock().unwrap();
         if let Some(sent) = heartbeat.outstanding {
             if now.duration_since(sent) > PONG_TIMEOUT {
-                self.healthy.store(false, Ordering::Relaxed);
+                self.unhealthy(|| {
+                    format!("no heartbeat answer within {}s", PONG_TIMEOUT.as_secs())
+                });
             }
             return;
         }
@@ -144,12 +161,12 @@ impl Shared {
             .unwrap()
             .front()
             .map(|pending| pending.kind);
-        let limit = match front {
-            Some(Kind::Action) => ACTION_TIMEOUT,
-            _ => SEARCH_HUNG,
+        let (limit, work) = match front {
+            Some(Kind::Action) => (ACTION_TIMEOUT, "an action"),
+            _ => (SEARCH_HUNG, "a search"),
         };
         if Duration::from_millis(busy_ms) > limit {
-            self.healthy.store(false, Ordering::Relaxed);
+            self.unhealthy(|| format!("{work} ran longer than {}s", limit.as_secs()));
         }
     }
 
@@ -285,6 +302,11 @@ impl SearchProcess {
         if self.shutdown.load(Ordering::Relaxed) {
             return;
         }
+        self.status.log(
+            Level::Info,
+            "plugin.restart_requested",
+            "restarting on request",
+        );
         let mut running = self.running.lock().unwrap();
         if let Some(current) = running.take() {
             current.kill();
@@ -360,13 +382,24 @@ impl SearchProcess {
         // The first start is not a restart.
         if self.started_once.swap(true, Ordering::Relaxed) && !self.allow_restart() {
             let reason = i18n::t("plugin.crash_loop");
-            self.fail(running, reason.clone());
+            self.fail(
+                running,
+                reason.clone(),
+                format!(
+                    "crashed more than {RESTART_LIMIT} times in {}s; stopped",
+                    RESTART_WINDOW.as_secs()
+                ),
+            );
             bail!(reason);
         }
         let fresh = match spawn((self.factory)(), self.status.clone()) {
             Ok(fresh) => fresh,
             Err(error) => {
-                self.fail(running, format!("{error:#}"));
+                self.fail(
+                    running,
+                    format!("{error:#}"),
+                    format!("could not start the process: {error:#}"),
+                );
                 return Err(error);
             }
         };
@@ -375,12 +408,14 @@ impl SearchProcess {
         Ok(shared)
     }
 
-    /// Stops the process and keeps it stopped until the user restarts it.
-    fn fail(&self, running: &mut Option<Running>, reason: String) {
+    /// Stops the process and keeps it stopped until the user restarts it. `reason` is shown
+    /// to the user; `log` says the same for the (English) log.
+    fn fail(&self, running: &mut Option<Running>, reason: String, log: String) {
         if let Some(current) = running.take() {
             current.kill();
         }
         self.suspended.store(true, Ordering::Relaxed);
+        self.status.log(Level::Error, "plugin.failed", log);
         self.status.set(State::Failed, Some(reason.clone()));
         self.status.board.notify(Notice {
             title: i18n::format("plugin.failed_title", &[("name", &self.name)]),
@@ -434,6 +469,14 @@ impl SearchProcess {
         let response = match reply?.recv_timeout(ACTION_TIMEOUT) {
             Ok(response) => response?,
             Err(_) => {
+                self.status.log(
+                    Level::Warn,
+                    "plugin.action_timeout",
+                    format!(
+                        "an action did not finish within {}s; stopping the process",
+                        ACTION_TIMEOUT.as_secs()
+                    ),
+                );
                 self.stop();
                 bail!(i18n::t("error.timeout"));
             }
@@ -475,12 +518,18 @@ impl SearchProcess {
             return;
         };
         if !current.shared.ready.load(Ordering::Relaxed) {
-            if let Some(reason) = self.start_failure(current) {
-                self.fail(&mut running, reason);
+            if let Some((reason, log)) = self.start_failure(current) {
+                self.fail(&mut running, reason, log);
             }
             return;
         }
         if !current.is_alive() {
+            let reason = exit_reason(current);
+            self.status.log(
+                Level::Warn,
+                "plugin.crashed",
+                format!("{reason}; restarting"),
+            );
             // A crash loop marks the plugin failed; other errors are retried next tick.
             let _ = self.ensure_running(&mut running);
             return;
@@ -492,23 +541,44 @@ impl SearchProcess {
         }
     }
 
-    /// Why a process that has not answered `init` should be given up, if it should.
-    fn start_failure(&self, current: &mut Running) -> Option<String> {
+    /// Why a process that has not answered `init` should be given up, if it should: the
+    /// reason shown to the user and the line for the log.
+    fn start_failure(&self, current: &mut Running) -> Option<(String, String)> {
         if let Some(error) = current.shared.init_error.lock().unwrap().take() {
-            return Some(i18n::format("plugin.init_failed", &[("error", &error)]));
+            return Some((
+                i18n::format("plugin.init_failed", &[("error", &error)]),
+                format!("initialization failed: {error}"),
+            ));
         }
         if !matches!(current.child.try_wait(), Ok(None))
             || !current.shared.healthy.load(Ordering::Relaxed)
         {
-            return Some(i18n::t("plugin.exited_starting"));
+            return Some((
+                i18n::t("plugin.exited_starting"),
+                format!("exited while starting: {}", exit_reason(current)),
+            ));
         }
         let waited = current.shared.started.elapsed();
+        let seconds = self.startup_timeout.as_secs();
         (waited > self.startup_timeout).then(|| {
-            i18n::format(
-                "plugin.start_timeout",
-                &[("seconds", &self.startup_timeout.as_secs().to_string())],
+            (
+                i18n::format("plugin.start_timeout", &[("seconds", &seconds.to_string())]),
+                format!("did not start within {seconds}s; stopped until restarted"),
             )
         })
+    }
+}
+
+/// Why a process stopped working: its exit code once it has exited, else what made it
+/// unhealthy.
+fn exit_reason(current: &mut Running) -> String {
+    let reason = current.shared.unhealthy.lock().unwrap().clone();
+    match current.child.try_wait() {
+        Ok(Some(status)) => match status.code() {
+            Some(code) => format!("the process exited with code {code}"),
+            None => "the process was ended by the system".into(),
+        },
+        _ => reason.unwrap_or_else(|| "the process stopped responding".into()),
     }
 }
 
@@ -539,7 +609,7 @@ fn spawn(mut command: Command, status: Status) -> Result<Running> {
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -548,10 +618,28 @@ fn spawn(mut command: Command, status: Status) -> Result<Running> {
     let mut child = command.spawn().context(i18n::t("error.process_start"))?;
     let stdin = child.stdin.take().context(i18n::t("error.stdin"))?;
     let stdout = BufReader::new(child.stdout.take().context(i18n::t("error.stdout"))?);
+    // What the plugin prints to stderr (its log records and anything else) goes to the log.
+    if let Some(stderr) = child.stderr.take() {
+        let source = status.id.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines() {
+                let Ok(line) = line else { break };
+                if !line.trim().is_empty() {
+                    log::write_from(&source, Record::from_stderr(&line));
+                }
+            }
+        });
+    }
+    status.log(
+        Level::Info,
+        "plugin.start",
+        format!("started the process (PID {})", child.id()),
+    );
     let shared = Arc::new(Shared {
         stdin: Mutex::new(stdin),
         pending: Mutex::new(VecDeque::new()),
         healthy: AtomicBool::new(true),
+        unhealthy: Mutex::new(None),
         ready: AtomicBool::new(false),
         init_error: Mutex::new(None),
         started: Instant::now(),
@@ -570,7 +658,7 @@ fn spawn(mut command: Command, status: Status) -> Result<Running> {
     let reader = shared.clone();
     std::thread::spawn(move || {
         let error = read_responses(stdout, &reader);
-        reader.healthy.store(false, Ordering::Relaxed);
+        reader.unhealthy(|| format!("{error:#}"));
         reader.fail_pending(&error);
     });
     Ok(Running { child, shared })
@@ -614,6 +702,11 @@ fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
                 Some(error) => *shared.init_error.lock().unwrap() = Some(error),
                 None => {
                     shared.ready.store(true, Ordering::Relaxed);
+                    shared.status.log(
+                        Level::Info,
+                        "plugin.ready",
+                        format!("ready after {} ms", shared.started.elapsed().as_millis()),
+                    );
                     shared.status.set(State::Ready, None);
                 }
             },
