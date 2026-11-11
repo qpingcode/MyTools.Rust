@@ -51,6 +51,27 @@ pub fn fit_path(text: &str, width: f32, font_size: f32) -> String {
     compose(head, tail)
 }
 
+/// `text` cut at the end with "…" when it does not fit `width`, for text that Slint cannot
+/// elide itself (styled text). Errs toward cutting a little early rather than late.
+pub fn fit_end(text: &str, width: f32, font_size: f32) -> String {
+    if width <= 0.0 || font_size <= 0.0 || measure(text, font_size) <= width {
+        return text.to_owned();
+    }
+    let room = width - measure(ELLIPSIS, font_size);
+    let mut used = 0.0;
+    let mut shown = String::new();
+    for c in text.chars() {
+        used += advance(c) * font_size * SAFETY;
+        if used > room {
+            break;
+        }
+        shown.push(c);
+    }
+    shown.truncate(shown.trim_end().len());
+    shown.push_str(ELLIPSIS);
+    shown
+}
+
 /// Byte offset of the first `X:\`, `\\` or `/x` path that starts the text or follows a space.
 fn path_start(text: &str) -> Option<usize> {
     let bytes = text.as_bytes();
@@ -106,6 +127,14 @@ mod tests {
     use super::*;
 
     const LONG: &str = r"Everything · Folder · C:\git\GitHub\WiseTechGlobal4\Glow.wt-WI01134353\DotNet\Business\OceanCarrier\Business.OceanCarrier.Test\Shipment";
+
+    #[test]
+    fn end_fitting_cuts_long_text_with_an_ellipsis() {
+        assert_eq!(fit_end("short", 400.0, 12.0), "short");
+        let cut = fit_end("Visual Studio Code - Insiders long title", 80.0, 12.0);
+        assert!(cut.ends_with(ELLIPSIS) && cut.len() < 30, "{cut}");
+        assert!(measure(&cut, 12.0) <= 80.0 + measure(ELLIPSIS, 12.0));
+    }
 
     #[test]
     fn fitting_or_pathless_text_is_unchanged() {

@@ -7,6 +7,7 @@ mod commands;
 mod config;
 mod desktop;
 mod elide;
+mod highlight;
 mod i18n;
 mod icons;
 mod notices;

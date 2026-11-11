@@ -2,4 +2,8 @@
 // fits `width` at `font-size`. Bindings re-run when the row width changes.
 export global TextFit {
     pure callback path(text: string, width: length, font-size: length) -> string;
+    /// Implemented in Rust (src/highlight.rs): `text` cut to fit `width` with "…", the
+    /// characters `query` matched in `color`.
+    pure callback highlight(text: string, query: string, color: color, width: length,
+        font-size: length) -> styled-text;
 }

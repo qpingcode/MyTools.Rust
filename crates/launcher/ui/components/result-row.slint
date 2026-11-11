@@ -26,18 +26,36 @@ export component ResultRow inherits Rectangle {
             name: root.result.icon; source: root.result.native-image;
         }
     }
-    Text {
-        x: root.text-x; y: parent.height / 2 - self.height; width: parent.width - root.text-x - 14px;
+    private property <length> text-width: root.width - root.text-x - 14px;
+    // Rows with a match use StyledText, which colors it but cannot elide; others keep Text.
+    if !root.result.title-highlighted: Text {
+        x: root.text-x; y: root.height / 2 - self.height; width: root.text-width;
         height: Theme.font-title * 1.5;
         text: root.result.title; color: Theme.foreground; font-size: Theme.font-title;
         vertical-alignment: bottom; overflow: elide;
     }
-    Text {
-        x: root.text-x; y: parent.height / 2 + 1px; width: parent.width - root.text-x - 14px;
+    if root.result.title-highlighted: StyledText {
+        x: root.text-x; y: root.height / 2 - self.height; width: root.text-width;
+        height: Theme.font-title * 1.5;
+        text: TextFit.highlight(root.result.title, root.result.query, Theme.accent,
+            self.width, Theme.font-title);
+        default-color: Theme.foreground; default-font-size: Theme.font-title;
+        vertical-alignment: bottom; max-lines: 1;
+    }
+    if !root.result.description-highlighted: Text {
+        x: root.text-x; y: root.height / 2 + 1px; width: root.text-width;
         height: Theme.font-small * 1.5;
         text: TextFit.path(root.result.description, self.width, Theme.font-small);
         color: Theme.muted; font-size: Theme.font-small;
         vertical-alignment: top; overflow: elide;
+    }
+    if root.result.description-highlighted: StyledText {
+        x: root.text-x; y: root.height / 2 + 1px; width: root.text-width;
+        height: Theme.font-small * 1.5;
+        text: TextFit.highlight(TextFit.path(root.result.description, self.width,
+            Theme.font-small), root.result.query, Theme.accent, self.width, Theme.font-small);
+        default-color: Theme.muted; default-font-size: Theme.font-small;
+        vertical-alignment: top; max-lines: 1;
     }
     touch := TouchArea {
         mouse-cursor: pointer;

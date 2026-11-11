@@ -49,6 +49,10 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
     ui.global::<TextFit>()
         .on_path(|text, width, font_size| crate::elide::fit_path(&text, width, font_size).into());
+    ui.global::<TextFit>()
+        .on_highlight(|text, query, color, width, font_size| {
+            crate::highlight::styled(&text, &query, color, width, font_size)
+        });
     tray.global::<I18n>().on_text(|key| i18n::t(&key).into());
     about.global::<I18n>().on_text(|key| i18n::t(&key).into());
     tray.set_tooltip_text(
@@ -300,6 +304,9 @@ fn apply_results(
                 native_image,
                 draggable: desktop::drag::SUPPORTED
                     && desktop::drag::path(&entry.resource).is_some(),
+                query: results.query.clone().into(),
+                title_highlighted: crate::highlight::any(&entry.name, &results.query),
+                description_highlighted: crate::highlight::any(&entry.description, &results.query),
             }
         })
         .collect();

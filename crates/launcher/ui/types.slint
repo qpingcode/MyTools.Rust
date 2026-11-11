@@ -6,6 +6,10 @@ export struct ResultData {
     native-image: image,
     /// A file, folder or shortcut on disk that can be dragged into other applications.
     draggable: bool,
+    /// The query the results answer, for highlighting what it matched.
+    query: string,
+    title-highlighted: bool,
+    description-highlighted: bool,
 }
 
 export struct ActionData { title: string, icon: string }

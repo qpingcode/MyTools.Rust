@@ -492,11 +492,6 @@ impl Catalog {
             let (ready, expected) = self.loaded();
             output.partial = (ready < expected).then_some((ready, expected));
         }
-        if let Some(index) = target {
-            let mut entries = crate::commands::plugin_entries(&self.plugins[index], query);
-            entries.append(&mut output.entries);
-            output.entries = entries;
-        }
         if target.is_none() && !query.is_empty() {
             output
                 .entries
@@ -938,21 +933,18 @@ mod tests {
         assert_eq!(listed.entries.len(), 1);
         assert_eq!(listed.plugin_name, Some(i18n::t("command.scope")));
         assert!(catalog.search(">zzz").entries.is_empty());
-        // A plugin's scope lists its commands first: all of them for an empty query.
-        let scoped = catalog.search("cb ");
-        assert_eq!(scoped.plugin_name.as_deref(), Some("Clipboard"));
-        assert_eq!(scoped.entries[0].name, "Paste as Plain Text");
-        assert_eq!(
-            catalog.search("cb paste").entries[0].name,
-            "Paste as Plain Text"
-        );
-        assert!(
-            catalog
-                .search("cb zzz")
-                .entries
-                .iter()
-                .all(|entry| entry.name != "Paste as Plain Text")
-        );
+        // Like a Raycast command's own view, a plugin's scope holds only its results.
+        for input in ["cb ", "cb paste"] {
+            let scoped = catalog.search(input);
+            assert_eq!(scoped.plugin_name.as_deref(), Some("Clipboard"));
+            assert!(
+                scoped
+                    .entries
+                    .iter()
+                    .all(|entry| entry.name != "Paste as Plain Text"),
+                "{input}"
+            );
+        }
     }
 
     #[test]
