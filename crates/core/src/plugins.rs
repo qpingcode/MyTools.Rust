@@ -47,6 +47,9 @@ struct Manifest {
     view: mytools_plugin_api::View,
     #[serde(default)]
     hotkey: Option<String>,
+    /// Entries the host can search and bind to shortcuts; see `mytools_plugin_api::commands`.
+    #[serde(default)]
+    commands: Vec<mytools_plugin_api::commands::CommandManifest>,
     #[serde(default)]
     contributes: Contributes,
     /// When the process starts; omitted means eager for global search plugins.
@@ -204,6 +207,9 @@ pub struct Plugin {
     pub process: Option<Arc<SearchProcess>>,
     pub view: mytools_plugin_api::View,
     pub action_rules: Vec<ActionRule>,
+    /// The shortcut that opens this plugin's scope, with the user's override applied.
+    pub hotkey: Option<String>,
+    pub commands: Vec<crate::commands::Command>,
 }
 
 impl Plugin {
@@ -280,6 +286,28 @@ impl Plugin {
         } else {
             Vec::new()
         };
+        let icon = mytools_plugin_api::icons::resolve_reference(
+            manifest.icon.as_ref(),
+            &mytools_plugin_api::icons::DEFAULT_ICON.into(),
+        );
+        // Like contributed actions, commands need a resident process to receive them.
+        let (hotkey, commands) = if manifest.kind == PluginType::Search {
+            let directory = path.parent().context(i18n::t("error.manifest_directory"))?;
+            (
+                settings
+                    .hotkey(&manifest.id, manifest.hotkey.as_deref())
+                    .map(str::to_owned),
+                crate::commands::load(
+                    &manifest.id,
+                    &manifest.commands,
+                    settings,
+                    directory,
+                    &icon,
+                )?,
+            )
+        } else {
+            (None, Vec::new())
+        };
         // Window plugins have no process: they are ready whenever they can be launched.
         let initial = if startup.is_some() {
             State::Idle
@@ -309,10 +337,7 @@ impl Plugin {
             id: manifest.id,
             name,
             version: manifest.version,
-            icon: mytools_plugin_api::icons::resolve_reference(
-                manifest.icon.as_ref(),
-                &mytools_plugin_api::icons::DEFAULT_ICON.into(),
-            ),
+            icon,
             aliases: manifest.alias,
             global: manifest.search.global,
             alias_timeout: alias_timeout(manifest.search.alias_timeout_ms),
@@ -320,6 +345,8 @@ impl Plugin {
             process,
             view: manifest.view,
             action_rules,
+            hotkey,
+            commands,
         }))
     }
 }
@@ -354,39 +381,54 @@ pub fn directory() -> PathBuf {
         })
 }
 
-pub struct ActivationShortcut {
-    pub plugin_id: String,
-    pub hotkey: String,
-    pub query: String,
+/// Moves shortcuts from `config.json`'s old `plugin_shortcuts` (by plugin id) into the
+/// plugin settings, unless the user already set one there or it equals the manifest's.
+/// Returns the ids that were moved; the caller then drops the old field.
+pub fn migrate_legacy_hotkeys(
+    legacy: &std::collections::HashMap<String, String>,
+) -> Result<Vec<String>> {
+    if legacy.is_empty() {
+        return Ok(Vec::new());
+    }
+    let path = settings_path();
+    let mut settings = mytools_plugin_api::plugin_settings::load(&path)?;
+    let defaults = manifest_hotkeys(&directory());
+    let migrated = merge_legacy_hotkeys(&mut settings, legacy, &defaults);
+    if !migrated.is_empty() {
+        mytools_plugin_api::plugin_settings::save(&path, &settings)?;
+    }
+    Ok(migrated)
 }
 
-/// Read activation metadata without starting another plugin process.
-pub fn activation_shortcuts() -> Result<Vec<ActivationShortcut>> {
-    let mut shortcuts = Vec::new();
-    let (settings, _) = load_settings();
-    for path in manifest_paths(&directory())? {
-        // Catalog reports invalid manifests; other plugins keep their shortcuts.
-        let Ok(bytes) = fs::read(path) else {
-            continue;
-        };
-        let Ok(manifest) = serde_json::from_slice::<Manifest>(&bytes) else {
-            continue;
-        };
-        if manifest.kind == PluginType::Search
-            && settings.enabled(&manifest.id)
-            && let (Some(hotkey), Some(alias)) = (
-                manifest.hotkey,
-                settings.aliases(&manifest.id, &manifest.alias).first(),
-            )
-        {
-            shortcuts.push(ActivationShortcut {
-                plugin_id: manifest.id,
-                hotkey,
-                query: format!("{alias} "),
-            });
+/// Each installed plugin's own `hotkey`, by id.
+fn manifest_hotkeys(root: &Path) -> std::collections::HashMap<String, Option<String>> {
+    manifest_paths(root)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|path| serde_json::from_slice::<Manifest>(&fs::read(path).ok()?).ok())
+        .map(|manifest| (manifest.id, manifest.hotkey))
+        .collect()
+}
+
+fn merge_legacy_hotkeys(
+    settings: &mut Settings,
+    legacy: &std::collections::HashMap<String, String>,
+    defaults: &std::collections::HashMap<String, Option<String>>,
+) -> Vec<String> {
+    let mut migrated = Vec::new();
+    for (id, hotkey) in legacy {
+        let item = settings.plugins.entry(id.clone()).or_default();
+        let default = defaults.get(id).cloned().flatten().unwrap_or_default();
+        if item.hotkey.is_none() && *hotkey != default {
+            item.hotkey = Some(hotkey.clone());
+            migrated.push(id.clone());
+        }
+        if *item == mytools_plugin_api::plugin_settings::Override::default() {
+            settings.plugins.remove(id);
         }
     }
-    Ok(shortcuts)
+    migrated.sort();
+    migrated
 }
 
 fn localized_name(name: &PluginName, manifest: &Path, language: &str) -> Result<String> {
@@ -458,6 +500,40 @@ pub fn manifest_paths(root: &Path) -> Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_hotkeys_move_unless_already_set_or_default() {
+        use std::collections::HashMap;
+        let mut settings: Settings =
+            serde_json::from_str(r#"{"plugins":{"translator":{"hotkey":"Alt+T"}}}"#).unwrap();
+        let legacy: HashMap<String, String> = [
+            ("clipboard", "Ctrl+Alt+V"),
+            ("translator", "Alt+V"),
+            ("calculator", "Alt+C"),
+            ("uuid", ""),
+        ]
+        .into_iter()
+        .map(|(id, hotkey)| (id.to_owned(), hotkey.to_owned()))
+        .collect();
+        let defaults: HashMap<String, Option<String>> = [
+            ("clipboard", Some("Ctrl+Shift+V")),
+            ("translator", Some("Alt+V")),
+            ("calculator", Some("Alt+C")),
+            ("uuid", Some("Alt+U")),
+        ]
+        .into_iter()
+        .map(|(id, hotkey)| (id.to_owned(), hotkey.map(str::to_owned)))
+        .collect();
+        let migrated = merge_legacy_hotkeys(&mut settings, &legacy, &defaults);
+        assert_eq!(migrated, ["clipboard", "uuid"]);
+        assert_eq!(
+            settings.hotkey("clipboard", Some("Ctrl+Shift+V")),
+            Some("Ctrl+Alt+V")
+        );
+        assert_eq!(settings.hotkey("translator", Some("Alt+V")), Some("Alt+T"));
+        assert_eq!(settings.hotkey("uuid", Some("Alt+U")), None);
+        assert!(!settings.plugins.contains_key("calculator"));
+    }
 
     #[test]
     fn startup_timeout_prefers_the_plugin_and_is_clamped() {

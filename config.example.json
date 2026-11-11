@@ -1,9 +1,5 @@
 {
   "language": "auto",
-  "plugin_shortcuts": {
-    "clipboard": "Ctrl+Shift+V",
-    "translator": "Alt+V"
-  },
   "plugin_startup_timeout_ms": 10000,
   "log_level": "info",
   "theme": {

@@ -5,6 +5,8 @@ use std::path::PathBuf;
 #[serde(default)]
 pub struct Config {
     pub language: String,
+    /// Old home of plugin shortcuts, by plugin id; moved into `plugin-settings.json` at
+    /// startup (see [`migrate_plugin_shortcuts`]).
     pub plugin_shortcuts: std::collections::HashMap<String, String>,
     /// Optional overrides for `ui/theme.slint` (colors, font sizes, metrics).
     pub theme: crate::theme::Overrides,
@@ -72,6 +74,44 @@ fn save_language_at(path: &std::path::Path, language: &str) -> anyhow::Result<()
         matches!(language, "auto" | "zh-CN" | "en"),
         "Unsupported language"
     );
+    update_at(path, |object| {
+        object.insert("language".into(), language.into());
+    })
+}
+
+/// Moves `plugin_shortcuts` into the plugin settings, where the settings window edits them,
+/// then removes the field so it cannot later undo a change made there.
+pub fn migrate_plugin_shortcuts(config: &Config) {
+    use mytools_plugin_api::log;
+    if config.plugin_shortcuts.is_empty() {
+        return;
+    }
+    let result = mytools_core::migrate_legacy_hotkeys(&config.plugin_shortcuts).and_then(|moved| {
+        update_at(&path()?, |object| {
+            object.remove("plugin_shortcuts");
+        })?;
+        Ok(moved)
+    });
+    match result {
+        Ok(moved) => log::info(
+            "config.migrated",
+            format!(
+                "moved plugin_shortcuts to plugin-settings.json (changed: {})",
+                moved.join(", ")
+            ),
+        ),
+        Err(error) => log::warn(
+            "config.migrate_failed",
+            format!("could not move plugin_shortcuts to plugin-settings.json: {error:#}"),
+        ),
+    }
+}
+
+/// Changes the configuration file in place, keeping every field it does not touch.
+fn update_at(
+    path: &std::path::Path,
+    change: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+) -> anyhow::Result<()> {
     let mut value: serde_json::Value = match std::fs::read(path) {
         Ok(bytes) => serde_json::from_slice(&bytes)?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => serde_json::json!({}),
@@ -80,7 +120,7 @@ fn save_language_at(path: &std::path::Path, language: &str) -> anyhow::Result<()
     let object = value
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("Configuration must be a JSON object"))?;
-    object.insert("language".into(), language.into());
+    change(object);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

@@ -54,6 +54,11 @@ impl Entry {
             preview: None,
         })
     }
+
+    /// Names the plugin a result comes from, for history and contributed actions.
+    pub(crate) fn set_source(&mut self, plugin_id: &str) {
+        self.source_id = plugin_id.into();
+    }
 }
 
 #[derive(Clone)]
@@ -341,7 +346,33 @@ impl Catalog {
         self.search_with(input, &SearchOptions::default())
     }
 
+    /// The global shortcuts the loaded plugins and their commands ask for.
+    pub fn hotkeys(&self) -> Vec<crate::commands::HotkeyBinding> {
+        crate::commands::bindings(&self.plugins)
+    }
+
+    /// Lists the commands of every plugin for input such as `>paste`.
+    fn search_commands(&self, query: &str) -> SearchResults {
+        use mytools_plugin_api::matching::{normalize, rank};
+        let mut entries = crate::commands::entries(&self.plugins, query);
+        entries.sort_by_cached_key(|entry| (rank(&entry.name, query), normalize(&entry.name)));
+        SearchResults {
+            entries,
+            errors: self.errors.clone(),
+            plugin_name: Some(i18n::t("command.scope")),
+            view: Default::default(),
+            revision: None,
+            cancelled: false,
+            waiting: false,
+            partial: None,
+            query: query.into(),
+        }
+    }
+
     pub fn search_with(&self, input: &str, options: &SearchOptions) -> SearchResults {
+        if let Some(query) = crate::commands::command_query(input) {
+            return self.search_commands(query);
+        }
         let (target, query) = route(&self.plugins, input);
         let mut output = SearchResults {
             entries: vec![],
@@ -462,6 +493,9 @@ impl Catalog {
             output.partial = (ready < expected).then_some((ready, expected));
         }
         if target.is_none() && !query.is_empty() {
+            output
+                .entries
+                .extend(crate::commands::entries(&self.plugins, query));
             rank_global(
                 &mut output.entries,
                 query,
@@ -857,7 +891,90 @@ mod tests {
             process: None,
             view: Default::default(),
             action_rules: vec![],
+            hotkey: None,
+            commands: vec![],
         }
+    }
+
+    fn with_command(mut plugin: Plugin, hotkey: Option<&str>) -> Plugin {
+        plugin.process = Some(Arc::new(crate::search_process::SearchProcess::idle()));
+        plugin.commands = vec![crate::commands::Command {
+            id: "paste-plain".into(),
+            title: "Paste as Plain Text".into(),
+            keywords: vec!["纯文本".into()],
+            icon: "builtin:type".into(),
+            hotkey: hotkey.map(str::to_owned),
+        }];
+        plugin
+    }
+
+    #[test]
+    fn commands_are_found_by_title_keyword_or_prefix_without_their_plugin() {
+        let mut clipboard = with_command(plugin(), Some("Ctrl+Shift+Alt+V"));
+        clipboard.id = "clipboard".into();
+        clipboard.name = "Clipboard".into();
+        clipboard.aliases = vec!["cb".into()];
+        let catalog = catalog(vec![clipboard]);
+        // The plugin is not global and lazy, yet its command answers global search.
+        for query in ["paste plain", "纯文本"] {
+            let results = catalog.search(query);
+            assert_eq!(results.entries.len(), 1, "{query}");
+            let entry = &results.entries[0];
+            assert_eq!(entry.name, "Paste as Plain Text");
+            assert!(entry.description.contains("Ctrl+Shift+Alt+V"));
+            assert_eq!(entry.actions.len(), 1);
+            assert_eq!(
+                entry.actions[0].title.as_deref(),
+                Some("Paste as Plain Text")
+            );
+        }
+        assert!(catalog.search("").entries.is_empty());
+        let listed = catalog.search(">");
+        assert_eq!(listed.entries.len(), 1);
+        assert_eq!(listed.plugin_name, Some(i18n::t("command.scope")));
+        assert!(catalog.search(">zzz").entries.is_empty());
+        // A scoped search stays the plugin's own.
+        assert_eq!(
+            catalog.search("cb paste").plugin_name.as_deref(),
+            Some("Clipboard")
+        );
+    }
+
+    #[test]
+    fn hotkeys_cover_plugin_scopes_and_commands() {
+        let mut scoped = with_command(plugin(), None);
+        scoped.hotkey = Some("Alt+C".into());
+        let mut commands = with_command(plugin(), Some("Ctrl+Shift+Alt+V"));
+        commands.id = "clipboard".into();
+        commands.name = "Clipboard".into();
+        commands.aliases = vec![];
+        commands.hotkey = Some("Ctrl+Shift+V".into()); // Without an alias it has no scope.
+        let mut window = plugin();
+        window.hotkey = Some("Alt+W".into()); // Without a process it cannot be bound.
+        let bindings = catalog(vec![scoped, commands, window]).hotkeys();
+        let summary: Vec<_> = bindings
+            .iter()
+            .map(|binding| {
+                let target = match &binding.target {
+                    crate::commands::HotkeyTarget::Scope(query) => query.clone(),
+                    crate::commands::HotkeyTarget::Command(action) => {
+                        action.title.clone().unwrap_or_default()
+                    }
+                };
+                (binding.owner.as_str(), binding.hotkey.as_str(), target)
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                ("计算器", "Alt+C", "calc ".to_string()),
+                (
+                    "Clipboard · Paste as Plain Text",
+                    "Ctrl+Shift+Alt+V",
+                    "Paste as Plain Text".to_string()
+                ),
+            ]
+        );
     }
 
     fn catalog(plugins: Vec<Plugin>) -> Catalog {

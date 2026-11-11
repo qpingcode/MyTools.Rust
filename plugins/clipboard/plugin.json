@@ -17,5 +17,25 @@
   },
   "view": "list-detail",
   "hotkey": "Ctrl+Shift+V",
-  "startup": "eager"
+  "startup": "eager",
+  "commands": [
+    {
+      "id": "paste-plain",
+      "title": {
+        "key": "command.paste_plain",
+        "defaultValue": "Paste Clipboard as Plain Text"
+      },
+      "keywords": [
+        "plain",
+        "text",
+        "paste",
+        "format",
+        "纯文本",
+        "无格式",
+        "粘贴"
+      ],
+      "icon": "builtin:type",
+      "hotkey": "Ctrl+Shift+Alt+V"
+    }
+  ]
 }

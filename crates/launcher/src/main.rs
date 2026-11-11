@@ -3,6 +3,7 @@
 mod actions;
 mod app;
 mod autostart;
+mod commands;
 mod config;
 mod desktop;
 mod elide;

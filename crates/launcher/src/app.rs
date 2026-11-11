@@ -1,6 +1,6 @@
 use crate::{
-    AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, config, desktop,
-    i18n, icons,
+    AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, commands, config,
+    desktop, i18n, icons,
     search::{Event, Query, SearchWorker},
     theme, tray,
 };
@@ -15,14 +15,12 @@ pub(crate) struct State {
     pub entries: Vec<Entry>,
     pub panel: Option<Vec<Action>>,
     desktop_error: Option<String>,
+    /// Plugin or command shortcuts that could not be registered.
+    hotkey_error: Option<String>,
 }
 
 pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let config = config::load();
-    let plugin_shortcuts = config
-        .as_ref()
-        .map(|config| config.plugin_shortcuts.clone())
-        .unwrap_or_default();
     let load_options = config
         .as_ref()
         .map(config::Config::load_options)
@@ -32,6 +30,9 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
         .map(|config| config.language.as_str())
         .unwrap_or("auto");
     mytools_plugin_api::i18n::initialize(requested);
+    if let Ok(config) = &config {
+        config::migrate_plugin_shortcuts(config);
+    }
     let theme_errors = theme::configure(
         config
             .as_ref()
@@ -112,6 +113,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let state = Rc::new(RefCell::new(initial));
     let icons = icons::Loader::new(&ui)?;
     let (worker, responses) = SearchWorker::start(load_options);
+    let desktop: Rc<RefCell<Option<desktop::Desktop>>> = Rc::default();
     wire_search(&ui, &state, &worker);
     actions::wire(&ui, &state);
     let tray_controller = tray::Controller::new(&tray, &ui)?;
@@ -125,6 +127,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let weak = ui.as_weak();
     let response_state = state.clone();
     let response_notifier = notifier.clone();
+    let response_desktop = desktop.clone();
     let _responses = slint::spawn_local(async move {
         while let Ok(event) = responses.recv().await {
             let Some(ui) = weak.upgrade() else { break };
@@ -138,22 +141,41 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
                     apply_results(&ui, &mut state, completed.results, &icons);
                 }
                 Event::Notices(notices) => response_notifier.show(notices),
+                Event::Hotkeys(bindings) => {
+                    let mut desktop = response_desktop.borrow_mut();
+                    // Without the manager there is nothing to register.
+                    let Some(desktop) = desktop.as_mut() else {
+                        continue;
+                    };
+                    let errors = desktop.bind(bindings);
+                    state.hotkey_error = (!errors.is_empty()).then(|| errors.join("；"));
+                    response_notifier.show(
+                        errors
+                            .into_iter()
+                            .map(|message| Notice {
+                                title: i18n::t("notice.hotkey"),
+                                message,
+                            })
+                            .collect(),
+                    );
+                }
                 _ => {} // Superseded by newer input.
             }
         }
     })?;
 
-    let desktop = match desktop::Desktop::new(&ui, &plugin_shortcuts) {
-        Ok(desktop) => {
-            if !desktop.registration_errors.is_empty() {
-                state.borrow_mut().desktop_error = Some(desktop.registration_errors.join("；"));
-                startup_notices.extend(desktop.registration_errors.iter().map(|error| Notice {
-                    title: i18n::t("notice.hotkey"),
-                    message: error.clone(),
-                }));
-            }
-            Some(desktop)
+    let (command_sender, command_receiver) = async_channel::unbounded();
+    let command_notifier = notifier.clone();
+    let _commands = slint::spawn_local(async move {
+        while let Ok(action) = command_receiver.recv().await {
+            commands::run(action, &command_notifier);
         }
+    })?;
+    let run_command = move |action| {
+        let _ = command_sender.send_blocking(action);
+    };
+    match desktop::Desktop::new(&ui, run_command) {
+        Ok(created) => *desktop.borrow_mut() = Some(created),
         Err(error) => {
             // Without Alt+Space the window would be hard to reach, so it opens as well.
             let message = format!("{error:#}");
@@ -163,9 +185,8 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
                 message,
             });
             desktop::show(&ui);
-            None
         }
-    };
+    }
     let startup_notifier = notifier.clone();
     slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
         startup_notifier.show(startup_notices);
@@ -187,7 +208,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     tray.show()?;
     // Hiding the launcher must never terminate the resident application.
     let result = slint::run_event_loop_until_quit();
-    drop(desktop);
+    drop(desktop.borrow_mut().take());
     drop(worker);
     result?;
     let restart = tray_controller.restart_requested();
@@ -240,6 +261,7 @@ fn apply_results(
     let empty_text = empty_text(&results);
     let mut errors = results.errors;
     errors.extend(state.desktop_error.clone());
+    errors.extend(state.hotkey_error.clone());
     let status = if !errors.is_empty() {
         errors.join("；")
     } else if let Some(name) = results.plugin_name {

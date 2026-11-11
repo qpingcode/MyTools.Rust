@@ -63,5 +63,9 @@
   "notice.title": "MyTools 提示",
   "notice.close": "关闭",
   "notice.config": "配置文件有误",
-  "notice.hotkey": "快捷键注册失败"
+  "notice.hotkey": "快捷键注册失败",
+  "notice.command": "{command}失败",
+  "desktop.hotkey_invalid": "“{hotkey}”不是有效的快捷键",
+  "desktop.hotkey_taken": "{hotkey} 已被 MyTools 的其他快捷键使用",
+  "status.command_lost": "命令未返回结果就结束了"
 }

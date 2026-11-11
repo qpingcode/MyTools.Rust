@@ -1,11 +1,11 @@
 {
   "name": "Settings",
   "open": "Open settings",
-  "open.detail": "Manage plugins: aliases, startup, state and which ones are enabled",
+  "open.detail": "Manage plugins: aliases, shortcuts, startup, state and which ones are enabled",
   "window.title": "MyTools Settings",
   "tab.plugins": "Plugins",
   "plugins.summary": "{enabled} of {total} plugins enabled",
-  "plugins.hint": "Type an alias followed by a space to search only that plugin. Separate aliases with spaces or commas. Plugins set to start with MyTools load at startup; on-demand plugins load when first used. Saved changes apply right away.",
+  "plugins.hint": "Type an alias followed by a space to search only that plugin. Separate aliases with spaces or commas. Plugins set to start with MyTools load at startup; on-demand plugins load when first used. Write shortcuts like Ctrl+Shift+V; leave one empty for none. Saved changes apply right away.",
   "plugins.filter": "Filter plugins",
   "plugins.none": "No plugins match the filter.",
   "plugins.alias": "Aliases for",
@@ -53,5 +53,12 @@
   "level.debug": "Debug",
   "level.info": "Info",
   "level.warn": "Warn",
-  "level.error": "Error"
+  "level.error": "Error",
+  "hotkeys.scope": "Open in the launcher",
+  "hotkeys.none": "No shortcut",
+  "hotkeys.reset": "Restore default shortcut",
+  "hotkeys.label": "Shortcut for",
+  "error.hotkey": "Shortcut “{hotkey}” of {name} is not valid; write it like Ctrl+Shift+V.",
+  "error.duplicate_hotkey": "Shortcut {hotkey} is used by both {first} and {second}.",
+  "error.hotkey_launcher": "{hotkey} opens MyTools and cannot be used by a plugin."
 }

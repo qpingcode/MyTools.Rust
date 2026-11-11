@@ -724,7 +724,7 @@ impl Drop for SearchProcess {
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 impl ProcessOptions {
     /// A fixture reporting to its own board, registered so its state is tracked.
     fn test() -> Self {
@@ -736,6 +736,18 @@ impl ProcessOptions {
             startup_timeout: STARTUP_TIMEOUT,
             board,
         }
+    }
+}
+
+#[cfg(test)]
+impl SearchProcess {
+    /// A lazy process that is never started, for tests that only need one to exist.
+    pub(crate) fn idle() -> Self {
+        Self::with_factory(
+            Box::new(|| Command::new("mytools-test-never-started")),
+            ProcessOptions::test(),
+            false,
+        )
     }
 }
 

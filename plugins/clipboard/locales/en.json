@@ -17,5 +17,8 @@
   "unsupported": "This clipboard operation is not supported",
   "too_large": "Clipboard content exceeds the configured size limit",
   "truncated": "Preview truncated; copy or paste restores the complete content.",
-  "meta": "{time} · {size} bytes"
+  "meta": "{time} · {size} bytes",
+  "command.paste_plain": "Paste Clipboard as Plain Text",
+  "no_text": "The clipboard holds no text to paste",
+  "pasted_plain": "Pasted as plain text"
 }

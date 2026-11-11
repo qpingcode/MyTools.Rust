@@ -6,7 +6,7 @@ import { Button } from "controls.slint";
 import { PluginCard, PluginRow } from "plugin-row.slint";
 import { LogPage, LogRow } from "log-page.slint";
 export { I18n } from "../../../ui/i18n.slint";
-export { PluginRow } from "plugin-row.slint";
+export { PluginRow, HotkeyRow } from "plugin-row.slint";
 export { LogRow } from "log-page.slint";
 
 /// One entry of the sidebar; each tab is a page of settings.
@@ -65,6 +65,8 @@ export component SettingsWindow inherits Window {
     callback toggled(int, bool);
     callback restart(int);
     callback startup-toggled(int);
+    /// Plugin index, shortcut index, text.
+    callback hotkey-edited(int, int, string);
     callback filter-edited(string);
     callback save();
     callback discard();
@@ -197,11 +199,12 @@ export component SettingsWindow inherits Window {
                             plugin: plugin;
                             // Filtered-out cards collapse instead of leaving gaps.
                             visible: plugin.shown;
-                            height: plugin.shown ? 68px : 0px;
+                            height: plugin.shown ? self.full-height : 0px;
                             aliases-edited(text) => { root.aliases-edited(index, text); }
                             toggled(value) => { root.toggled(index, value); }
                             restart => { root.restart(index); }
                             startup-toggled => { root.startup-toggled(index); }
+                            hotkey-edited(row, text) => { root.hotkey-edited(index, row, text); }
                             status-hovered(inside, x, y) => {
                                 root.tip = inside ? plugin.status-text : "";
                                 root.tip-x = x;

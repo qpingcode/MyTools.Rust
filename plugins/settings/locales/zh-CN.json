@@ -1,11 +1,11 @@
 {
   "name": "设置",
   "open": "打开设置",
-  "open.detail": "管理插件的别名、启动方式、运行状态和启用状态",
+  "open.detail": "管理插件的别名、快捷键、启动方式、运行状态和启用状态",
   "window.title": "MyTools 设置",
   "tab.plugins": "插件",
   "plugins.summary": "已启用 {enabled} / {total} 个插件",
-  "plugins.hint": "输入别名加空格即可只搜索该插件。多个别名用空格或逗号分隔。“随 MyTools 启动”的插件在启动时加载，“按需启动”的插件第一次用到时才加载。保存后立即生效。",
+  "plugins.hint": "输入别名加空格即可只搜索该插件。多个别名用空格或逗号分隔。“随 MyTools 启动”的插件在启动时加载，“按需启动”的插件第一次用到时才加载。快捷键按 Ctrl+Shift+V 的格式填写，留空表示不使用。保存后立即生效。",
   "plugins.filter": "筛选插件",
   "plugins.none": "没有匹配的插件。",
   "plugins.alias": "别名：",
@@ -53,5 +53,12 @@
   "level.debug": "调试",
   "level.info": "信息",
   "level.warn": "警告",
-  "level.error": "错误"
+  "level.error": "错误",
+  "hotkeys.scope": "打开启动器并进入插件",
+  "hotkeys.none": "无快捷键",
+  "hotkeys.reset": "恢复默认快捷键",
+  "hotkeys.label": "快捷键：",
+  "error.hotkey": "{name} 的快捷键“{hotkey}”无效，请按 Ctrl+Shift+V 的格式填写。",
+  "error.duplicate_hotkey": "快捷键 {hotkey} 同时被 {first} 和 {second} 使用。",
+  "error.hotkey_launcher": "{hotkey} 用于打开 MyTools，不能分配给插件。"
 }

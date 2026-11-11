@@ -63,5 +63,9 @@
   "notice.title": "MyTools",
   "notice.close": "Close",
   "notice.config": "Configuration problem",
-  "notice.hotkey": "Shortcut not registered"
+  "notice.hotkey": "Shortcut not registered",
+  "notice.command": "{command} failed",
+  "desktop.hotkey_invalid": "“{hotkey}” is not a valid shortcut",
+  "desktop.hotkey_taken": "{hotkey} is already used by another MyTools shortcut",
+  "status.command_lost": "The command stopped without a result"
 }

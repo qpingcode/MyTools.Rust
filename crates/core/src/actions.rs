@@ -133,6 +133,31 @@ impl Action {
         }
     }
 
+    /// Runs a command the plugin declared in its manifest; plugin commands carry no `item`.
+    pub(crate) fn command(
+        command: &str,
+        title: &str,
+        icon: &mytools_plugin_api::Icon,
+        process: &std::sync::Arc<crate::search_process::SearchProcess>,
+    ) -> Self {
+        let icon = match icon {
+            mytools_plugin_api::Icon::Name(name) if name.starts_with("builtin:") => name.clone(),
+            _ => "builtin:play".into(),
+        };
+        Self {
+            id: ActionId::Plugin,
+            title: Some(title.into()),
+            title_key: "actions.execute",
+            icon,
+            operation: Operation::Plugin {
+                command: command.into(),
+                item: None,
+                process: Some(process.clone()),
+            },
+            selection: None,
+        }
+    }
+
     pub(crate) fn bind_plugin(
         &mut self,
         process: &std::sync::Arc<crate::search_process::SearchProcess>,

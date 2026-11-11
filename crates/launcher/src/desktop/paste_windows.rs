@@ -52,7 +52,8 @@ pub fn activate() -> Result<isize> {
 }
 
 pub fn send(target: isize) -> Result<()> {
-    for _ in 0..40 {
+    // A shortcut that runs a paste command may still be held; wait up to two seconds.
+    for _ in 0..80 {
         if [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN]
             .iter()
             .all(|key| unsafe { GetAsyncKeyState(*key as i32) } >= 0)

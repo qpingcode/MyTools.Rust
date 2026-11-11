@@ -1,6 +1,6 @@
 //! Installed plugins as the settings window edits them: manifest defaults merged with the
 //! user's overrides in `plugin-settings.json`.
-use crate::i18n;
+use crate::{hotkeys, i18n};
 use anyhow::{Context, Result, ensure};
 use mytools_plugin_api::plugin_settings::{self, Override, SETTINGS_PLUGIN, Settings, Startup};
 use serde::Deserialize;
@@ -20,6 +20,10 @@ struct Manifest {
     startup: Option<Startup>,
     #[serde(default)]
     search: Search,
+    #[serde(default)]
+    hotkey: Option<String>,
+    #[serde(default)]
+    commands: Vec<mytools_plugin_api::commands::CommandManifest>,
 }
 #[derive(Default, Deserialize)]
 struct Search {
@@ -46,6 +50,8 @@ pub struct Entry {
     /// The plugin's own startup policy; `None` for plugins without a resident process.
     pub default_startup: Option<Startup>,
     pub startup: Option<Startup>,
+    /// Shortcuts of a search plugin: its scope's first, then its commands'.
+    pub hotkeys: Vec<hotkeys::Hotkey>,
 }
 impl Entry {
     /// The settings plugin cannot be disabled, or nothing could turn it back on.
@@ -99,9 +105,23 @@ pub fn list(paths: &Paths) -> Result<Vec<Entry>> {
             .unwrap_or(manifest.name.default_value),
             None => manifest.name.default_value,
         };
-        let default_startup = (manifest.kind.as_deref() == Some("search"))
-            .then(|| Startup::default_for(manifest.startup, manifest.search.global));
+        let search = manifest.kind.as_deref() == Some("search");
+        let default_startup =
+            search.then(|| Startup::default_for(manifest.startup, manifest.search.global));
+        // Only resident search plugins can be opened or run by a shortcut.
+        let hotkeys = if search {
+            hotkeys::list(
+                &manifest.id,
+                manifest.hotkey.as_deref(),
+                &manifest.commands,
+                &settings,
+                |command| command.title.resolve(&directory, language),
+            )
+        } else {
+            Vec::new()
+        };
         entries.push(Entry {
+            hotkeys,
             startup: default_startup.map(|default| settings.startup(&manifest.id, default)),
             default_startup,
             name,
@@ -142,13 +162,15 @@ pub fn save(paths: &Paths, entries: &[Entry]) -> Result<()> {
     validate(entries)?;
     let mut settings: Settings = plugin_settings::load(&paths.settings)?;
     for entry in entries {
-        let item = Override {
+        let mut item = Override {
             enabled: entry.enabled || entry.locked(),
             alias: (entry.aliases != entry.default_aliases).then(|| entry.aliases.clone()),
             startup: entry
                 .startup
                 .filter(|startup| Some(*startup) != entry.default_startup),
+            ..Default::default()
         };
+        hotkeys::apply(&entry.hotkeys, &mut item);
         if item == Override::default() {
             settings.plugins.remove(&entry.id);
         } else {
@@ -160,6 +182,13 @@ pub fn save(paths: &Paths, entries: &[Entry]) -> Result<()> {
 }
 
 fn validate(entries: &[Entry]) -> Result<()> {
+    hotkeys::validate(entries.iter().map(|entry| {
+        (
+            entry.name.as_str(),
+            entry.enabled || entry.locked(),
+            entry.hotkeys.as_slice(),
+        )
+    }))?;
     let mut seen: Vec<(String, &str)> = Vec::new();
     for entry in entries {
         for alias in &entry.aliases {
@@ -250,6 +279,40 @@ mod tests {
         assert!(save(&paths, &entries).is_err());
         entries[2].aliases = vec!["a b".into()];
         assert!(save(&paths, &entries).is_err());
+
+        // Shortcuts: the scope's first, then each command's; only changes are saved.
+        let clipboard = paths.plugins.join("clipboard");
+        std::fs::create_dir_all(&clipboard).unwrap();
+        let manifest = serde_json::json!({
+            "id": "clipboard", "name": {"defaultValue": "Clipboard"}, "alias": ["cb"],
+            "type": "search", "hotkey": "Ctrl+Shift+V",
+            "commands": [{"id": "paste-plain", "title": {"defaultValue": "Paste plain"},
+                          "hotkey": "Ctrl+Shift+Alt+V"}],
+        });
+        std::fs::write(clipboard.join("plugin.json"), manifest.to_string()).unwrap();
+        entries = list(&paths).unwrap();
+        let index = entries.iter().position(|e| e.id == "clipboard").unwrap();
+        let shortcuts = &entries[index].hotkeys;
+        assert_eq!(shortcuts.len(), 2);
+        assert_eq!(shortcuts[0].hotkey, "Ctrl+Shift+V");
+        assert_eq!(shortcuts[1].label, "Paste plain");
+        entries[index].hotkeys[1].hotkey = "alt+shift+ctrl+p".into();
+        entries[index].hotkeys[0].hotkey = String::new();
+        save(&paths, &entries).unwrap();
+        let saved = plugin_settings::load(&paths.settings).unwrap();
+        assert_eq!(saved.hotkey("clipboard", Some("Ctrl+Shift+V")), None);
+        assert_eq!(
+            saved.command_hotkey("clipboard", "paste-plain", None),
+            Some("Ctrl+Shift+Alt+P")
+        );
+        assert_eq!(
+            list(&paths).unwrap()[index].hotkeys[1].hotkey,
+            "Ctrl+Shift+Alt+P"
+        );
+        entries[index].hotkeys[0].hotkey = "Ctrl+Shift+Alt+P".into();
+        assert!(save(&paths, &entries).is_err());
+        std::fs::remove_dir_all(&clipboard).unwrap();
+        entries = list(&paths).unwrap();
 
         // The settings plugin stays enabled whatever the form says.
         entries[2] = list(&paths).unwrap()[2].clone();

@@ -58,7 +58,8 @@ pub fn activate() -> Result<i32> {
 
 pub fn send(pid: i32) -> Result<()> {
     const MODIFIERS: u64 = (1 << 17) | (1 << 18) | (1 << 19) | (1 << 20);
-    for _ in 0..40 {
+    // A shortcut that runs a paste command may still be held; wait up to two seconds.
+    for _ in 0..80 {
         if unsafe { CGEventSourceFlagsState(0) } & MODIFIERS == 0 {
             break;
         }

@@ -4,14 +4,19 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
     hotkey::{Code, HotKey, Modifiers},
 };
+use mytools_core::{Action, HotkeyBinding, HotkeyTarget};
 use slint::{ComponentHandle, winit_030::WinitWindowAccessor};
+use std::sync::{Arc, Mutex};
+
+type Routes = Arc<Mutex<Vec<(u32, HotkeyTarget)>>>;
 
 /// The manager is owned by the UI thread on both Windows and macOS.
 pub struct Desktop {
     manager: GlobalHotKeyManager,
     hotkey: HotKey,
-    plugin_hotkeys: Vec<HotKey>,
-    pub registration_errors: Vec<String>,
+    /// The plugin and command shortcuts registered now, and what each one does.
+    bound: Vec<HotKey>,
+    routes: Routes,
 }
 
 pub fn configure_backend() -> Result<()> {
@@ -45,9 +50,11 @@ pub fn configure_backend() -> Result<()> {
 }
 
 impl Desktop {
+    /// Registers Alt+Space; plugin shortcuts follow with [`Desktop::bind`] once the
+    /// catalog has loaded. `run_command` receives command shortcuts, on any thread.
     pub fn new(
         ui: &MainWindow,
-        overrides: &std::collections::HashMap<String, String>,
+        run_command: impl Fn(Action) + Send + Sync + 'static,
     ) -> Result<Self> {
         use mytools_plugin_api::log;
         let manager = GlobalHotKeyManager::new()
@@ -69,87 +76,99 @@ impl Desktop {
                 )
             })
             .context(i18n::t("desktop.register_failed"))?;
-        let mut plugin_hotkeys = Vec::new();
-        let mut routes = Vec::new();
-        let mut registration_errors = Vec::new();
-        if let Ok(shortcuts) = mytools_core::activation_shortcuts() {
-            for shortcut in shortcuts {
-                let text = overrides
-                    .get(&shortcut.plugin_id)
-                    .unwrap_or(&shortcut.hotkey);
-                if text.is_empty() {
-                    continue;
-                }
-                let result = text
-                    .parse::<HotKey>()
-                    .map_err(anyhow::Error::from)
-                    .and_then(|key| {
-                        manager.register(key)?;
-                        routes.push((key.id(), shortcut.query.clone()));
-                        plugin_hotkeys.push(key);
-                        Ok(())
-                    });
-                if let Err(error) = result {
-                    log::warn(
-                        "hotkey.failed",
-                        format!(
-                            "could not register {text} for {}: {error}",
-                            shortcut.plugin_id
-                        ),
-                    );
-                    registration_errors.push(i18n::format(
-                        "desktop.plugin_hotkey_failed",
-                        &[
-                            ("plugin", &shortcut.plugin_id),
-                            ("error", &error.to_string()),
-                        ],
-                    ));
-                    ui.set_failed(true);
-                    ui.set_status(
-                        i18n::format(
-                            "desktop.plugin_hotkey_failed",
-                            &[
-                                ("plugin", &shortcut.plugin_id),
-                                ("error", &error.to_string()),
-                            ],
-                        )
-                        .into(),
-                    );
-                }
-            }
-        }
+        let routes: Routes = Arc::default();
+        let handler_routes = routes.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             if event.state != HotKeyState::Pressed {
                 return;
             }
-            if event.id == hotkey.id() && event.state == HotKeyState::Pressed {
+            if event.id == hotkey.id() {
                 let _ = weak.upgrade_in_event_loop(|ui| {
                     show(&ui);
                     ui.invoke_focus_search_select_all();
                 });
-            } else if let Some((_, query)) = routes.iter().find(|(id, _)| *id == event.id) {
-                let query = query.clone();
-                let _ = weak.upgrade_in_event_loop(move |ui| {
-                    show(&ui);
-                    ui.set_query(query.clone().into());
-                    ui.invoke_search(query.into());
-                    ui.invoke_focus_search_at_end();
-                });
+                return;
+            }
+            let target = handler_routes
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .iter()
+                .find(|(id, _)| *id == event.id)
+                .map(|(_, target)| target.clone());
+            match target {
+                Some(HotkeyTarget::Scope(query)) => {
+                    let _ = weak.upgrade_in_event_loop(move |ui| {
+                        show(&ui);
+                        ui.set_query(query.clone().into());
+                        ui.invoke_search(query.into());
+                        ui.invoke_focus_search_at_end();
+                    });
+                }
+                Some(HotkeyTarget::Command(action)) => run_command(action),
+                None => {}
             }
         }));
         Ok(Self {
             manager,
             hotkey,
-            plugin_hotkeys,
-            registration_errors,
+            bound: Vec::new(),
+            routes,
         })
+    }
+
+    /// Replaces the plugin and command shortcuts, e.g. after the settings changed. Returns
+    /// one message per shortcut that could not be registered; the others still work.
+    pub fn bind(&mut self, bindings: Vec<HotkeyBinding>) -> Vec<String> {
+        for hotkey in self.bound.drain(..) {
+            let _ = self.manager.unregister(hotkey);
+        }
+        let mut routes = Vec::new();
+        let mut errors = Vec::new();
+        for binding in bindings {
+            match self.register(&binding.hotkey) {
+                Ok(key) => {
+                    routes.push((key.id(), binding.target));
+                    self.bound.push(key);
+                }
+                Err(error) => {
+                    mytools_plugin_api::log::warn(
+                        "hotkey.failed",
+                        format!(
+                            "could not register {} for {}: {error}",
+                            binding.hotkey, binding.owner
+                        ),
+                    );
+                    errors.push(i18n::format(
+                        "desktop.plugin_hotkey_failed",
+                        &[("plugin", &binding.owner), ("error", &error.to_string())],
+                    ));
+                }
+            }
+        }
+        *self
+            .routes
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = routes;
+        errors
+    }
+
+    fn register(&self, text: &str) -> Result<HotKey> {
+        let parsed = mytools_plugin_api::hotkeys::Hotkey::parse(text)
+            .with_context(|| i18n::format("desktop.hotkey_invalid", &[("hotkey", text)]))?;
+        let key: HotKey = parsed.registration().parse()?;
+        anyhow::ensure!(
+            key.id() != self.hotkey.id() && !self.bound.iter().any(|bound| bound.id() == key.id()),
+            i18n::format("desktop.hotkey_taken", &[("hotkey", &parsed.to_string())])
+        );
+        self.manager.register(key)?;
+        Ok(key)
     }
 }
 
 impl Drop for Desktop {
     fn drop(&mut self) {
         let _ = self.manager.unregister(self.hotkey);
-        for hotkey in &self.plugin_hotkeys {
+        for hotkey in &self.bound {
             let _ = self.manager.unregister(*hotkey);
         }
     }
@@ -188,7 +207,7 @@ fn set_taskbar_icon(ui: &MainWindow) {
 
 #[path = "desktop/paste.rs"]
 mod paste;
-pub use paste::paste;
+pub use paste::{paste, paste_into_target, remember_target};
 
 pub fn drag(ui: &MainWindow) {
     ui.window().with_winit_window(|window| {

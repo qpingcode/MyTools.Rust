@@ -51,5 +51,9 @@
   "plugin.starting_detail": "Results appear when it is ready",
   "plugin.disabled_title": "{name} is disabled",
   "plugin.disabled_detail": "Disabled in Settings; you can enable it there",
-  "plugin.disabled_reason": "Disabled in Settings"
+  "plugin.disabled_reason": "Disabled in Settings",
+  "error.command_id": "Invalid or duplicate command id: {id}",
+  "command.scope": "Commands",
+  "command.description": "{plugin} · Command",
+  "command.description_hotkey": "{plugin} · Command · {hotkey}"
 }

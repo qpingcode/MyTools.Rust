@@ -4,8 +4,14 @@ use std::{
     borrow::Cow,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+/// Text this plugin just put on the clipboard as plain text, and when: the change it causes
+/// is not recorded again, since history already holds the formatted original.
+static OWN_PLAIN_TEXT: Mutex<Option<(String, Instant)>> = Mutex::new(None);
+/// How long a change caused by this plugin is expected to take to arrive.
+const OWN_CHANGE_WINDOW: Duration = Duration::from_secs(2);
 
 #[cfg(windows)]
 #[path = "clipboard/windows.rs"]
@@ -31,6 +37,7 @@ pub fn start(store: Arc<Mutex<Store>>) {
             for () in changes {
                 for attempt in 0..8 {
                     match capture() {
+                        Ok(Some(content)) if is_own_change(&content) => break,
                         Ok(Some(content)) => {
                             let mut state = store.lock().unwrap_or_else(|error| error.into_inner());
                             state.last_error =
@@ -114,6 +121,42 @@ fn read_image(clipboard: &mut arboard::Clipboard) -> Result<Option<Captured>> {
     }
 }
 
+/// Replaces what is on the clipboard with its text alone, dropping formatting such as HTML
+/// or RTF, so the next paste inserts plain text.
+pub fn keep_plain_text() -> Result<()> {
+    let mut clipboard = arboard::Clipboard::new()?;
+    let text = match clipboard.get_text() {
+        Ok(text) if !text.is_empty() => text,
+        Ok(_) | Err(arboard::Error::ContentNotAvailable) => {
+            anyhow::bail!(crate::i18n::text("no_text"))
+        }
+        Err(error) => return Err(error.into()),
+    };
+    *OWN_PLAIN_TEXT
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some((text.clone(), Instant::now()));
+    clipboard.set_text(text)?;
+    Ok(())
+}
+
+/// Whether a captured change is the plain text [`keep_plain_text`] wrote; consumes it.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+fn is_own_change(content: &Captured) -> bool {
+    let Captured::Text { text, html: None } = content else {
+        return false;
+    };
+    let mut own = OWN_PLAIN_TEXT
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let matches = own
+        .as_ref()
+        .is_some_and(|(own, at)| own == text && at.elapsed() < OWN_CHANGE_WINDOW);
+    if matches {
+        *own = None;
+    }
+    matches
+}
+
 pub fn restore(entry: &Entry, root: &std::path::Path, plain: bool) -> Result<()> {
     match &entry.content {
         Content::Text { text, html } => {
@@ -146,5 +189,29 @@ fn restore_files(paths: &[PathBuf]) -> Result<()> {
     {
         let _ = paths;
         anyhow::bail!(crate::i18n::text("unsupported"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_plain_text_this_plugin_wrote_is_skipped_once() {
+        let plain = |text: &str| Captured::Text {
+            text: text.into(),
+            html: None,
+        };
+        *OWN_PLAIN_TEXT.lock().unwrap() = Some(("hello".into(), Instant::now()));
+        let formatted = Captured::Text {
+            text: "hello".into(),
+            html: Some("<b>hello</b>".into()),
+        };
+        assert!(!is_own_change(&formatted));
+        assert!(!is_own_change(&plain("other")));
+        assert!(is_own_change(&plain("hello")));
+        assert!(!is_own_change(&plain("hello")));
+        *OWN_PLAIN_TEXT.lock().unwrap() = Some(("late".into(), Instant::now() - OWN_CHANGE_WINDOW));
+        assert!(!is_own_change(&plain("late")));
     }
 }

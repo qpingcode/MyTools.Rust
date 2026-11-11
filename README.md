@@ -45,7 +45,9 @@ Windows 已进行本机编译和交互验证；macOS 代码和 CI 已配置，�
 - 拖动搜索图标、搜索输入框四周的留白、底栏空白或普通状态文字移动窗口；输入框内可正常编辑和选择文字，底部两个按钮仅处理点击。插件可以拖动标题区域。
 - 底部左侧按钮执行当前结果的首个动作，右侧“操作”按钮或 `Ctrl+K` 打开其余动作列表（macOS 为 `⌘K`），不重复首个动作。没有其他动作时“操作”按钮置灰，快捷键也不会打开菜单。列表内用 `↑` / `↓` 选择，`Enter` 执行；`Esc` 先关闭列表，再按一次隐藏窗口。点击列表外部只关闭列表；输入新搜索词也会关闭列表。
 - 应用程序插件在 Windows 扫描用户和公共开始菜单、桌面下的 `.lnk` / `.url`，并通过系统 AppsFolder 列出没有快捷方式的商店/MSIX 应用（如 Claude、Windows Terminal），这类应用只能“打开”，没有路径可复制或定位；macOS 扫描 `/Applications`、`/System/Applications`、`~/Applications` 下的 `.app`，最多返回 50 条匹配结果。
-- 按 `Alt+V` 全局打开翻译，自动进入 `tr ` 模式并聚焦输入框；macOS 对应 `Option+V`。可通过 `config.json` 的 `plugin_shortcuts.translator` 自定义，设为空字符串可禁用，修改后重启生效。
+- 按 `Alt+V` 全局打开翻译，自动进入 `tr ` 模式并聚焦输入框；macOS 对应 `Option+V`。可在设置窗口中修改或清空，保存后立即生效。
+- 按 `Ctrl+Shift+Alt+V` 把剪贴板内容以纯文本粘贴到当前应用，不打开 MyTools 窗口（见“剪贴板历史”）。
+- 插件在配置中声明的命令可以直接搜索，例如输入“纯文本”找到“以纯文本粘贴剪贴板”；结果说明里显示命令所属插件和快捷键。输入 `>` 列出所有插件的全部命令，`>粘贴` 只在命令中查找。
 - 输入 `1+1`，计算器直接在主列表返回 `2`；按 `Enter` 复制结果。
 - 输入 `calc 1+1` 或 `calc (2+3)*4`，仅显示计算器返回的结果。
 - 输入别名后必须有空白才进入指定插件搜索；单独输入 `calc` 仍属于普通搜索。
@@ -110,12 +112,14 @@ MyTools 和各插件发生 panic、未处理的原生异常（如访问冲突）
 crates/
   core/               不依赖 UI 的插件发现、进程管理、搜索路由和通用动作
     src/lib.rs        核心公开接口
+    src/commands.rs   插件命令：搜索结果与全局快捷键绑定
   launcher/           桌面程序
     src/main.rs       程序入口与 Slint 生成代码
     src/app.rs        UI 状态与搜索结果更新
     src/actions.rs    动作面板与执行协调
     src/search.rs     后台搜索与输入防抖
     src/desktop.rs    全局快捷键、窗口激活和拖动
+    src/commands.rs   按快捷键直接执行插件命令
     ui/main.slint     主窗口组合
     ui/components/   搜索框、结果项、状态栏
     ui/tray.slint     Slint 原生托盘菜单
@@ -124,7 +128,7 @@ crates/
 plugins/
   calculator/         无独立窗口的计算器插件
   applications/       无独立窗口的快捷方式扫描与应用搜索插件
-  settings/           设置窗口：插件别名与启用状态
+  settings/           设置窗口：插件别名、快捷键与启用状态
   crash-test/         故意出错的测试插件：启动崩溃、运行崩溃、心跳延迟等，见 docs/utility-plugins.md
     src/scan.rs       平台默认目录、目录遍历和去重
     src/index.rs      名称索引、匹配与结果构造
@@ -160,10 +164,41 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 | `search.global` | `true` 时参与主列表普通搜索；`false` 时普通搜索不调用该插件，只能通过别名进入 |
 | `search.aliasTimeoutMs` | 可选，通过别名单独搜索该插件时的等待上限（毫秒），默认 3000，范围 1000–15000。普通（全局）搜索固定 1 秒，不受此值影响 |
 | `view` | `list`（默认）或 `list-detail`；详情布局只在该插件的搜索作用域内启用 |
-| `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；可通过宿主配置覆盖 |
+| `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；用户可在设置窗口中修改 |
+| `commands` | 可选，插件命令：可被搜索、可绑定全局快捷键，按快捷键时直接执行而不打开窗口，见“插件命令” |
 | `contributes.actions` | 可选，按规则为其他结果追加本插件的动作，见“为其他结果追加动作” |
 | `startup` | 可选，`eager`：随 MyTools 启动；`lazy`：第一次用到时才启动。省略时 `search.global` 为 `true` 的插件随 MyTools 启动，其他按需启动。需要在后台持续工作的插件（如剪贴板历史）应写 `eager`。可在设置窗口中为每个插件修改 |
 | `startupTimeoutMs` | 可选，插件完成初始化的时限（毫秒），覆盖 `config.json` 的 `plugin_startup_timeout_ms`，范围 1000–120000 |
+
+快捷键写成 `Ctrl+Shift+V` 的形式：修饰键为 `Ctrl`、`Shift`、`Alt`、`Win`（macOS 为 `Cmd`），
+主键为字母、数字、`F1`–`F20`、`Space`、`Enter`、方向键等，不区分大小写；除功能键外至少需要一个修饰键。
+
+### 插件命令
+
+`search` 类型插件可以在 `commands` 中声明命令。宿主直接从配置读取命令，不需要启动插件就能搜索和注册快捷键：
+
+```json
+"commands": [{
+  "id": "paste-plain",
+  "title": { "key": "command.paste_plain", "defaultValue": "Paste Clipboard as Plain Text" },
+  "keywords": ["plain", "纯文本", "无格式"],
+  "icon": "builtin:type",
+  "hotkey": "Ctrl+Shift+Alt+V"
+}]
+```
+
+| 字段 | 用途 |
+| --- | --- |
+| `id` | 命令标识，插件内唯一，只含字母、数字、`-`、`_` |
+| `title` | 显示名称，`key` 对应插件 `locales/<语言>.json` 中的翻译 |
+| `keywords` | 可选，除名称外还能找到该命令的词 |
+| `icon` | 可选，内置图标；省略时使用插件图标 |
+| `hotkey` | 可选，默认全局快捷键；用户可在设置窗口中修改或清空 |
+
+- 普通搜索会同时匹配命令的名称、关键词和所属插件名称；输入 `>` 只列出命令。
+- 从搜索结果执行命令，或按命令的快捷键，宿主都向插件发送 `{"action":{"command":"<id>"}}`（不带 `item`），
+  按需启动尚未运行的插件，并按插件返回的 `effect` 复制、粘贴。
+- 按快捷键执行时不显示 MyTools 窗口：宿主记住按键时的前台应用，`paste` 粘贴到该应用；失败时在右下角提示。
 
 启动器读取自身目录下 `plugins/*/plugin.json`，也可通过 `MYTOOLS_PLUGIN_DIR` 指定插件根目录。
 添加插件只需在该目录中新建文件夹，放入配置和编译后的程序，然后重启启动器。
@@ -245,6 +280,8 @@ HTML/代码 `code-xml`、图片 `image`；单个文件或文件夹显示其系�
 多个文件、文本和图片仍为 `plugin_item`。
 
 - `Ctrl+Shift+V` 打开历史，也可搜索 `clip ` 或 `clipboard `。
+- `Ctrl+Shift+Alt+V`（命令“以纯文本粘贴剪贴板”）不打开窗口，直接把剪贴板中的文本去掉格式（HTML、RTF 等）后粘贴到当前应用。
+  粘贴后剪贴板里保留这份纯文本；历史中仍是原来带格式的那一条，不会多出重复记录。剪贴板中没有文本（如只有图片或文件）时在右下角提示。
 - 左侧搜索和选择历史，右侧预览完整文本、文件路径或图片；进入插件或修改查询时读取历史，
   展示期间不定时更新。删除或清空完成后重新查询一次。
 - `Enter` 或双击执行“粘贴到原应用”；`Ctrl+K` 提供粘贴、纯文本粘贴（文本项）、复制、删除、清空历史。
@@ -256,14 +293,20 @@ HTML/代码 `code-xml`、图片 `image`；单个文件或文件夹显示其系�
   若焦点已被切到其他应用则停止发送。macOS 需用户自行在系统设置中授予 MyTools 辅助功能权限；
   Windows 普通权限进程无法向更高权限窗口模拟输入，此时仍可手动粘贴已恢复的内容。
 
-宿主 `config.json` 中覆盖快捷键，修改后重启生效；空字符串表示不注册该快捷键：
+两个快捷键都可以在设置窗口中修改或清空，保存在 `plugin-settings.json`：
 
 ```json
 {
-  "language": "auto",
-  "plugin_shortcuts": { "clipboard": "Ctrl+Shift+V" }
+  "plugins": {
+    "clipboard": {
+      "hotkey": "Ctrl+Alt+V",
+      "commands": { "paste-plain": { "hotkey": "" } }
+    }
+  }
 }
 ```
+
+`hotkey` 为空字符串表示不注册。早期版本写在 `config.json` 的 `plugin_shortcuts` 会在启动时迁移到这里，并从 `config.json` 中删除。
 
 历史默认位于 Windows 的 `%LOCALAPPDATA%/MyTools/clipboard`，
 macOS 的 `~/Library/Application Support/MyTools/clipboard`；可用 `MYTOOLS_CLIPBOARD_DIR` 覆盖。

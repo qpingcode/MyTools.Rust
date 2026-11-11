@@ -1,5 +1,6 @@
-//! The user's overrides for installed plugins: whether each one is enabled and which
-//! aliases it answers to. The host applies them; the settings plugin edits them.
+//! The user's overrides for installed plugins: whether each one is enabled, which
+//! aliases it answers to and its global shortcuts. The host applies them; the settings
+//! plugin edits them.
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -29,6 +30,13 @@ pub struct Override {
     /// Replaces the plugin's own startup policy when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup: Option<Startup>,
+    /// Replaces the manifest's `hotkey` (which opens the launcher in this plugin's scope)
+    /// when present; `""` means no shortcut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotkey: Option<String>,
+    /// Overrides for the plugin's manifest `commands`, by command id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub commands: BTreeMap<String, CommandOverride>,
 }
 impl Default for Override {
     fn default() -> Self {
@@ -36,8 +44,17 @@ impl Default for Override {
             enabled: true,
             alias: None,
             startup: None,
+            hotkey: None,
+            commands: BTreeMap::new(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CommandOverride {
+    /// Replaces the command's manifest `hotkey` when present; `""` means no shortcut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotkey: Option<String>,
 }
 
 /// When the host starts a search plugin's process.
@@ -83,6 +100,31 @@ impl Settings {
             .get(id)
             .and_then(|item| item.alias.as_deref())
             .unwrap_or(manifest)
+    }
+
+    /// The shortcut that opens a plugin's scope: the user's when set, otherwise the
+    /// manifest's. `None` (also for `""`) means no shortcut.
+    pub fn hotkey<'a>(&'a self, id: &str, manifest: Option<&'a str>) -> Option<&'a str> {
+        self.plugins
+            .get(id)
+            .and_then(|item| item.hotkey.as_deref())
+            .or(manifest)
+            .filter(|hotkey| !hotkey.trim().is_empty())
+    }
+
+    /// A command's shortcut, like [`Settings::hotkey`].
+    pub fn command_hotkey<'a>(
+        &'a self,
+        id: &str,
+        command: &str,
+        manifest: Option<&'a str>,
+    ) -> Option<&'a str> {
+        self.plugins
+            .get(id)
+            .and_then(|item| item.commands.get(command))
+            .and_then(|item| item.hotkey.as_deref())
+            .or(manifest)
+            .filter(|hotkey| !hotkey.trim().is_empty())
     }
 }
 
@@ -133,14 +175,14 @@ mod tests {
                 enabled: false,
                 alias: Some(vec!["c".into()]),
                 startup: Some(Startup::Eager),
+                ..Default::default()
             },
         );
         settings.plugins.insert(
             SETTINGS_PLUGIN.into(),
             Override {
                 enabled: false,
-                alias: None,
-                startup: None,
+                ..Default::default()
             },
         );
         assert!(!settings.enabled("calculator"));
@@ -173,5 +215,34 @@ mod tests {
         std::fs::remove_file(&path).unwrap();
         assert_eq!(load(&path).unwrap(), Settings::default());
         assert!(valid_alias("设置") && !valid_alias("a b") && !valid_alias(""));
+    }
+
+    #[test]
+    fn hotkey_overrides_replace_or_remove_manifest_shortcuts() {
+        let settings: Settings = serde_json::from_str(
+            r#"{"plugins":{
+                "clipboard":{"hotkey":"Ctrl+Alt+V","commands":{"paste-plain":{"hotkey":""}}},
+                "translator":{"hotkey":""}
+            }}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            settings.hotkey("clipboard", Some("Ctrl+Shift+V")),
+            Some("Ctrl+Alt+V")
+        );
+        assert_eq!(settings.hotkey("translator", Some("Alt+V")), None);
+        assert_eq!(settings.hotkey("calculator", Some("Alt+C")), Some("Alt+C"));
+        assert_eq!(settings.hotkey("calculator", None), None);
+        assert_eq!(
+            settings.command_hotkey("clipboard", "paste-plain", Some("Ctrl+Shift+Alt+V")),
+            None
+        );
+        assert_eq!(
+            settings.command_hotkey("clipboard", "other", Some("Ctrl+F1")),
+            Some("Ctrl+F1")
+        );
+        // Empty command overrides are not written.
+        let json = serde_json::to_string(&Override::default()).unwrap();
+        assert_eq!(json, "{}");
     }
 }

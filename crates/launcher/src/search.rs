@@ -1,4 +1,6 @@
-use mytools_core::{AliasTable, Catalog, LoadOptions, Notice, SearchOptions, SearchResults};
+use mytools_core::{
+    AliasTable, Catalog, HotkeyBinding, LoadOptions, Notice, SearchOptions, SearchResults,
+};
 use std::{
     sync::{
         Arc, RwLock,
@@ -35,6 +37,8 @@ pub enum Event {
     Completed(Completed),
     /// Plugin problems found in the background, such as a start that timed out.
     Notices(Vec<Notice>),
+    /// The shortcuts the loaded plugins ask for; sent after every (re)load.
+    Hotkeys(Vec<HotkeyBinding>),
 }
 
 /// The retry attempt for the next search the UI starts; consumed by that search.
@@ -78,6 +82,7 @@ impl SearchWorker {
                 waiting: None,
             };
             worker.publish_aliases();
+            worker.publish_hotkeys();
             'requests: loop {
                 let mut query = match receiver.recv_timeout(TICK) {
                     Ok(Some(query)) => query,
@@ -144,7 +149,8 @@ struct Worker {
 }
 
 impl Worker {
-    /// Applies what was saved in Settings: enabled plugins, aliases and startup policies.
+    /// Applies what was saved in Settings: enabled plugins, aliases, startup policies and
+    /// shortcuts.
     fn reload_if_changed(&mut self) {
         if !self.catalog.settings_changed() {
             return;
@@ -153,10 +159,17 @@ impl Worker {
         self.catalog.shutdown();
         self.catalog = Catalog::load_with(&self.options);
         self.publish_aliases();
+        self.publish_hotkeys();
         // The new catalog counts revisions afresh; repeat a waiting search regardless.
         if let Some((_, revision)) = &mut self.waiting {
             *revision = u64::MAX;
         }
+    }
+
+    fn publish_hotkeys(&self) {
+        let _ = self
+            .events
+            .send_blocking(Event::Hotkeys(self.catalog.hotkeys()));
     }
 
     fn publish_aliases(&self) {

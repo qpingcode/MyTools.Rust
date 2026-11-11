@@ -14,6 +14,26 @@ pub fn remember_target() {
     platform::remember();
 }
 
+/// Pastes into the application remembered by [`remember_target`] without touching the
+/// launcher window, e.g. for a command run by its shortcut. Finishes once the paste
+/// shortcut was sent.
+pub async fn paste_into_target() -> Result<()> {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        platform::validate()?;
+        let target = platform::activate()?;
+        let (sender, sent) = async_channel::bounded(1);
+        std::thread::spawn(move || {
+            let _ = sender.send_blocking(platform::send(target));
+        });
+        sent.recv()
+            .await
+            .map_err(|_| anyhow::anyhow!(i18n::t("paste.failed")))?
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    anyhow::bail!(i18n::t("paste.failed"))
+}
+
 pub fn paste(ui: &MainWindow) -> Result<()> {
     #[cfg(any(windows, target_os = "macos"))]
     {

@@ -17,5 +17,8 @@
   "unsupported": "不支持此剪贴板操作",
   "too_large": "剪贴板内容超过配置的大小限制",
   "truncated": "预览已截断，复制或粘贴时仍会恢复完整内容。",
-  "meta": "{time} · {size} 字节"
+  "meta": "{time} · {size} 字节",
+  "command.paste_plain": "以纯文本粘贴剪贴板",
+  "no_text": "剪贴板中没有可粘贴的文本",
+  "pasted_plain": "已以纯文本粘贴"
 }

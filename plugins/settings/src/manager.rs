@@ -1,7 +1,7 @@
-//! The settings window: edits plugin aliases, startup and enabled state, then saves them
+//! The settings window: edits plugin aliases, shortcuts, startup and enabled state, then saves them
 //! for the host to apply; shows each plugin's live state and can ask for a restart.
 use crate::{
-    I18n, PluginRow, SettingsWindow, i18n,
+    HotkeyRow, I18n, PluginRow, SettingsWindow, i18n,
     plugins::{self, Entry, Paths},
 };
 use mytools_plugin_api::{
@@ -91,6 +91,17 @@ pub fn run() -> anyhow::Result<()> {
         });
     });
     let (weak, copy) = (ui.as_weak(), state.clone());
+    ui.on_hotkey_edited(move |index, row, text| {
+        edit(&weak, &copy, index, |entry| {
+            if let Some(hotkey) = usize::try_from(row)
+                .ok()
+                .and_then(|row| entry.hotkeys.get_mut(row))
+            {
+                hotkey.hotkey = text.trim().to_owned();
+            }
+        });
+    });
+    let (weak, copy) = (ui.as_weak(), state.clone());
     ui.on_toggled(move |index, enabled| {
         edit(&weak, &copy, index, |entry| entry.enabled = enabled);
     });
@@ -157,6 +168,15 @@ fn edit(
         current.enabled = row.enabled;
         current.aliases = row.aliases;
         current.startup = row.startup;
+        // The same shortcut model stays, so the fields keep their text and focus.
+        for (position, hotkey) in entry.hotkeys.iter().enumerate() {
+            if let Some(mut shown) = current.hotkeys.row_data(position)
+                && shown.hotkey != hotkey.hotkey.as_str()
+            {
+                shown.hotkey = hotkey.hotkey.clone().into();
+                current.hotkeys.set_row_data(position, shown);
+            }
+        }
         model.set_row_data(index, current);
     }
     summarize(&ui, state);
@@ -277,6 +297,17 @@ fn row(entry: &Entry, filter: &str, status: Option<&PluginStatus>) -> PluginRow 
             None => "",
         }
         .into(),
+        hotkeys: ModelRc::new(VecModel::from(
+            entry
+                .hotkeys
+                .iter()
+                .map(|hotkey| HotkeyRow {
+                    label: hotkey.label.clone().into(),
+                    hotkey: hotkey.hotkey.clone().into(),
+                    default_hotkey: hotkey.default.clone().into(),
+                })
+                .collect::<Vec<_>>(),
+        )),
     }
 }
 
@@ -286,5 +317,6 @@ fn matches(entry: &Entry, filter: &str) -> bool {
         || [&entry.name, &entry.id]
             .into_iter()
             .chain(&entry.aliases)
+            .chain(entry.hotkeys.iter().map(|hotkey| &hotkey.label))
             .any(|text| mytools_plugin_api::matching::rank(text, filter) < 4)
 }

@@ -67,6 +67,16 @@ fn execute(
                 ..Default::default()
             })
         }
+        // A manifest command: works on whatever is on the clipboard now, not on an entry.
+        "paste-plain" => {
+            drop(state);
+            clipboard::keep_plain_text()?;
+            Ok(PluginEffect {
+                paste: true,
+                message: i18n::text("pasted_plain"),
+                ..Default::default()
+            })
+        }
         "paste" | "plain" | "copy" => {
             let entry = state
                 .entries
