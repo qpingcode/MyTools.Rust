@@ -298,6 +298,8 @@ fn apply_results(
                 icon,
                 native_path,
                 native_image,
+                draggable: desktop::drag::SUPPORTED
+                    && desktop::drag::path(&entry.resource).is_some(),
             }
         })
         .collect();

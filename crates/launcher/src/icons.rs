@@ -13,6 +13,18 @@ use std::{
 
 mod native;
 
+/// A file's system icon as PNG, e.g. to show while it is dragged.
+#[cfg(any(windows, target_os = "macos"))]
+pub fn native_png(path: &std::path::Path) -> Option<Vec<u8>> {
+    let pixels = native::load(path)?;
+    let image = image::RgbaImage::from_raw(pixels.width, pixels.height, pixels.rgba)?;
+    let mut png = Vec::new();
+    image
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .ok()?;
+    Some(png)
+}
+
 const CACHE_LIMIT: usize = 1024;
 /// System icons rarely change; refresh them a few times a day at most.
 const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);

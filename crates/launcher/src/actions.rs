@@ -23,6 +23,33 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         sync_selection(&ui, &state);
     });
     let weak = ui.as_weak();
+    let drag_state = state.clone();
+    ui.on_drag_result(move |index| {
+        let Some(ui) = weak.upgrade() else { return };
+        let path = {
+            let mut state = drag_state.borrow_mut();
+            let Some(path) = usize::try_from(index)
+                .ok()
+                .and_then(|index| state.entries.get(index))
+                .and_then(|entry| desktop::drag::path(&entry.resource))
+                .map(std::path::Path::to_path_buf)
+            else {
+                return;
+            };
+            close_panel(&ui, &mut state);
+            ui.set_selected(index);
+            sync_selection(&ui, &state);
+            path
+        };
+        // The state is not borrowed while the drag runs: on Windows it blocks until the drop.
+        if let Err(error) = desktop::drag::start(&ui, path) {
+            ui.set_failed(true);
+            ui.set_status(
+                i18n::format("status.failed", &[("error", &format!("{error:#}"))]).into(),
+            );
+        }
+    });
+    let weak = ui.as_weak();
     let navigate_state = state.clone();
     ui.on_navigate(move |delta| {
         if let Some(ui) = weak.upgrade() {

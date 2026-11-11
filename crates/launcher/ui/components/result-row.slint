@@ -8,6 +8,10 @@ export component ResultRow inherits Rectangle {
     in property <bool> selected;
     callback clicked();
     callback activated();
+    /// The pointer moved far enough while pressed on a draggable result.
+    callback drag-started();
+    // Set once per press, so one press starts at most one drag.
+    private property <bool> dragging;
     private property <length> text-x: 14px + Theme.icon-box + 12px;
     height: Theme.row-height;
     border-radius: Theme.radius;
@@ -39,6 +43,19 @@ export component ResultRow inherits Rectangle {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
         double-clicked => { root.activated(); }
+        moved => {
+            if self.pressed && root.result.draggable && !root.dragging
+                && (abs(self.mouse-x - self.pressed-x) > 6px
+                    || abs(self.mouse-y - self.pressed-y) > 6px) {
+                root.dragging = true;
+                root.drag-started();
+            }
+        }
+        changed pressed => {
+            if !self.pressed {
+                root.dragging = false;
+            }
+        }
     }
     accessible-role: list-item;
     accessible-label: result.title;

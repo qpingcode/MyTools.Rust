@@ -205,6 +205,8 @@ fn set_taskbar_icon(ui: &MainWindow) {
     });
 }
 
+#[path = "desktop/drag.rs"]
+pub mod drag;
 #[path = "desktop/paste.rs"]
 mod paste;
 pub use paste::{paste, paste_into_target, remember_target};

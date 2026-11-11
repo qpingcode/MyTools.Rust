@@ -67,5 +67,7 @@
   "notice.command": "{command}失败",
   "desktop.hotkey_invalid": "“{hotkey}”不是有效的快捷键",
   "desktop.hotkey_taken": "{hotkey} 已被 MyTools 的其他快捷键使用",
-  "status.command_lost": "命令未返回结果就结束了"
+  "status.command_lost": "命令未返回结果就结束了",
+  "drag.missing": "文件已不存在",
+  "drag.failed": "无法拖动文件"
 }

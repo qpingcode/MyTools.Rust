@@ -26,6 +26,10 @@ windows = { version = "0.61", features = ["Win32_System_Com", "Win32_UI_Shell"] 
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSWorkspace", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSData", "NSDictionary"] }
+
+# Dragging file results out of the window, with the file's icon as the drag image.
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+drag = "2.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [build-dependencies]

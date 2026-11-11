@@ -67,5 +67,7 @@
   "notice.command": "{command} failed",
   "desktop.hotkey_invalid": "“{hotkey}” is not a valid shortcut",
   "desktop.hotkey_taken": "{hotkey} is already used by another MyTools shortcut",
-  "status.command_lost": "The command stopped without a result"
+  "status.command_lost": "The command stopped without a result",
+  "drag.missing": "The file no longer exists",
+  "drag.failed": "Could not drag the file"
 }

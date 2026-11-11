@@ -60,6 +60,8 @@ export component MainWindow inherits Window {
     callback search(string);
     callback execute(int);
     callback select-result(int);
+    /// Drag this result's file out of the window.
+    callback drag-result(int);
     callback show-license();
     callback navigate(int);
     callback dismiss();
@@ -120,6 +122,7 @@ export component MainWindow inherits Window {
                     result: result; selected: index == root.selected;
                     clicked => { root.select-result(index); }
                     activated => { root.execute(index); }
+                    drag-started => { root.drag-result(index); }
                 }
             }
             if root.detail-view: DetailPreview {
