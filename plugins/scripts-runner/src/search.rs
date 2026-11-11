@@ -7,20 +7,8 @@ use mytools_plugin_api::{
 };
 
 pub fn search(store: &Store, query: &str) -> anyhow::Result<SearchResponse> {
+    // "Manage Scripts" is the manifest command `manage`, which the launcher lists itself.
     let mut items = vec![];
-    if query.trim().is_empty()
-        || matching::rank(&i18n::t("name"), query) < 4
-        || ["scripts", "script", "脚本"].contains(&query.trim())
-    {
-        let mut item = text::item(i18n::t("manage"), String::new(), i18n::t("manage.detail"));
-        item.resource = Resource::PluginItem {
-            id: "manager".into(),
-        };
-        item.actions = Some(vec![
-            text::command("manage", i18n::t("manage")).with_item("manager"),
-        ]);
-        items.push(item);
-    }
     let mut scripts: Vec<_> = store
         .load()?
         .into_iter()
@@ -77,8 +65,12 @@ fn item(script: &Script) -> SearchItem {
 
 pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<PluginEffect> {
     let item = request.item.as_deref().unwrap_or_default();
-    if request.command == "manage" && item == "manager" {
+    if request.command == "manage" && request.item.is_none() {
         open_manager(None)?;
+        return Ok(PluginEffect {
+            dismiss: true,
+            ..Default::default()
+        });
     } else {
         let script = store
             .load()?
@@ -145,7 +137,8 @@ mod tests {
             cfg!(windows)
         );
         assert_eq!(search(&store, "开发").unwrap().items.len(), 1);
-        assert_eq!(search(&store, "scripts").unwrap().items.len(), 1);
+        // The manager is a manifest command now, not a result of the plugin.
+        assert!(search(&store, "scripts").unwrap().items.is_empty());
         assert!(search(&store, "no match").unwrap().items.is_empty());
         std::fs::remove_dir_all(store.root).unwrap();
     }

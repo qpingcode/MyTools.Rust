@@ -79,19 +79,24 @@ fn matches(plugin: &Plugin, command: &Command, query: &str) -> bool {
 
 /// Search results for the commands that match `query`; every command when it is empty.
 pub fn entries(plugins: &[Plugin], query: &str) -> Vec<Entry> {
-    let mut entries = Vec::new();
-    for plugin in plugins {
-        let Some(process) = &plugin.process else {
-            continue;
-        };
-        for command in &plugin.commands {
-            if !matches(plugin, command, query) {
-                continue;
-            }
-            entries.push(entry(plugin, command, process));
-        }
-    }
-    entries
+    plugins
+        .iter()
+        .flat_map(|plugin| plugin_entries(plugin, query))
+        .collect()
+}
+
+/// One plugin's commands that match `query`, e.g. listed first in its alias scope so a
+/// plugin need not return its own entry points.
+pub fn plugin_entries(plugin: &Plugin, query: &str) -> Vec<Entry> {
+    let Some(process) = &plugin.process else {
+        return Vec::new();
+    };
+    plugin
+        .commands
+        .iter()
+        .filter(|command| matches(plugin, command, query))
+        .map(|command| entry(plugin, command, process))
+        .collect()
 }
 
 fn entry(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> Entry {

@@ -12,6 +12,24 @@
     "settings"
   ],
   "search": {
-    "global": true
-  }
+    "global": false
+  },
+  "startup": "lazy",
+  "commands": [
+    {
+      "id": "open",
+      "title": {
+        "key": "open",
+        "defaultValue": "Open Settings"
+      },
+      "keywords": [
+        "settings",
+        "setting",
+        "plugins",
+        "设置",
+        "插件"
+      ],
+      "icon": "builtin:settings"
+    }
+  ]
 }

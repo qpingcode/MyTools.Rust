@@ -1,31 +1,10 @@
 use crate::i18n;
-use mytools_plugin_api::{
-    PluginActionRequest, PluginEffect, Resource, SearchResponse, matching, text,
-};
+use mytools_plugin_api::{PluginActionRequest, PluginEffect, SearchResponse};
 
-/// Offers the settings window for an empty alias query or a query naming settings.
-pub fn search(query: &str) -> SearchResponse {
-    let query = query.trim();
-    let matches = query.is_empty()
-        || ["settings", "setting", "设置", "插件"]
-            .iter()
-            .any(|word| matching::rank(word, query) < 4)
-        || matching::rank(&i18n::t("name"), query) < 4;
-    let mut items = vec![];
-    if matches {
-        let mut item = text::item(i18n::t("open"), String::new(), i18n::t("open.detail"));
-        item.resource = Resource::PluginItem {
-            id: "window".into(),
-        };
-        item.actions = Some(vec![
-            text::command("open", i18n::t("open")).with_item("window"),
-        ]);
-        items.push(item);
-    }
-    SearchResponse {
-        items,
-        ..Default::default()
-    }
+/// The window is opened through the manifest command `open`, which the launcher finds and
+/// lists itself; the plugin has no results of its own.
+pub fn search(_query: &str) -> SearchResponse {
+    SearchResponse::default()
 }
 
 pub fn execute(request: PluginActionRequest) -> anyhow::Result<PluginEffect> {
@@ -47,17 +26,12 @@ pub fn execute(request: PluginActionRequest) -> anyhow::Result<PluginEffect> {
 mod tests {
     use super::*;
     #[test]
-    fn offers_the_window_for_settings_words_only() {
-        for query in ["", "settings", "SET", "设置"] {
-            let items = search(query).items;
-            assert_eq!(items.len(), 1, "{query}");
-            assert_eq!(
-                items[0].resource,
-                Resource::PluginItem {
-                    id: "window".into()
-                }
-            );
-        }
-        assert!(search("calculator").items.is_empty());
+    fn only_the_open_command_is_understood() {
+        assert!(search("settings").items.is_empty());
+        let unknown = PluginActionRequest {
+            command: "delete".into(),
+            item: None,
+        };
+        assert!(execute(unknown).is_err());
     }
 }

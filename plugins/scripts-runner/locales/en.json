@@ -1,7 +1,6 @@
 {
   "name": "Scripts",
   "manage": "Manage scripts",
-  "manage.detail": "Create, edit and run saved PowerShell or CMD scripts",
   "manage.hint": "Save a script, then search its name or alias in the launcher. It runs in the chosen run mode.",
   "new": "New script",
   "new.detail": "Not saved yet",

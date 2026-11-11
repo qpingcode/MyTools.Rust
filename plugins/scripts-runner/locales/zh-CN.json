@@ -1,7 +1,6 @@
 {
   "name": "脚本",
   "manage": "管理脚本",
-  "manage.detail": "新增、编辑并执行保存的 PowerShell 或 CMD 脚本",
   "manage.hint": "保存后可在启动器搜索名称或别名，按运行方式执行。",
   "new": "新建脚本",
   "new.detail": "尚未保存",

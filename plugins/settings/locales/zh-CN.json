@@ -1,7 +1,6 @@
 {
   "name": "设置",
   "open": "打开设置",
-  "open.detail": "管理插件的别名、快捷键、启动方式、运行状态和启用状态",
   "window.title": "MyTools 设置",
   "tab.plugins": "插件",
   "plugins.summary": "已启用 {enabled} / {total} 个插件",
