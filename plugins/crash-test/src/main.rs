@@ -4,7 +4,7 @@
 //!
 //! | Key | Default | Fault |
 //! | --- | --- | --- |
-//! | `enabled` | `true` | `false` turns every fault off |
+//! | `enabled` | `false` | `true` turns the faults below on; while `false` the plugin works normally |
 //! | `startupCrash` | `false` | every start crashes during init |
 //! | `startupDelayMs` | `0` | init takes this long, reporting progress each second (past the host's startup timeout the plugin is paused) |
 //! | `startupError` | `""` | non-empty: init fails with this reason |
@@ -46,7 +46,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            enabled: true,
+            enabled: false,
             startup_crash: false,
             startup_delay_ms: 0,
             startup_error: String::new(),
@@ -401,10 +401,14 @@ mod tests {
         let disabled: Config =
             serde_json::from_str(r#"{"enabled":false,"searchDelayMs":9}"#).unwrap();
         assert_eq!(Config::with_switch(disabled, None).search_delay_ms, 0);
-        assert_eq!(
-            Config::with_switch(Config::default(), Some("on")),
-            Config::default()
-        );
+        // Off unless config.json turns it on; then the switch can still turn it off.
+        assert!(!Config::with_switch(Config::default(), None).runtime_crash);
+        let on = || Config {
+            enabled: true,
+            ..Config::default()
+        };
+        assert_eq!(Config::with_switch(on(), Some("on")), on());
+        assert!(Config::with_switch(on(), None).runtime_crash);
     }
 
     #[test]
