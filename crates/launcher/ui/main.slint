@@ -31,6 +31,8 @@ export component MainWindow inherits Window {
     in property <string> status;
     in property <bool> failed;
     in property <bool> searching: true;
+    /// Why the list is empty, e.g. which plugin returned nothing.
+    in property <string> empty-text;
     /// Status text while a search runs, e.g. "Searching Everything…".
     in property <string> searching-status: I18n.text("search.loading");
     /// The worker is querying plugins (set when input has settled, not on each keystroke).
@@ -127,7 +129,7 @@ export component MainWindow inherits Window {
                 metadata: root.preview-metadata; picture: root.preview-image;
             }
             if root.results.length == 0 && !root.searching: Text {
-                x: 28px; y: Theme.search-height + 20px; text: I18n.text("search.empty");
+                x: 28px; y: Theme.search-height + 20px; text: root.empty-text;
                 color: Theme.muted; font-size: Theme.font-body;
             }
             StatusBar {

@@ -218,6 +218,7 @@ fn apply_results(
 ) {
     ui.set_detail_view(results.view == mytools_plugin_api::View::ListDetail);
     actions::close_panel(ui, state);
+    let empty_text = empty_text(&results);
     let mut errors = results.errors;
     errors.extend(state.desktop_error.clone());
     let status = if !errors.is_empty() {
@@ -271,10 +272,33 @@ fn apply_results(
     ui.set_selected(selected);
     actions::sync_selection(ui, state);
     ui.set_results(Rc::new(VecModel::from(rows)).into());
+    ui.set_empty_text(empty_text.into());
     ui.set_failed(!errors.is_empty());
     ui.set_status(status.into());
     ui.set_searching(false);
     ui.set_search_running(false);
+}
+
+/// What the empty list says: who answered nothing, and why when that is known.
+fn empty_text(results: &SearchResults) -> String {
+    let query = results.query.as_str();
+    let failed = !results.errors.is_empty();
+    match (&results.plugin_name, failed, query.is_empty()) {
+        (Some(name), true, _) => i18n::format("search.empty_plugin_failed", &[("name", name)]),
+        (Some(name), false, true) => i18n::format("search.empty_plugin_blank", &[("name", name)]),
+        (Some(name), false, false) => {
+            i18n::format("search.empty_plugin", &[("name", name), ("query", query)])
+        }
+        (None, true, _) => i18n::t("search.empty_failed"),
+        (None, false, true) => i18n::t("search.empty_blank"),
+        (None, false, false) => match results.partial {
+            Some((ready, total)) => i18n::format(
+                "search.empty_partial",
+                &[("query", query), ("count", &(total - ready).to_string())],
+            ),
+            None => i18n::format("search.empty", &[("query", query)]),
+        },
+    }
 }
 
 /// Refreshes of the same query keep the selected resource; new queries select the first result.
@@ -294,6 +318,57 @@ fn refreshed_selection(previous: &[Entry], next: &[Entry], selected: i32) -> i32
 mod tests {
     use super::*;
     use mytools_plugin_api::Resource;
+
+    fn empty(plugin: Option<&str>, query: &str) -> SearchResults {
+        SearchResults {
+            entries: vec![],
+            errors: vec![],
+            plugin_name: plugin.map(str::to_owned),
+            view: Default::default(),
+            revision: None,
+            cancelled: false,
+            waiting: false,
+            partial: None,
+            query: query.into(),
+        }
+    }
+
+    #[test]
+    fn empty_list_says_who_returned_nothing() {
+        let scoped = empty(Some("崩溃测试"), "1");
+        assert_eq!(
+            empty_text(&scoped),
+            i18n::format(
+                "search.empty_plugin",
+                &[("name", "崩溃测试"), ("query", "1")]
+            )
+        );
+        assert_eq!(
+            empty_text(&empty(Some("崩溃测试"), "")),
+            i18n::format("search.empty_plugin_blank", &[("name", "崩溃测试")])
+        );
+        let failed = SearchResults {
+            errors: vec!["boom".into()],
+            ..scoped
+        };
+        assert_eq!(
+            empty_text(&failed),
+            i18n::format("search.empty_plugin_failed", &[("name", "崩溃测试")])
+        );
+        assert_eq!(
+            empty_text(&empty(None, "abc")),
+            i18n::format("search.empty", &[("query", "abc")])
+        );
+        let loading = SearchResults {
+            partial: Some((5, 7)),
+            ..empty(None, "abc")
+        };
+        assert_eq!(
+            empty_text(&loading),
+            i18n::format("search.empty_partial", &[("query", "abc"), ("count", "2")])
+        );
+        assert_eq!(empty_text(&empty(None, "")), i18n::t("search.empty_blank"));
+    }
 
     fn entries(names: &[&str]) -> Vec<Entry> {
         names

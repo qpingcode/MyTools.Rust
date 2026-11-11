@@ -95,6 +95,8 @@ pub struct SearchResults {
     pub waiting: bool,
     /// For a global search while some plugins are not ready: (ready, expected).
     pub partial: Option<(usize, usize)>,
+    /// What the plugins were asked: the input without the alias for a scoped search.
+    pub query: String,
 }
 
 /// How one search runs: retries wait longer, and a newer query cancels the wait.
@@ -338,6 +340,7 @@ impl Catalog {
             cancelled: false,
             waiting: false,
             partial: None,
+            query: query.trim().to_owned(),
         };
         if target.is_none()
             && let (Some(index), _) = route_by(

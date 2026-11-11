@@ -263,7 +263,34 @@ fn search(
         }
         None => catalog.format("running", &[("pid", &pid)]),
     };
-    vec![text::hint(catalog.get("status"), detail)]
+    let mut items = vec![text::hint(catalog.get("status"), detail)];
+    if scoped && !query.is_empty() {
+        items.extend(test_results(&query, catalog));
+    }
+    items
+}
+
+/// Sample results for a query typed after the alias: a number from 1 to 50 asks for that
+/// many, anything else gets three that echo it. Enter copies each one's text.
+fn test_results(query: &str, catalog: &Catalog) -> Vec<SearchItem> {
+    let count = query
+        .parse::<usize>()
+        .ok()
+        .filter(|count| (1..=50).contains(count))
+        .unwrap_or(3);
+    let total = count.to_string();
+    (1..=count)
+        .map(|index| {
+            let index = index.to_string();
+            let title = catalog.format("result", &[("index", &index), ("count", &total)]);
+            let copied = format!("{title} · {query}");
+            text::item(
+                title,
+                copied,
+                catalog.format("result_detail", &[("query", query)]),
+            )
+        })
+        .collect()
 }
 
 fn main() {
@@ -347,8 +374,13 @@ mod tests {
         assert_eq!(search("", false, &catalog, true, later).len(), 1);
         assert_eq!(search("cra", false, &catalog, true, later).len(), 1);
         assert!(search("1+1", false, &catalog, true, later).is_empty());
-        // After its alias, `crash 1` reaches the plugin as "1" and still answers.
-        assert_eq!(search("1", true, &catalog, true, later).len(), 1);
+        // After its alias, `crash 5` reaches the plugin as "5": the status and five results.
+        assert_eq!(search("5", true, &catalog, true, later).len(), 6);
+        let echoed = search("hello", true, &catalog, true, later);
+        assert_eq!(echoed.len(), 4);
+        assert_eq!(echoed[1].title, "Test result 1/3");
+        assert_eq!(search("99", true, &catalog, true, later).len(), 4);
+        assert_eq!(search("", true, &catalog, true, later).len(), 1);
         assert!(
             search("crash", false, &catalog, true, None)[0]
                 .description

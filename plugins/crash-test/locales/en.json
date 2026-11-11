@@ -7,5 +7,7 @@
   "off": "Crash simulation is off",
   "off_detail": "Set \"enabled\": true in config.json in the plugin folder and leave MYTOOLS_CRASH_TEST unset",
   "running": "Process {pid}, no crash while running",
-  "slow_start": "Simulated slow start: {elapsed}/{total}s"
+  "slow_start": "Simulated slow start: {elapsed}/{total}s",
+  "result": "Test result {index}/{count}",
+  "result_detail": "Query “{query}” · Enter to copy"
 }
