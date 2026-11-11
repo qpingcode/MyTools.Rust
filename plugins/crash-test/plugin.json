@@ -1,0 +1,17 @@
+{
+  "id": "crash-test",
+  "name": {
+    "defaultValue": "Crash Test",
+    "key": "name"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-crash-test",
+  "icon": "builtin:triangle-alert",
+  "alias": [
+    "crash"
+  ],
+  "search": {
+    "global": true
+  }
+}

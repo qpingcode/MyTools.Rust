@@ -2989,6 +2989,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-crash-test"
+version = "0.0.1"
+dependencies = [
+ "mytools-plugin-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mytools-decode"
 version = "0.0.1"
 dependencies = [

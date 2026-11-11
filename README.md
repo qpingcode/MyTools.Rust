@@ -114,6 +114,7 @@ plugins/
   calculator/         无独立窗口的计算器插件
   applications/       无独立窗口的快捷方式扫描与应用搜索插件
   settings/           设置窗口：插件别名与启用状态
+  crash-test/         故意出错的测试插件：启动崩溃、运行崩溃、心跳延迟等，见 docs/utility-plugins.md
     src/scan.rs       平台默认目录、目录遍历和去重
     src/index.rs      名称索引、匹配与结果构造
   clipboard/          剪贴板监听、持久化和历史操作插件

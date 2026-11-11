@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "startupCrash": true,
+  "startupDelayMs": 0,
+  "startupError": "",
+  "runtimeCrash": true,
+  "crashIntervalSecs": 30,
+  "pongDelayMs": 0,
+  "pongDelayIntervalSecs": 0,
+  "searchDelayMs": 0
+}
