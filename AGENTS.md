@@ -25,11 +25,16 @@
 - 通用 Action 的默认标题由 launcher 根据 core 提供的标题 key 翻译；插件自定义标题由插件负责，宿主按原文显示。
 - 插件维护自己的语言文件，通过 `MYTOOLS_LOCALE` 继承宿主语言。插件名称按 `name.key` 查找，缺失时回退英文及 `defaultValue`；文件名、用户输入和别名保持原样。
 
+## 分支
+
+- 除非用户特别说明，只在 `master` 上开发，不新建分支，也不使用 git worktree。
+- push 前先用 `gh auth status` 查看当前活动的 GitHub 账号；不是 `qpingcode` 时先执行 `gh auth switch --user qpingcode` 再 push，push 完成后（无论成功与否）用 `gh auth switch --user <原账号>` 切换回原来的账号。
+
 ## 完成任务后更新本机程序
 
 - 每次完成任务、测试通过后，执行 `./scripts/deploy.ps1`（PowerShell 7），把改动编译并更新到本机实际使用的 `C:\soft\MyTools`。
 - 脚本以 release 编译整个 workspace，只替换内容有变化的文件；不会改动 `config.json`、`window-position.json` 等用户数据。运行中的程序会先改名为 `*.old` 再替换；本体有变化时重启 MyTools，只有插件变化时只结束对应插件，由 MyTools 自动拉起。
-- 在独立 worktree 分支上完成的任务，先合并回 `master` 再在主工作区部署，避免用缺少其他改动的版本覆盖已部署的程序。
+- 若按用户要求在独立分支或 worktree 上完成任务，先合并回 `master` 再在主工作区部署，避免用缺少其他改动的版本覆盖已部署的程序。
 - 可选参数：`-Target <目录>` 指定安装目录，`-SkipBuild` 跳过编译，`-NoRestart` 不重启，等下次手动重启生效。
 - 本机 VS 18 的 C++ 工具集不完整，脚本会自动加载工具集完整的 Visual Studio（目前是 VS 2019）的开发环境；部署失败时把编译错误原样报告给用户。
 - 链接器使用 `rust-lld`（见 `.cargo/config.toml`），它依赖开发环境提供的库路径。手动执行 `cargo build/test/clippy` 前，先在同一个 PowerShell 里执行 `. ./scripts/dev-environment.ps1; Enter-DeveloperEnvironment`。始终使用同一套环境，避免依赖因环境变量变化而反复重编。
