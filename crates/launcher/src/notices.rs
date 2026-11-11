@@ -79,6 +79,13 @@ impl Notifier {
         window.set_notices(ModelRc::new(VecModel::from(rows)));
         place(window);
         let _ = window.show();
+        // Once shown, the window has the screen's scale and final size; settle it again.
+        let weak = window.as_weak();
+        slint::Timer::single_shot(Duration::from_millis(100), move || {
+            if let Some(window) = weak.upgrade() {
+                place(&window);
+            }
+        });
         self.close_at.set(Instant::now() + VISIBLE_FOR);
         let notifier = Rc::downgrade(self);
         self.timer.start(
@@ -140,26 +147,38 @@ impl Notifier {
 
 /// Puts the window in the bottom-right corner of the primary screen's work area.
 fn place(window: &NoticeWindow) {
-    let Some((left, top, width, height)) = work_area(window) else {
+    let Some(area) = work_area(window) else {
         return;
     };
-    // From the layout rather than the native size, which lags behind a change of notices.
-    let scale = window.window().scale_factor();
+    // From the layout rather than the native size, which lags behind a change of notices,
+    // and at the screen's scale: before the window first shows, its own scale is still 1.
     let size = slint::LogicalSize::new(window.get_content_width(), window.get_content_height());
-    let size = size.to_physical(scale);
-    let margin = (MARGIN * scale) as i32;
+    let size = size.to_physical(area.scale);
+    let margin = (MARGIN * area.scale) as i32;
     window.window().set_position(slint::PhysicalPosition::new(
-        left + width - size.width as i32 - margin,
-        top + height - size.height as i32 - margin,
+        area.left + area.width - size.width as i32 - margin,
+        area.top + area.height - size.height as i32 - margin,
     ));
 }
 
-/// The primary screen without the taskbar, in physical pixels: (left, top, width, height).
+/// The primary screen without the taskbar, in physical pixels, and its scale factor.
+struct WorkArea {
+    left: i32,
+    top: i32,
+    width: i32,
+    height: i32,
+    scale: f32,
+}
+
 #[cfg(windows)]
-fn work_area(_: &NoticeWindow) -> Option<(i32, i32, i32, i32)> {
+fn work_area(_: &NoticeWindow) -> Option<WorkArea> {
     use windows_sys::Win32::{
-        Foundation::RECT,
-        UI::WindowsAndMessaging::{SPI_GETWORKAREA, SystemParametersInfoW},
+        Foundation::{POINT, RECT},
+        Graphics::Gdi::{MONITOR_DEFAULTTOPRIMARY, MonitorFromPoint},
+        UI::{
+            HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
+            WindowsAndMessaging::{SPI_GETWORKAREA, SystemParametersInfoW},
+        },
     };
     let mut rect = RECT {
         left: 0,
@@ -168,16 +187,33 @@ fn work_area(_: &NoticeWindow) -> Option<(i32, i32, i32, i32)> {
         bottom: 0,
     };
     let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, (&raw mut rect).cast(), 0) };
-    (ok != 0).then_some((
-        rect.left,
-        rect.top,
-        rect.right - rect.left,
-        rect.bottom - rect.top,
-    ))
+    if ok == 0 {
+        return None;
+    }
+    // The monitor holding the work area's bottom-right corner, where the notice goes.
+    let corner = POINT {
+        x: rect.right - 1,
+        y: rect.bottom - 1,
+    };
+    let monitor = unsafe { MonitorFromPoint(corner, MONITOR_DEFAULTTOPRIMARY) };
+    let (mut dpi_x, mut dpi_y) = (0u32, 0u32);
+    let read = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
+    let scale = if read >= 0 && dpi_x > 0 {
+        dpi_x as f32 / 96.0
+    } else {
+        1.0
+    };
+    Some(WorkArea {
+        left: rect.left,
+        top: rect.top,
+        width: rect.right - rect.left,
+        height: rect.bottom - rect.top,
+        scale,
+    })
 }
 
 #[cfg(not(windows))]
-fn work_area(window: &NoticeWindow) -> Option<(i32, i32, i32, i32)> {
+fn work_area(window: &NoticeWindow) -> Option<WorkArea> {
     use slint::winit_030::WinitWindowAccessor;
     window
         .window()
@@ -186,12 +222,13 @@ fn work_area(window: &NoticeWindow) -> Option<(i32, i32, i32, i32)> {
                 .primary_monitor()
                 .or_else(|| native.current_monitor())?;
             let (position, size) = (monitor.position(), monitor.size());
-            Some((
-                position.x,
-                position.y,
-                size.width as i32,
-                size.height as i32,
-            ))
+            Some(WorkArea {
+                left: position.x,
+                top: position.y,
+                width: size.width as i32,
+                height: size.height as i32,
+                scale: monitor.scale_factor() as f32,
+            })
         })
         .flatten()
 }
