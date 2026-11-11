@@ -17,7 +17,7 @@ pub(crate) struct State {
     desktop_error: Option<String>,
 }
 
-pub fn run() -> anyhow::Result<()> {
+pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let config = config::load();
     let plugin_shortcuts = config
         .as_ref()
@@ -162,6 +162,16 @@ pub fn run() -> anyhow::Result<()> {
         startup_notifier.show(startup_notices);
     });
     ui.invoke_search("".into());
+    // Starting MyTools again while it runs shows this window instead.
+    let weak = ui.as_weak();
+    instance.on_show(move || {
+        let weak = weak.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = weak.upgrade() {
+                desktop::show(&ui);
+            }
+        });
+    });
     if std::env::args().any(|argument| argument == "--show") {
         desktop::show(&ui);
     }

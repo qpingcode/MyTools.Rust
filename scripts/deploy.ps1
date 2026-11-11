@@ -98,7 +98,8 @@ try {
             $running | Stop-Process -Force -ErrorAction SilentlyContinue
             Get-ChildItem -Path (Join-Path $Target 'plugins/*/*.exe') |
                 ForEach-Object { Stop-Executable $_.FullName }
-            Start-Process -FilePath $mytools -WorkingDirectory $Target
+            # --restart waits for the stopped MyTools to release its single-instance lock.
+            Start-Process -FilePath $mytools -WorkingDirectory $Target -ArgumentList '--restart'
             Write-Host 'Restarted MyTools'
         }
     } else {

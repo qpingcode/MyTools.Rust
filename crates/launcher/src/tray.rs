@@ -133,7 +133,8 @@ fn show_error(ui: &MainWindow, error: &anyhow::Error) {
 /// Called only after releasing the hotkey, tray and search processes.
 pub fn restart() -> anyhow::Result<()> {
     let mut command = std::process::Command::new(std::env::current_exe()?);
-    command.arg("--show");
+    // The new process waits for this one to exit and release the single-instance lock.
+    command.args(["--show", "--restart"]);
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::process::CommandExt;
