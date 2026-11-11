@@ -1,0 +1,19 @@
+{
+  "id": "awake",
+  "name": {
+    "key": "name",
+    "defaultValue": "Keep Awake"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-awake",
+  "icon": "builtin:sun",
+  "alias": [
+    "awake"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list",
+  "startup": "eager"
+}

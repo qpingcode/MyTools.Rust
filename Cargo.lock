@@ -3295,6 +3295,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-awake"
+version = "0.0.1"
+dependencies = [
+ "mytools-plugin-api",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mytools-calculator"
 version = "0.0.1"
 dependencies = [

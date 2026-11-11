@@ -1,0 +1,7 @@
+{
+  "name": "Keep Awake",
+  "active": "Keeping the computer awake and the screen on",
+  "active.detail": "Works while this plugin is enabled; disable it in Settings to let the computer sleep again",
+  "failed": "Could not keep the computer awake",
+  "failed.detail": "The system refused the request: {error}"
+}

@@ -19,6 +19,7 @@ members = [
     "plugins/everything",
     "plugins/dev-open",
     "plugins/crash-test",
+    "plugins/awake",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"

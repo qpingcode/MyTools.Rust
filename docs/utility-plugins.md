@@ -13,6 +13,7 @@
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
 | translator | `tr hello`、`tr en 你好`、`tr zh Hello`、`tr` | Enter 发起翻译，完成后 Enter 复制译文；单词另有音标（Enter 朗读）、英文释义和例句；只输入 `tr` 列出最近翻译 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
+| 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
 
 encode 按 `base64`、`md5`、`url`、`sha1`、`sha256`、`sha512` 的顺序展示结果。
 decode 按 `base64`、`url` 的顺序展示结果。URL 使用 URI component 编码，`+` 保持加号；
@@ -136,3 +137,13 @@ macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚�
 | `searchDelayMs` | `0` | 每次搜索的耗时 | 超过等待时间时显示超时；同一次搜索执行超过 20 秒时重启插件 |
 
 设置环境变量 `MYTOOLS_CRASH_TEST=off` 可无视配置文件关闭全部异常；也可以直接在设置中停用这个插件。两种崩溃都以 panic 结束进程，会记录到 `logs/crash.log`。
+
+## 保持唤醒
+
+原理与 PowerToys Awake 的“无限期 + 保持屏幕开启”相同：插件随 MyTools 启动，在主线程上调用
+Windows 的 `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)`，
+macOS 上创建 `PreventUserIdleSystemSleep` 和 `PreventUserIdleDisplaySleep` 两个电源断言（与 `caffeinate -di` 相同）。
+
+- 不修改电源计划。插件被停用、MyTools 退出或插件崩溃时，系统自动撤销请求，恢复原有的睡眠和关屏设置。
+- 只阻止空闲导致的睡眠和关屏；手动锁屏、合上笔记本盖子、按电源键仍按系统设置执行，公司组策略强制的锁屏也可能仍会生效。
+- 用 `powercfg /requests`（Windows，管理员）或 `pmset -g assertions`（macOS）可以看到 MyTools 的请求。
