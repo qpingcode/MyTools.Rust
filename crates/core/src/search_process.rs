@@ -125,6 +125,7 @@ impl Shared {
             timeout_ms: None,
             ping: Some(heartbeat.sequence),
             init: None,
+            scoped: false,
         };
         drop(heartbeat);
         let _ = self.write(&ping);
@@ -294,9 +295,10 @@ impl SearchProcess {
         let _ = self.ensure_running(&mut running);
     }
 
-    /// Starts a search; `timeout` tells the plugin how long the host will wait for it.
-    /// A search the host stops waiting for is not killed: the plugin skips or finishes it.
-    pub fn begin(&self, query: &str, timeout: Duration) -> Result<Reply> {
+    /// Starts a search; `timeout` tells the plugin how long the host will wait for it, and
+    /// `scoped` that the user chose this plugin by its alias. A search the host stops
+    /// waiting for is not killed: the plugin skips or finishes it.
+    pub fn begin(&self, query: &str, timeout: Duration, scoped: bool) -> Result<Reply> {
         // Do not queue a search behind a long-running action on the same ordered
         // transport. The action's completion may request a fresh search.
         let busy = self.action_busy.lock().unwrap();
@@ -310,6 +312,7 @@ impl SearchProcess {
                 timeout_ms: Some(timeout.as_millis() as u64),
                 ping: None,
                 init: None,
+                scoped,
             },
             Kind::Search,
         )
@@ -417,6 +420,7 @@ impl SearchProcess {
                 timeout_ms: None,
                 ping: None,
                 init: None,
+                scoped: false,
             },
             Kind::Action,
         );
@@ -669,7 +673,7 @@ impl SearchProcess {
         ))
         .unwrap();
         process
-            .begin("warmup", SEARCH_TIMEOUT)
+            .begin("warmup", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -688,7 +692,7 @@ mod tests {
             "while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.action) { Start-Sleep -Milliseconds 1200; '{\"items\":[],\"effect\":{\"refresh\":true}}' } else { '{\"items\":[]}' } }",
         )).unwrap());
         process
-            .begin("warmup", SEARCH_TIMEOUT)
+            .begin("warmup", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -700,11 +704,15 @@ mod tests {
             assert!(std::time::Instant::now() < deadline);
             std::thread::sleep(Duration::from_millis(5));
         }
-        assert!(process.begin("changed input", SEARCH_TIMEOUT).is_err());
+        assert!(
+            process
+                .begin("changed input", SEARCH_TIMEOUT, false)
+                .is_err()
+        );
         assert!(action.join().unwrap().unwrap().refresh);
         assert!(
             process
-                .begin("completed", SEARCH_TIMEOUT)
+                .begin("completed", SEARCH_TIMEOUT, false)
                 .unwrap()
                 .recv_timeout(SEARCH_TIMEOUT)
                 .unwrap()
@@ -717,7 +725,7 @@ mod tests {
         let process = SearchProcess::fixture();
         process.stop();
         let response = process
-            .begin("after stop", SEARCH_TIMEOUT)
+            .begin("after stop", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -730,24 +738,28 @@ mod tests {
         }
         process.check();
         let response = process
-            .begin("after crash", SEARCH_TIMEOUT)
+            .begin("after crash", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
             .unwrap();
         assert_eq!(response.items[0].title, "after crash");
         process.shutdown();
-        assert!(process.begin("after shutdown", SEARCH_TIMEOUT).is_err());
+        assert!(
+            process
+                .begin("after shutdown", SEARCH_TIMEOUT, false)
+                .is_err()
+        );
     }
 
     #[test]
     fn abandoned_search_does_not_shift_later_responses() {
         let process = SearchProcess::fixture();
-        let slow = process.begin("slow", SEARCH_TIMEOUT).unwrap();
+        let slow = process.begin("slow", SEARCH_TIMEOUT, false).unwrap();
         assert!(slow.recv_timeout(Duration::from_millis(100)).is_err());
         drop(slow); // The host stopped waiting; the process must not be killed.
         let next = process
-            .begin("next", SEARCH_TIMEOUT)
+            .begin("next", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -775,7 +787,7 @@ mod tests {
         assert!(!shared.healthy.load(Ordering::Relaxed));
         process.check(); // Restarted.
         let restarted = process
-            .begin("after restart", SEARCH_TIMEOUT)
+            .begin("after restart", SEARCH_TIMEOUT, false)
             .unwrap()
             .recv_timeout(Duration::from_secs(10))
             .unwrap()
@@ -872,7 +884,7 @@ mod startup_tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         wait_for(&process, State::Ready);
-        let reply = process.begin("q", SEARCH_TIMEOUT).unwrap();
+        let reply = process.begin("q", SEARCH_TIMEOUT, false).unwrap();
         let response = reply.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
         assert_eq!(response.items[0].title, "hit");
     }
@@ -900,7 +912,7 @@ mod startup_tests {
         process.check();
         process.activate();
         assert!(process.running.lock().unwrap().is_none());
-        assert!(process.begin("q", SEARCH_TIMEOUT).is_err());
+        assert!(process.begin("q", SEARCH_TIMEOUT, false).is_err());
         process.restart();
         assert_eq!(process.state().0, State::Starting);
         wait_for(&process, State::Failed);

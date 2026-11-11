@@ -25,6 +25,10 @@ pub struct SearchRequest {
     /// The host's first request to a new process; answered with `ready` (see [`on_init`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub init: Option<InitRequest>,
+    /// The user picked this plugin by its alias, so every query is meant for it. Absent in
+    /// global search, where a plugin should answer only what it recognizes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub scoped: bool,
 }
 
 /// Sent once as `{"init":{}}` before any search or action.
@@ -39,6 +43,7 @@ impl SearchRequest {
             timeout_ms: None,
             ping: None,
             init: Some(InitRequest {}),
+            scoped: false,
         }
     }
 }

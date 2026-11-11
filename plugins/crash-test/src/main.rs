@@ -222,24 +222,34 @@ impl Plugin {
         }
     }
 
-    fn search(&self, query: &str) -> SearchResponse {
+    fn search(&self, request: &SearchRequest) -> SearchResponse {
         std::thread::sleep(Duration::from_millis(self.config.search_delay_ms));
         SearchResponse {
-            items: search(query, &self.catalog, self.config.enabled, self.crash_at),
+            items: search(
+                &request.query,
+                request.scoped,
+                &self.catalog,
+                self.config.enabled,
+                self.crash_at,
+            ),
             ..Default::default()
         }
     }
 }
 
-/// Only matching queries answer, so global search is not cluttered.
+/// Answers anything typed after its alias (`scoped`); in global search only queries that
+/// name it, so other searches are not cluttered.
 fn search(
     query: &str,
+    scoped: bool,
     catalog: &Catalog,
     enabled: bool,
     crash_at: Option<Instant>,
 ) -> Vec<SearchItem> {
     let query = query.trim().to_lowercase();
-    if !query.is_empty() && !"crash".contains(&query) && !catalog.get("name").contains(&query) {
+    let names_it =
+        query.is_empty() || "crash".contains(&query) || catalog.get("name").contains(&query);
+    if !scoped && !names_it {
         return Vec::new();
     }
     if !enabled {
@@ -319,7 +329,7 @@ fn main() {
         } else if request.action.is_some() {
             SearchResponse::default()
         } else {
-            plugin.search(&request.query)
+            plugin.search(&request)
         };
         *busy_since.lock().unwrap() = None;
         write(&plugin.output, &response);
@@ -334,16 +344,18 @@ mod tests {
     fn answers_only_its_own_queries() {
         let catalog = Catalog::from_json(include_str!("../locales/en.json"), "{}").unwrap();
         let later = Some(Instant::now() + Duration::from_secs(30));
-        assert_eq!(search("", &catalog, true, later).len(), 1);
-        assert_eq!(search("cra", &catalog, true, later).len(), 1);
-        assert!(search("1+1", &catalog, true, later).is_empty());
+        assert_eq!(search("", false, &catalog, true, later).len(), 1);
+        assert_eq!(search("cra", false, &catalog, true, later).len(), 1);
+        assert!(search("1+1", false, &catalog, true, later).is_empty());
+        // After its alias, `crash 1` reaches the plugin as "1" and still answers.
+        assert_eq!(search("1", true, &catalog, true, later).len(), 1);
         assert!(
-            search("crash", &catalog, true, None)[0]
+            search("crash", false, &catalog, true, None)[0]
                 .description
                 .contains("no crash")
         );
         assert_eq!(
-            search("crash", &catalog, false, None)[0].title,
+            search("crash", false, &catalog, false, None)[0].title,
             "Crash simulation is off"
         );
     }

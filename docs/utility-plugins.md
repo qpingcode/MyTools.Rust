@@ -111,7 +111,7 @@ macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚�
 
 ## 崩溃测试
 
-`crash-test` 是一个故意出问题的插件（`global: true`，别名 `crash`），用来检验 MyTools 对插件异常的处理：状态圆点、右下角提示、自动重启和崩溃日志。输入 `crash` 可以看到它当前的进程号和下次崩溃的倒计时。
+`crash-test` 是一个故意出问题的插件（`global: true`，别名 `crash`），用来检验 MyTools 对插件异常的处理：状态圆点、右下角提示、自动重启和崩溃日志。输入 `crash`（或 `crash` 加空格后接任意内容）可以看到它当前的进程号和下次崩溃的倒计时；全局搜索中只有搜索词包含 `crash` 或“崩溃”时才会出现。
 
 各种异常在插件目录（部署后是 `C:\soft\MyTools\plugins\crash-test`）的 `config.json` 中分别配置，参考同目录的 `config.example.json`；没有这个文件时使用默认值。修改后在设置里重启插件，或等它下次崩溃重启后生效。
 

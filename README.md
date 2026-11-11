@@ -331,6 +331,8 @@ macOS 的 `~/Library/Application Support/MyTools/clipboard`；可用 `MYTOOLS_CL
 {"items":[{"title":"2","description":"1+1 = 2","resource":{"type":"text","text":"2"}}]}
 ```
 
+通过别名搜索时，请求带有 `"scoped":true`，表示用户点名搜索该插件，别名之后输入的任何内容都应回答；全局搜索时没有这个字段，插件只应回答自己认得的内容，免得出现在每次普通搜索里。
+
 没有匹配结果时返回 `{"items":[]}`。`title` 为主列表标题，`description` 为可选说明，`resource` 描述该结果的资源。旧的 `copy_text` 已由 `resource` 替代。
 
 ### 启动与初始化

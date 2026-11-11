@@ -367,7 +367,7 @@ impl Catalog {
                 if !ready(process, plugin, input, target.is_some(), &mut output) {
                     continue;
                 }
-                match process.begin(query, timeout(plugin)) {
+                match process.begin(query, timeout(plugin), target.is_some()) {
                     Ok(reply) => pending.push((plugin, reply)),
                     Err(err) => output.errors.push(format!("{}：{err}", plugin.name)),
                 }
