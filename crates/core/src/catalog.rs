@@ -143,11 +143,19 @@ fn wait(
     deadline: Instant,
     cancelled: &dyn Fn() -> bool,
 ) -> Waited {
-    use std::sync::mpsc::RecvTimeoutError;
+    use std::sync::mpsc::{RecvTimeoutError, TryRecvError};
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
-            return Waited::TimedOut;
+            // Replies are awaited one plugin after another against one deadline, so a slow
+            // plugin can use it up; a reply that already arrived still counts.
+            return match reply.try_recv() {
+                Ok(response) => Waited::Response(response),
+                Err(TryRecvError::Empty) => Waited::TimedOut,
+                Err(TryRecvError::Disconnected) => {
+                    Waited::Response(Err(anyhow::anyhow!(i18n::t("error.process_exited"))))
+                }
+            };
         }
         match reply.recv_timeout(left.min(std::time::Duration::from_millis(50))) {
             Ok(response) => return Waited::Response(response),
@@ -902,6 +910,26 @@ mod tests {
         assert_eq!(scoped.entries[0].name, "计算器");
         assert_eq!(scoped.plugin_name.as_deref(), Some("计算器"));
         assert_eq!(catalog.search("RIDER").entries[0].name, "Rider");
+    }
+
+    #[test]
+    fn reply_that_arrived_before_the_deadline_passed_still_counts() {
+        let (sender, reply) = std::sync::mpsc::channel();
+        sender
+            .send(Ok(mytools_plugin_api::SearchResponse::default()))
+            .unwrap();
+        // The deadline went by while another plugin was being waited for.
+        let passed = Instant::now() - std::time::Duration::from_secs(1);
+        assert!(matches!(
+            wait(&reply, passed, &|| false),
+            Waited::Response(Ok(_))
+        ));
+        assert!(matches!(wait(&reply, passed, &|| false), Waited::TimedOut));
+        drop(sender);
+        assert!(matches!(
+            wait(&reply, passed, &|| false),
+            Waited::Response(Err(_))
+        ));
     }
 
     #[test]
