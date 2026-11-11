@@ -3094,6 +3094,7 @@ name = "mytools-settings"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "arboard",
  "mytools-plugin-api",
  "serde",
  "serde_json",

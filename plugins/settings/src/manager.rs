@@ -11,7 +11,7 @@ use mytools_plugin_api::{
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
-/// How often the window looks for state changes published by MyTools.
+/// How often the window looks for state changes and new log records from MyTools.
 const STATUS_POLL: Duration = Duration::from_millis(500);
 
 struct State {
@@ -37,12 +37,20 @@ pub fn run() -> anyhow::Result<()> {
         status,
     }));
     show(&ui, &state.borrow());
+    let names = state
+        .borrow()
+        .saved
+        .iter()
+        .map(|entry| (entry.id.clone(), entry.name.clone()))
+        .collect();
+    let log_page = crate::log_page::LogPage::wire(&ui, names);
 
     let (weak, copy) = (ui.as_weak(), state.clone());
     let poll = slint::Timer::default();
     poll.start(slint::TimerMode::Repeated, STATUS_POLL, move || {
         if let Some(ui) = weak.upgrade() {
             refresh_status(&ui, &mut copy.borrow_mut());
+            log_page.tick(&ui);
         }
     });
     let (weak, copy) = (ui.as_weak(), state.clone());

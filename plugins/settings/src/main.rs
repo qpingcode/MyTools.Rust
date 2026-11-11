@@ -1,5 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod i18n;
+mod log_page;
+mod logs;
 mod manager;
 mod plugins;
 mod search;

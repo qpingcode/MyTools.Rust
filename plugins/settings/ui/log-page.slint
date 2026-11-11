@@ -1,0 +1,209 @@
+import { LineEdit, ComboBox, ListView } from "std-widgets.slint";
+import { Theme } from "../../../ui/theme.slint";
+import { I18n } from "../../../ui/i18n.slint";
+import { Icon } from "../../../ui/components/icon.slint";
+import { Button } from "controls.slint";
+
+/// One log record as the list shows it.
+export struct LogRow {
+    /// Stable while the page is open; identifies the record to expand or copy.
+    id: int,
+    /// Short time for the list; the full one is in `stamp`.
+    time: string,
+    stamp: string,
+    /// "debug", "info", "warn" or "error".
+    level: string,
+    /// The plugin's name, or MyTools.
+    source: string,
+    event: string,
+    message: string,
+    detail: string,
+    expanded: bool,
+}
+
+component LevelTag inherits HorizontalLayout {
+    in property <string> level;
+    private property <color> tone: root.level == "error" ? Theme.danger
+        : root.level == "warn" ? Theme.pending
+        : root.level == "debug" ? Theme.disabled
+        : Theme.muted;
+    spacing: 6px;
+    VerticalLayout {
+        alignment: center;
+        Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: root.tone; }
+    }
+    Text {
+        text: I18n.text("level." + root.level);
+        color: root.level == "info" || root.level == "debug" ? Theme.muted : root.tone;
+        font-size: Theme.font-small; vertical-alignment: center;
+    }
+}
+
+/// A record on one line; clicking it shows the whole message, its detail and a copy button.
+component LogLine inherits Rectangle {
+    in property <LogRow> entry;
+    callback toggle();
+    callback copy();
+    height: layout.preferred-height;
+    border-radius: 6px;
+    background: root.entry.expanded ? Theme.panel : touch.has-hover ? Theme.hover : transparent;
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.toggle(); } }
+    layout := VerticalLayout {
+        padding-left: 10px; padding-right: 10px; padding-top: 5px; padding-bottom: 5px;
+        spacing: 6px;
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                width: 118px; text: root.entry.time; color: Theme.placeholder;
+                font-size: Theme.font-small; font-family: "Cascadia Mono";
+                vertical-alignment: center;
+            }
+            LevelTag { width: 54px; level: root.entry.level; }
+            Text {
+                width: 110px; text: root.entry.source; color: Theme.muted;
+                font-size: Theme.font-small; overflow: elide; vertical-alignment: center;
+            }
+            Text {
+                horizontal-stretch: 1; text: root.entry.message; color: Theme.foreground;
+                font-size: Theme.font-small; overflow: elide; vertical-alignment: center;
+            }
+            VerticalLayout {
+                alignment: center;
+                Icon {
+                    width: 12px; height: 12px; tint: Theme.placeholder;
+                    name: root.entry.expanded ? "builtin:chevron-up" : "builtin:chevron-down";
+                }
+            }
+        }
+        if root.entry.expanded: VerticalLayout {
+            spacing: 6px; padding-left: 130px; padding-bottom: 4px;
+            Text {
+                text: root.entry.event != "" ? root.entry.stamp + " · " + root.entry.event : root.entry.stamp;
+                color: Theme.placeholder; font-size: Theme.font-caption;
+                font-family: "Cascadia Mono";
+            }
+            Text {
+                text: root.entry.message; color: Theme.foreground; font-size: Theme.font-small;
+                wrap: word-wrap;
+            }
+            if root.entry.detail != "": Rectangle {
+                height: detail.preferred-height + 16px;
+                border-radius: 6px;
+                background: Theme.background;
+                detail := Text {
+                    x: 10px; y: 8px; width: parent.width - 20px;
+                    text: root.entry.detail; color: Theme.muted; font-size: Theme.font-caption;
+                    font-family: "Cascadia Mono"; wrap: word-wrap;
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                Button {
+                    text: I18n.text("logs.copy"); icon: "builtin:copy"; kind: "ghost";
+                    clicked => { root.copy(); }
+                }
+            }
+        }
+    }
+}
+
+/// The log page: the newest records of MyTools and its plugins, newest first, with filters.
+export component LogPage inherits VerticalLayout {
+    in property <[LogRow]> rows;
+    /// "All sources", MyTools, then each plugin.
+    in property <[string]> sources;
+    in-out property <int> source-index;
+    in-out property <int> level-index: 1;
+    in-out property <string> search;
+    in property <bool> paused;
+    /// "N of M records", or a short confirmation such as "Copied".
+    in property <string> summary;
+    callback source-changed(int);
+    callback level-changed(int);
+    callback search-edited(string);
+    callback pause-toggled();
+    callback copy-shown();
+    callback open-folder();
+    callback toggle(int);
+    callback copy-row(int);
+    padding: 28px; padding-top: 24px; padding-bottom: 18px; spacing: 14px;
+    HorizontalLayout {
+        spacing: 16px;
+        VerticalLayout {
+            alignment: center; spacing: 4px; horizontal-stretch: 1;
+            Text {
+                text: I18n.text("tab.logs"); color: Theme.foreground;
+                font-size: Theme.font-heading + 6px; font-weight: 600;
+            }
+            Text {
+                text: root.paused ? I18n.text("logs.paused") : root.summary;
+                color: root.paused ? Theme.pending : Theme.muted; font-size: Theme.font-small;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 6px;
+                Button {
+                    text: root.paused ? I18n.text("logs.resume") : I18n.text("logs.pause");
+                    icon: root.paused ? "builtin:play" : "builtin:clock";
+                    clicked => { root.pause-toggled(); }
+                }
+                Button {
+                    text: I18n.text("logs.copy_shown"); icon: "builtin:copy";
+                    clicked => { root.copy-shown(); }
+                }
+                Button {
+                    text: I18n.text("logs.folder"); icon: "builtin:folder-open";
+                    clicked => { root.open-folder(); }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        Rectangle {
+            width: 180px;
+            ComboBox {
+                model: root.sources;
+                current-index <=> root.source-index;
+                selected => { root.source-changed(self.current-index); }
+            }
+        }
+        Rectangle {
+            width: 150px;
+            ComboBox {
+                model: [
+                    I18n.text("logs.level.debug"), I18n.text("logs.level.info"),
+                    I18n.text("logs.level.warn"), I18n.text("logs.level.error"),
+                ];
+                current-index <=> root.level-index;
+                selected => { root.level-changed(self.current-index); }
+            }
+        }
+        LineEdit {
+            horizontal-stretch: 1;
+            text <=> root.search;
+            placeholder-text: I18n.text("logs.search");
+            edited(text) => { root.search-edited(text); }
+        }
+    }
+    Rectangle {
+        vertical-stretch: 1;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: Theme.border;
+        clip: true;
+        if root.rows.length == 0: Text {
+            text: I18n.text("logs.empty"); color: Theme.muted; font-size: Theme.font-small;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
+        ListView {
+            for row in root.rows: LogLine {
+                entry: row;
+                toggle => { root.toggle(row.id); }
+                copy => { root.copy-row(row.id); }
+            }
+        }
+    }
+}

@@ -4,8 +4,10 @@ import { I18n } from "../../../ui/i18n.slint";
 import { Icon } from "../../../ui/components/icon.slint";
 import { Button } from "controls.slint";
 import { PluginCard, PluginRow } from "plugin-row.slint";
+import { LogPage, LogRow } from "log-page.slint";
 export { I18n } from "../../../ui/i18n.slint";
 export { PluginRow } from "plugin-row.slint";
+export { LogRow } from "log-page.slint";
 
 /// One entry of the sidebar; each tab is a page of settings.
 component NavItem inherits Rectangle {
@@ -66,6 +68,24 @@ export component SettingsWindow inherits Window {
     callback filter-edited(string);
     callback save();
     callback discard();
+    /// 0: plugins, 1: logs.
+    in-out property <int> page;
+    callback page-changed(int);
+    in property <[LogRow]> log-rows;
+    in property <[string]> log-sources;
+    in-out property <int> log-source-index;
+    in-out property <int> log-level-index: 1;
+    in-out property <string> log-search;
+    in property <bool> log-paused;
+    in property <string> log-summary;
+    callback log-source-changed(int);
+    callback log-level-changed(int);
+    callback log-search-edited(string);
+    callback log-pause-toggled();
+    callback log-copy-shown();
+    callback log-open-folder();
+    callback log-toggle(int);
+    callback log-copy-row(int);
     // Standard text widgets follow the dark theme instead of the light default.
     init => { Palette.color-scheme = ColorScheme.dark; }
     // The status tooltip floats above the list, so the scroll area never clips it.
@@ -104,14 +124,39 @@ export component SettingsWindow inherits Window {
                             vertical-alignment: center;
                         }
                     }
-                    NavItem { text: I18n.text("tab.plugins"); icon: "builtin:puzzle"; selected: true; }
+                    NavItem {
+                        text: I18n.text("tab.plugins"); icon: "builtin:puzzle"; selected: root.page == 0;
+                        clicked => { root.page = 0; root.page-changed(0); }
+                    }
+                    NavItem {
+                        text: I18n.text("tab.logs"); icon: "builtin:file-text"; selected: root.page == 1;
+                        clicked => { root.page = 1; root.page-changed(1); }
+                    }
                     Rectangle { vertical-stretch: 1; }
                 }
             }
             Rectangle { width: 1px; background: Theme.border; }
 
+            if root.page == 1: LogPage {
+                rows: root.log-rows;
+                sources: root.log-sources;
+                source-index <=> root.log-source-index;
+                level-index <=> root.log-level-index;
+                search <=> root.log-search;
+                paused: root.log-paused;
+                summary: root.log-summary;
+                source-changed(index) => { root.log-source-changed(index); }
+                level-changed(index) => { root.log-level-changed(index); }
+                search-edited(text) => { root.log-search-edited(text); }
+                pause-toggled => { root.log-pause-toggled(); }
+                copy-shown => { root.log-copy-shown(); }
+                open-folder => { root.log-open-folder(); }
+                toggle(id) => { root.log-toggle(id); }
+                copy-row(id) => { root.log-copy-row(id); }
+            }
+
             // Plugins page.
-            VerticalLayout {
+            if root.page == 0: VerticalLayout {
                 padding: 28px; padding-top: 24px; padding-bottom: 18px; spacing: 18px;
                 HorizontalLayout {
                     spacing: 16px;
