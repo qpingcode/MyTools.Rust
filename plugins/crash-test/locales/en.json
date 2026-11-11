@@ -2,7 +2,7 @@
   "name": "Crash Test",
   "status": "Crash test plugin is running",
   "next": "Simulated crash in {seconds}s (process {pid})",
-  "startup_crash": "Simulated startup crash (happens only once)",
+  "startup_crash": "Simulated startup crash",
   "runtime_crash": "Simulated crash while running",
   "off": "Crash simulation is off",
   "off_detail": "Set \"enabled\": true in config.json in the plugin folder and leave MYTOOLS_CRASH_TEST unset",

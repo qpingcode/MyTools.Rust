@@ -118,7 +118,7 @@ macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚�
 | 字段 | 默认 | 模拟的异常 | MyTools 的表现 |
 | --- | --- | --- | --- |
 | `enabled` | `true` | `false` 关闭全部异常，插件正常运行 | |
-| `startupCrash` | `true` | 第一次启动时在初始化中崩溃，只发生一次（插件目录下的 `startup-crashed` 记录已发生，删除它可再次触发） | 红点“启动过程中退出”，右下角提示，需在设置中重启 |
+| `startupCrash` | `false` | 每次启动都在初始化中崩溃 | 红点“启动过程中退出”，右下角提示；在设置中重启会再次崩溃，改回 `false` 后重启即可恢复 |
 | `startupDelayMs` | `0` | 初始化耗时，每秒报告一次进度 | 黄点并显示进度；超过启动时限（默认 10 秒）则暂停并提示 |
 | `startupError` | `""` | 非空时初始化失败，原因为该文字 | 红点“初始化失败：…”，右下角提示 |
 | `runtimeCrash` | `true` | 就绪后每隔 `crashIntervalSecs` 秒崩溃一次 | 自动重启；60 秒内超过 5 次则停止并提示 |

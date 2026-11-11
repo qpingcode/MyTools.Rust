@@ -5,7 +5,7 @@
 //! | Key | Default | Fault |
 //! | --- | --- | --- |
 //! | `enabled` | `true` | `false` turns every fault off |
-//! | `startupCrash` | `true` | the first start ever crashes during init; the marker file `startup-crashed` beside the executable makes it happen once, delete it to repeat |
+//! | `startupCrash` | `false` | every start crashes during init |
 //! | `startupDelayMs` | `0` | init takes this long, reporting progress each second (past the host's startup timeout the plugin is paused) |
 //! | `startupError` | `""` | non-empty: init fails with this reason |
 //! | `runtimeCrash` | `true` | once ready, the process crashes every `crashIntervalSecs` |
@@ -47,7 +47,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: true,
-            startup_crash: true,
+            startup_crash: false,
             startup_delay_ms: 0,
             startup_error: String::new(),
             runtime_crash: true,
@@ -169,14 +169,7 @@ impl Plugin {
     fn initialize(&mut self) -> SearchResponse {
         let config = &self.config;
         if config.startup_crash {
-            let marker = beside_exe("startup-crashed");
-            if !marker.exists() {
-                let _ = std::fs::write(
-                    &marker,
-                    "The crash test plugin crashed on its first start.\n",
-                );
-                crash(self.catalog.get("startup_crash"));
-            }
+            crash(self.catalog.get("startup_crash"));
         }
         let total = Duration::from_millis(config.startup_delay_ms);
         let started = Instant::now();
@@ -396,8 +389,10 @@ mod tests {
     fn config_file_and_switch_choose_the_faults() {
         let example: Config = serde_json::from_str(include_str!("../config.example.json")).unwrap();
         assert_eq!(example, Config::default());
-        let partial: Config =
-            serde_json::from_str(r#"{"runtimeCrash":false,"pongDelayMs":5000}"#).unwrap();
+        let partial: Config = serde_json::from_str(
+            r#"{"startupCrash":true,"runtimeCrash":false,"pongDelayMs":5000}"#,
+        )
+        .unwrap();
         assert!(partial.startup_crash && !partial.runtime_crash);
         assert_eq!(partial.pong_delay_ms, 5000);
         let switched = Config::with_switch(partial, Some("OFF"));

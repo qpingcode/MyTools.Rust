@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "startupCrash": true,
+  "startupCrash": false,
   "startupDelayMs": 0,
   "startupError": "",
   "runtimeCrash": true,
