@@ -66,7 +66,7 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         if let Some(ui) = weak.upgrade() {
             if ui.get_actions_open() {
                 close_panel(&ui, &mut dismiss_state.borrow_mut());
-            } else {
+            } else if !crate::chat::dismiss(&ui, &dismiss_state.borrow()) {
                 let _ = ui.hide();
             }
         }
@@ -98,6 +98,9 @@ fn wire_execution(ui: &MainWindow, state: &Rc<RefCell<State>>) {
     let result_state = state.clone();
     ui.on_execute(move |index| {
         let Some(ui) = weak.upgrade() else { return };
+        if crate::chat::execute(&ui, &result_state.borrow()) {
+            return;
+        }
         if ui.get_action_busy() || ui.get_searching() {
             return;
         }
@@ -153,10 +156,12 @@ fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         else {
             return;
         };
-        if entry.actions.len() <= 1 {
+        // Enter runs the first action, except in the chat view, where it sends.
+        let first = usize::from(!ui.get_chat_view());
+        if entry.actions.len() <= first {
             return;
         }
-        let snapshot = entry.actions[1..].to_vec();
+        let snapshot = entry.actions[first..].to_vec();
         let rows: Vec<_> = snapshot
             .iter()
             .map(|action| ActionData {
@@ -248,7 +253,7 @@ pub fn sync_selection(ui: &MainWindow, state: &State) {
         .unwrap_or_default();
     let primary = actions.first();
     ui.set_primary_available(primary.is_some());
-    ui.set_actions_available(actions.len() > 1);
+    ui.set_actions_available(actions.len() > usize::from(!ui.get_chat_view()));
     ui.set_primary_title(
         primary
             .map(i18n::action_title)

@@ -79,5 +79,15 @@
   "toast.running": "{command}…",
   "toast.replace": "The result will replace the selected text",
   "toast.show": "The selection can't be edited; the result will open in MyTools",
-  "toast.copy": "The result will be copied to the clipboard"
+  "toast.copy": "The result will be copied to the clipboard",
+  "status.tab": "{status} · Tab: {name}",
+  "chat.thinking": "Thinking…",
+  "chat.empty": "Ask anything. Enter sends, Shift+Enter starts a new line.",
+  "chat.placeholder": "Ask a question…",
+  "chat.placeholder_busy": "Answering… Esc stops",
+  "chat.send": "Send",
+  "chat.stop": "Stop",
+  "chat.copied": "Copied",
+  "chat.copy_code": "Copy code",
+  "chat.busy": "Still answering; press Esc to stop first"
 }

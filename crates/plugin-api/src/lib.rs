@@ -8,6 +8,7 @@ mod actions;
 pub use actions::{ActionId, ActionSpec, Resource};
 pub use icons::Icon;
 pub use views::{PluginActionRequest, PluginEffect, Preview, View};
+pub mod chat;
 pub mod views;
 
 #[derive(Deserialize, Serialize)]
@@ -89,6 +90,12 @@ pub struct SearchResponse {
     /// A status line sent while `init` runs; not a response to any request.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<String>,
+    /// The conversation of a plugin with the `chat` view; see [`chat`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat: Option<Box<chat::Chat>>,
+    /// A changed chat message sent between requests; not a response to any request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update: Option<Box<chat::ChatUpdate>>,
 }
 
 /// A search plugin stays alive and handles one JSON request per line.

@@ -76,12 +76,15 @@ pub struct Catalog {
 pub struct LoadOptions {
     /// How long a plugin may take to start unless its manifest says otherwise.
     pub startup_timeout: std::time::Duration,
+    /// Where chat plugins' updates go; dropped when `None`.
+    pub chat_updates: Option<crate::chat::ChatUpdates>,
 }
 
 impl Default for LoadOptions {
     fn default() -> Self {
         Self {
             startup_timeout: STARTUP_TIMEOUT,
+            chat_updates: None,
         }
     }
 }
@@ -106,6 +109,10 @@ pub struct SearchResults {
     pub partial: Option<(usize, usize)>,
     /// What the plugins were asked: the input without the alias for a scoped search.
     pub query: String,
+    /// The conversation of a plugin with the `chat` view.
+    pub chat: Option<Box<crate::chat::ChatSession>>,
+    /// In global search: the name of the plugin Tab opens.
+    pub tab: Option<String>,
 }
 
 /// How one search runs: retries wait longer, and a newer query cancels the wait.
@@ -204,9 +211,12 @@ impl Catalog {
     pub fn load_with(options: &LoadOptions) -> Self {
         let settings_stamp = settings_stamp();
         let (settings, settings_error) = crate::plugins::load_settings();
-        let board = Arc::new(Board::new(Some(mytools_plugin_api::plugin_status::path(
-            &crate::plugins::settings_path(),
-        ))));
+        let board = Arc::new(
+            Board::new(Some(mytools_plugin_api::plugin_status::path(
+                &crate::plugins::settings_path(),
+            )))
+            .with_chat_updates(options.chat_updates.clone()),
+        );
         let mut catalog = Self {
             plugins: vec![],
             disabled: vec![],
@@ -334,12 +344,24 @@ impl Catalog {
     }
 
     pub fn alias_table(&self) -> AliasTable {
-        AliasTable(
-            self.plugins
+        AliasTable {
+            plugins: self
+                .plugins
                 .iter()
                 .map(|plugin| (plugin.aliases.clone(), plugin.name.clone()))
                 .collect(),
-        )
+            tab: self
+                .tab_plugin()
+                .and_then(|plugin| plugin.aliases.first())
+                .map(|alias| format!("{alias} ")),
+        }
+    }
+
+    /// The plugin Tab opens from global search: the first resident one asking for it.
+    fn tab_plugin(&self) -> Option<&Plugin> {
+        self.plugins
+            .iter()
+            .find(|plugin| plugin.tab && plugin.process.is_some() && !plugin.aliases.is_empty())
     }
 
     pub fn search(&self, input: &str) -> SearchResults {
@@ -363,6 +385,8 @@ impl Catalog {
             waiting: false,
             partial: None,
             query: query.trim().to_owned(),
+            chat: None,
+            tab: None,
         };
         if target.is_none()
             && let (Some(index), _) = route_by(
@@ -428,6 +452,11 @@ impl Catalog {
                 Waited::Response(Ok(response)) => {
                     if target.is_some() {
                         output.revision = response.revision;
+                        if let (Some(chat), Some(process)) = (response.chat, &plugin.process) {
+                            output.chat = Some(Box::new(crate::chat::ChatSession::new(
+                                *chat, &plugin.id, process,
+                            )));
+                        }
                     }
                     if let Some(error) = response.error {
                         log_search(plugin, Level::Warn, "search.error", &error);
@@ -468,6 +497,7 @@ impl Catalog {
             }
         }
         if target.is_none() {
+            output.tab = self.tab_plugin().map(|plugin| plugin.name.clone());
             let (ready, expected) = self.loaded();
             output.partial = (ready < expected).then_some((ready, expected));
         }
@@ -701,12 +731,25 @@ fn route_by<'p, 'a>(
 /// Plugin aliases and names, so the UI thread can name the plugin a query will search
 /// without waiting for the worker that owns the catalog.
 #[derive(Clone, Debug, Default)]
-pub struct AliasTable(Vec<(Vec<String>, String)>);
+pub struct AliasTable {
+    plugins: Vec<(Vec<String>, String)>,
+    /// The scope Tab opens from global search, e.g. `"ai "`.
+    tab: Option<String>,
+}
 
 impl AliasTable {
     pub fn plugin_for(&self, input: &str) -> Option<&str> {
-        let (index, _) = route_by(self.0.iter().map(|(aliases, _)| aliases.as_slice()), input);
-        index.map(|index| self.0[index].1.as_str())
+        let (index, _) = route_by(
+            self.plugins.iter().map(|(aliases, _)| aliases.as_slice()),
+            input,
+        );
+        index.map(|index| self.plugins[index].1.as_str())
+    }
+
+    /// The scope of the plugin that Tab opens from global search (`"search": {"tab":
+    /// true}`), e.g. `"ai "`; the first such plugin wins.
+    pub fn tab_scope(&self) -> Option<&str> {
+        self.tab.as_deref()
     }
 
     /// The alias part of an alias query with the whitespace around it, e.g. `"tr "` of
@@ -876,6 +919,7 @@ mod tests {
             icon: "=".into(),
             aliases: vec!["calc".into(), "计算".into()],
             global: false,
+            tab: false,
             alias_timeout: crate::plugins::ALIAS_TIMEOUT,
             executable: std::env::temp_dir().join("mytools-fixture.exe"),
             process: None,
@@ -994,6 +1038,20 @@ mod tests {
         assert!(!action.needs_selection());
     }
 
+    #[test]
+    fn tab_opens_the_first_resident_tab_plugin() {
+        let mut window = plugin();
+        window.tab = true; // Without a process it cannot chat.
+        let mut chat = with_command(plugin(), None);
+        chat.aliases = vec!["ai".into(), "ask".into()];
+        chat.tab = true;
+        assert_eq!(
+            catalog(vec![window, chat]).alias_table().tab_scope(),
+            Some("ai ")
+        );
+        assert_eq!(catalog(vec![plugin()]).alias_table().tab_scope(), None);
+    }
+
     fn catalog(plugins: Vec<Plugin>) -> Catalog {
         Catalog {
             plugins,
@@ -1020,7 +1078,10 @@ mod tests {
 
     #[test]
     fn alias_table_names_the_routed_plugin_like_search_does() {
-        let table = AliasTable(vec![(vec!["calc".into(), "计算".into()], "计算器".into())]);
+        let table = AliasTable {
+            plugins: vec![(vec!["calc".into(), "计算".into()], "计算器".into())],
+            tab: None,
+        };
         assert_eq!(table.plugin_for(" CALC 1+1"), Some("计算器"));
         assert_eq!(table.plugin_for("计算 2"), Some("计算器"));
         assert_eq!(table.plugin_for("calc"), None);
@@ -1029,7 +1090,10 @@ mod tests {
 
     #[test]
     fn scope_prefix_keeps_the_alias_and_its_whitespace() {
-        let table = AliasTable(vec![(vec!["tr".into()], "Translator".into())]);
+        let table = AliasTable {
+            plugins: vec![(vec!["tr".into()], "Translator".into())],
+            tab: None,
+        };
         assert_eq!(table.scope_prefix("tr hello"), Some("tr "));
         assert_eq!(table.scope_prefix(" TR \n hello\nworld "), Some(" TR \n "));
         assert_eq!(table.scope_prefix("tr "), Some("tr "));

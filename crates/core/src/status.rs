@@ -26,6 +26,8 @@ pub struct Board {
     notices: Mutex<Vec<Notice>>,
     /// Where the state is published; `None` keeps it in memory (tests).
     file: Option<PathBuf>,
+    /// Where chat updates from plugins go.
+    chat_updates: Option<crate::chat::ChatUpdates>,
 }
 
 impl Board {
@@ -33,6 +35,18 @@ impl Board {
         Self {
             file,
             ..Default::default()
+        }
+    }
+
+    pub fn with_chat_updates(mut self, updates: Option<crate::chat::ChatUpdates>) -> Self {
+        self.chat_updates = updates;
+        self
+    }
+
+    /// Hands a plugin's chat update to the UI.
+    pub fn chat_update(&self, id: &str, update: mytools_plugin_api::chat::ChatUpdate) {
+        if let Some(updates) = &self.chat_updates {
+            updates(id, update);
         }
     }
 

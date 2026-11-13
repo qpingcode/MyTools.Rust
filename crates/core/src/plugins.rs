@@ -153,6 +153,9 @@ struct Search {
     /// use the shared one-second limit.
     #[serde(default, rename = "aliasTimeoutMs")]
     alias_timeout_ms: Option<u64>,
+    /// Tab in the main search box opens this plugin's scope with what was typed.
+    #[serde(default)]
+    tab: bool,
 }
 
 /// Default and maximum wait for a search through a plugin's alias.
@@ -202,6 +205,8 @@ pub struct Plugin {
     pub icon: mytools_plugin_api::Icon,
     pub aliases: Vec<String>,
     pub global: bool,
+    /// Opened by Tab from global search; see `AliasTable::tab_scope`.
+    pub tab: bool,
     pub alias_timeout: std::time::Duration,
     pub executable: PathBuf,
     pub process: Option<Arc<SearchProcess>>,
@@ -340,6 +345,7 @@ impl Plugin {
             icon,
             aliases: manifest.alias,
             global: manifest.search.global,
+            tab: manifest.search.tab,
             alias_timeout: alias_timeout(manifest.search.alias_timeout_ms),
             executable,
             process,

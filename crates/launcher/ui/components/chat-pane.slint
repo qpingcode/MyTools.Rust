@@ -1,0 +1,255 @@
+import { ScrollView } from "std-widgets.slint";
+import { I18n } from "../../../../ui/i18n.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { Icon } from "../../../../ui/components/icon.slint";
+import { ChatMessageData, ChatBlock } from "../types.slint";
+
+/// One block of an answer: text, a heading, a quote, or code with a copy button. Wrapped
+/// text needs a fixed width to measure its height, hence `available-width`.
+component ChatBlockView inherits VerticalLayout {
+    in property <ChatBlock> block;
+    in property <length> available-width;
+    in property <brush> text-color: Theme.foreground;
+    callback copy-text(string);
+    callback open-link(string);
+    if root.block.kind == 0 || root.block.kind == 1: StyledText {
+        width: root.available-width;
+        text: root.block.text;
+        default-color: root.text-color;
+        default-font-size: root.block.kind == 1 ? Theme.font-title : Theme.font-body;
+        link-color: Theme.accent;
+        link-clicked(url) => { root.open-link(url); }
+    }
+    if root.block.kind == 3: HorizontalLayout {
+        spacing: 10px;
+        Rectangle { width: 3px; border-radius: 1.5px; background: Theme.border; }
+        StyledText {
+            width: root.available-width - 13px;
+            text: root.block.text;
+            default-color: Theme.muted;
+            default-font-size: Theme.font-body;
+            link-color: Theme.accent;
+            link-clicked(url) => { root.open-link(url); }
+        }
+    }
+    if root.block.kind == 2: Rectangle {
+        width: root.available-width;
+        height: code.preferred-height;
+        background: Theme.preview;
+        border-radius: Theme.radius - 2px;
+        border-width: 1px;
+        border-color: Theme.border;
+        code := VerticalLayout {
+            padding: 10px; padding-top: 4px; spacing: 4px;
+            HorizontalLayout {
+                spacing: 6px;
+                Text {
+                    text: root.block.language; color: Theme.muted;
+                    font-size: Theme.font-caption; vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                Rectangle {
+                    width: 22px; height: 22px; border-radius: 5px;
+                    background: copy-touch.has-hover ? Theme.hover : transparent;
+                    Icon { x: 5px; y: 5px; width: 12px; height: 12px; name: "builtin:copy"; tint: Theme.muted; }
+                    copy-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.copy-text(root.block.plain); }
+                    }
+                    accessible-role: button;
+                    accessible-label: I18n.text("chat.copy_code");
+                    accessible-action-default => { root.copy-text(root.block.plain); }
+                }
+            }
+            Text {
+                width: root.available-width - 20px;
+                text: root.block.plain;
+                color: Theme.foreground;
+                font-size: Theme.font-small;
+                font-family: "Consolas";
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+/// A question, right-aligned in a bubble as wide as its text.
+component UserBubble inherits Rectangle {
+    in property <string> text;
+    in property <length> limit;
+    private property <length> text-width: min(root.limit - 24px, measure.preferred-width + 1px);
+    width: root.text-width + 24px;
+    height: body.preferred-height + 20px;
+    background: Theme.selected;
+    border-radius: Theme.radius + 2px;
+    measure := Text { visible: false; text: root.text; font-size: Theme.font-body; }
+    body := Text {
+        x: 12px; y: 10px; width: root.text-width;
+        text: root.text; color: Theme.foreground; font-size: Theme.font-body;
+        wrap: word-wrap;
+    }
+}
+
+component MessageView inherits VerticalLayout {
+    in property <ChatMessageData> message;
+    in property <length> available-width;
+    callback copy-text(string);
+    callback open-link(string);
+    spacing: 8px;
+    if root.message.user: HorizontalLayout {
+        alignment: end;
+        UserBubble {
+            text: root.message.blocks.length > 0 ? root.message.blocks[0].plain : "";
+            limit: root.available-width * 0.85;
+        }
+    }
+    if !root.message.user: VerticalLayout {
+        spacing: 10px;
+        for block in root.message.blocks: ChatBlockView {
+            block: block;
+            available-width: root.available-width;
+            text-color: root.message.error ? Theme.danger : Theme.foreground;
+            copy-text(text) => { root.copy-text(text); }
+            open-link(url) => { root.open-link(url); }
+        }
+        if root.message.streaming && root.message.blocks.length == 0: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            Image {
+                width: 14px; height: 14px;
+                source: @image-url("../../../../ui/assets/icons/loader-circle.svg");
+                colorize: Theme.muted;
+                transform-rotation: animation-tick() / 1s * 360deg;
+            }
+            Text {
+                text: I18n.text("chat.thinking"); color: Theme.muted;
+                font-size: Theme.font-body; vertical-alignment: center;
+            }
+        }
+        if root.message.streaming && root.message.blocks.length > 0: HorizontalLayout {
+            alignment: start;
+            Rectangle {
+                width: 18px; height: 4px; border-radius: 2px;
+                background: Theme.accent;
+                opacity: 0.4 + 0.6 * abs(Math.sin(animation-tick() / 1s * 180deg));
+            }
+        }
+    }
+}
+
+/// The `chat` view: the conversation, newest at the bottom, and an input for the next
+/// question. Enter sends; Shift+Enter starts a new line.
+export component ChatPane inherits Rectangle {
+    in property <[ChatMessageData]> messages;
+    in-out property <string> text;
+    in property <bool> busy;
+    callback send(string);
+    callback stop();
+    callback copy-text(string);
+    callback open-link(string);
+    public function focus-input() { input.focus(); }
+    /// Shows the newest message when the view follows it, or always with `force` (e.g.
+    /// after the user asked something).
+    public function scroll-to-end(force: bool) {
+        if (force) { root.follow = true; }
+        if (root.follow) {
+            list.viewport-y = min(0px, list.visible-height - list.viewport-height);
+            root.last-y = list.viewport-y;
+            root.last-height = list.viewport-height;
+        }
+    }
+    /// The view follows new text until the user scrolls up.
+    private property <bool> follow: true;
+    private property <length> last-y;
+    private property <length> last-height;
+    private property <length> input-height: clamp(input.preferred-height, Theme.font-body * 1.5, Theme.font-body * 6) + 20px;
+
+    list := ScrollView {
+        x: 0px; y: 0px; width: parent.width;
+        height: parent.height - root.input-height - 20px;
+        viewport-height: max(self.visible-height, column.preferred-height + 32px);
+        viewport-width: self.visible-width;
+        // Only the user scrolling up stops following new text; a view that moves because
+        // the content changed height does not.
+        scrolled => {
+            if (self.viewport-height == root.last-height && self.viewport-y > root.last-y + 2px) {
+                root.follow = false;
+            } else if (self.viewport-y <= self.visible-height - self.viewport-height + 24px) {
+                root.follow = true;
+            }
+            root.last-y = self.viewport-y;
+            root.last-height = self.viewport-height;
+        }
+        changed viewport-height => { root.scroll-to-end(false); }
+        column := VerticalLayout {
+            // Its own height, or the layout would stretch the messages to fill the view.
+            x: 20px; y: 16px; width: list.visible-width - 40px; height: self.preferred-height;
+            spacing: 18px;
+            for message in root.messages: MessageView {
+                message: message;
+                available-width: column.width;
+                copy-text(text) => { root.copy-text(text); }
+                open-link(url) => { root.open-link(url); }
+            }
+        }
+    }
+    if root.messages.length == 0: VerticalLayout {
+        x: 0px; y: 0px; width: parent.width; height: list.height;
+        alignment: center; spacing: 8px;
+        Icon {
+            width: 28px; height: 28px; name: "builtin:sparkles"; tint: Theme.accent;
+            x: (parent.width - self.width) / 2;
+        }
+        Text {
+            text: I18n.text("chat.empty"); color: Theme.muted;
+            font-size: Theme.font-body; horizontal-alignment: center;
+        }
+    }
+    frame := Rectangle {
+        x: 12px; y: parent.height - root.input-height - 10px;
+        width: parent.width - 24px; height: root.input-height;
+        background: Theme.preview;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: input.has-focus ? Theme.control-border : Theme.border;
+        input := TextInput {
+            x: 12px; y: 10px;
+            width: parent.width - 54px; height: parent.height - 20px;
+            text <=> root.text;
+            single-line: false;
+            wrap: word-wrap;
+            color: Theme.foreground;
+            font-size: Theme.font-body;
+            selection-background-color: Theme.selection;
+            key-pressed(event) => {
+                if (event.text == Key.Return && !event.modifiers.shift) {
+                    root.send(self.text);
+                    return accept;
+                }
+                reject
+            }
+        }
+        if root.text == "": Text {
+            x: input.x; y: input.y; width: input.width;
+            text: root.busy ? I18n.text("chat.placeholder_busy") : I18n.text("chat.placeholder");
+            color: Theme.placeholder; font-size: Theme.font-body;
+        }
+        Rectangle {
+            x: parent.width - 34px; y: parent.height - 32px;
+            width: 26px; height: 26px; border-radius: 6px;
+            background: send-touch.has-hover ? Theme.hover : transparent;
+            Icon {
+                x: 6px; y: 6px; width: 14px; height: 14px;
+                name: root.busy ? "builtin:circle-stop" : "builtin:send";
+                tint: root.busy || root.text != "" ? Theme.accent : Theme.disabled;
+            }
+            send-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { if (root.busy) { root.stop(); } else { root.send(root.text); } }
+            }
+            accessible-role: button;
+            accessible-label: root.busy ? I18n.text("chat.stop") : I18n.text("chat.send");
+            accessible-action-default => { if (root.busy) { root.stop(); } else { root.send(root.text); } }
+        }
+    }
+}

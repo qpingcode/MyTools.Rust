@@ -50,6 +50,9 @@ Windows 已进行本机编译和交互验证；macOS 代码和 CI 已配置，�
 - 应用程序插件在 Windows 扫描用户和公共开始菜单、桌面下的 `.lnk` / `.url`，并通过系统 AppsFolder 列出没有快捷方式的商店/MSIX 应用（如 Claude、Windows Terminal），这类应用只能“打开”，没有路径可复制或定位；macOS 扫描 `/Applications`、`/System/Applications`、`~/Applications` 下的 `.app`，最多返回 50 条匹配结果。
 - 按 `Alt+V` 全局打开翻译，自动进入 `tr ` 模式并聚焦输入框；macOS 对应 `Option+V`。可在设置窗口中修改或清空，保存后立即生效。
 - 翻译和格式化使用编辑视图：顶部输入的内容同步到左侧多行输入框，在左侧继续编辑不会改动顶部；右侧显示结果，可以选中复制。`Ctrl+Enter` 执行（翻译、复制），顶部输入框中按 `↓` 进入左侧输入框。
+- 输入问题后按 `Tab` 询问 AI：进入 `ai ` 对话并直接发送；输入框为空时按 `Tab` 开始一个新对话。回答逐字显示，
+  `Enter` 继续提问、`Shift+Enter` 换行，回答进行中按 `Esc` 停止；`Ctrl+K` 复制回答或开始新对话。默认使用 DeepSeek，
+  需要环境变量 `DEEPSEEK_API_KEY`（与翻译相同），配置见 [实用插件](docs/utility-plugins.md)。
 - 按 `Ctrl+Shift+Alt+V` 把剪贴板内容以纯文本粘贴到当前应用，不打开 MyTools 窗口（见“剪贴板历史”）。
 - 在 Teams、网页、Word 等应用中选中文字后按 `Ctrl+Alt+T`（命令“翻译选中文字”，仅 Windows）：选中的文字在输入框中时，
   直接用译文替换；不可编辑（如网页正文、聊天记录）时打开 `tr ` 显示原文和译文。
@@ -128,12 +131,15 @@ crates/
     src/desktop.rs    全局快捷键、窗口激活和拖动
     src/desktop/drag.rs 把文件结果拖到其他应用
     src/commands.rs   按快捷键直接执行插件命令
+    src/chat.rs       对话视图：显示对话、发送输入、应用插件推送的回答
     ui/main.slint     主窗口组合
     ui/components/   搜索框、结果项、状态栏
     ui/tray.slint     Slint 原生托盘菜单
     build.rs          构建时编译 Slint UI
   plugin-api/         搜索插件共用的 JSON 请求、结果和标准输入输出循环
+  ai/                 调用对话模型：OpenAI 兼容接口（整段与流式回复）、DeepSeek 默认值、环境变量与 JSONC 配置
 plugins/
+  ask-ai/             Ask AI：对话视图中与模型对话，Tab 进入
   calculator/         无独立窗口的计算器插件
   applications/       无独立窗口的快捷方式扫描与应用搜索插件
   settings/           设置窗口：插件别名、快捷键与启用状态
@@ -170,8 +176,9 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 | `icon` | 内置 Lucide 名称、文本，或系统图标引用 `{"native":"绝对路径"}` |
 | `alias` | 插件别名，不包含空白；`别名 + 空白 + 搜索词` 只搜索指定插件 |
 | `search.global` | `true` 时参与主列表普通搜索；`false` 时普通搜索不调用该插件，只能通过别名进入 |
+| `search.tab` | 可选，`true` 时在全局搜索中按 Tab 进入该插件（带上已输入的文字），见[插件视图约定](docs/plugin-views.md)的对话视图 |
 | `search.aliasTimeoutMs` | 可选，通过别名单独搜索该插件时的等待上限（毫秒），默认 3000，范围 1000–15000。普通（全局）搜索固定 1 秒，不受此值影响 |
-| `view` | `list`（默认）、`list-detail` 或 `editor`（左侧多行输入、右侧单条结果，见[插件视图约定](docs/plugin-views.md)）；只在该插件的搜索作用域内启用 |
+| `view` | `list`（默认）、`list-detail`、`editor`（左侧多行输入、右侧单条结果）或 `chat`（对话），见[插件视图约定](docs/plugin-views.md)；只在该插件的搜索作用域内启用 |
 | `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；用户可在设置窗口中修改 |
 | `commands` | 可选，插件命令：可被搜索、可绑定全局快捷键，按快捷键时直接执行而不打开窗口，见“插件命令” |
 | `contributes.actions` | 可选，按规则为其他结果追加本插件的动作，见“为其他结果追加动作” |

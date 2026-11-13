@@ -3,6 +3,7 @@
 mod actions;
 mod app;
 mod autostart;
+mod chat;
 mod commands;
 mod config;
 mod desktop;

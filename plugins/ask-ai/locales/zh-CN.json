@@ -1,0 +1,13 @@
+{
+  "name": "询问 AI",
+  "conversation": "当前对话",
+  "new": "新对话",
+  "stop": "停止回答",
+  "busy": "正在回答，请先停止",
+  "missing": "未知命令",
+  "config.error": "无法加载 Ask AI 配置：{error}",
+  "key.missing": "请设置环境变量 DEEPSEEK_API_KEY，然后重新提问。",
+  "failed": "请求失败：{error}",
+  "length": "（回答达到长度上限。）",
+  "stopped": "（已停止。）"
+}

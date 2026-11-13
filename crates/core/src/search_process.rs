@@ -686,6 +686,10 @@ fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
             shared.pong(sequence, response.busy_ms.unwrap_or(0));
             continue;
         }
+        if let Some(update) = response.update {
+            shared.status.board.chat_update(&shared.status.id, *update);
+            continue;
+        }
         if let Some(progress) = response.progress {
             if !shared.ready.load(Ordering::Relaxed) {
                 shared.status.set(State::Starting, Some(progress));
@@ -993,6 +997,42 @@ mod startup_tests {
         let response = reply.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
         assert_eq!(response.items[0].title, "hit");
     }
+
+    #[test]
+    fn chat_updates_between_responses_go_to_the_board() {
+        let board = Arc::new(Board::new(None).with_chat_updates(Some(Arc::new({
+            let seen = std::sync::Mutex::new(());
+            move |id: &str, update: mytools_plugin_api::chat::ChatUpdate| {
+                let _guard = seen.lock().unwrap();
+                assert_eq!(id, "fixture");
+                assert_eq!(update.message.text, "Hel");
+                UPDATES.fetch_add(1, Ordering::SeqCst);
+            }
+        }))));
+        board.register("fixture", State::Idle, None, None);
+        let options = ProcessOptions {
+            id: "fixture".into(),
+            name: "Fixture".into(),
+            startup_timeout: Duration::from_secs(5),
+            board: board.clone(),
+        };
+        let update = r#"{"update":{"chat":"1","index":1,"message":{"role":"assistant","text":"Hel","streaming":true}}}"#;
+        let process = SearchProcess::with_factory(
+            shell(Box::leak(
+                format!(r#"echo '{update}'; echo '{{"ready":true}}'"#).into_boxed_str(),
+            )),
+            options,
+            true,
+        );
+        wait_for(&process, State::Ready);
+        // The update did not take the place of a response.
+        let reply = process.begin("q", SEARCH_TIMEOUT, false).unwrap();
+        let response = reply.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+        assert_eq!(response.items[0].title, "hit");
+        assert_eq!(UPDATES.load(Ordering::SeqCst), 1);
+    }
+
+    static UPDATES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
     #[test]
     fn lazy_plugin_waits_for_activation_and_watchdog_leaves_it_alone() {

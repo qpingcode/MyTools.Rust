@@ -12,6 +12,8 @@ pub enum View {
     /// such as translator. The input mirrors the query after the alias; editing it searches
     /// without changing the search box.
     Editor,
+    /// A conversation with an input under it, e.g. Ask AI; see [`crate::chat`].
+    Chat,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

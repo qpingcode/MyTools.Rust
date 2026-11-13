@@ -1,0 +1,19 @@
+{
+  "id": "ask-ai",
+  "name": {
+    "defaultValue": "Ask AI",
+    "key": "name"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-ask-ai",
+  "icon": "builtin:sparkles",
+  "alias": [
+    "ai"
+  ],
+  "search": {
+    "global": false,
+    "tab": true
+  },
+  "view": "chat"
+}

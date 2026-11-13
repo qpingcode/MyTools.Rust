@@ -6,10 +6,9 @@ license.workspace = true
 
 [dependencies]
 mytools-plugin-api.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+mytools-ai.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_Registry"] }
 windows = { version = "0.61", features = ["Win32_Media_Speech", "Win32_System_Com"] }

@@ -14,6 +14,7 @@ chevron-left
 chevron-right
 chevron-up
 circle-check
+circle-stop
 clipboard
 clock
 code
@@ -56,9 +57,11 @@ power
 puzzle
 refresh-cw
 search
+send
 settings
 shield
 sliders-horizontal
+sparkles
 square-code
 square-terminal
 star

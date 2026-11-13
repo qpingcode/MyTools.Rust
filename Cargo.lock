@@ -3276,6 +3276,7 @@ dependencies = [
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "slint",
@@ -3286,12 +3287,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-ai"
+version = "0.0.1"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mytools-applications"
 version = "0.0.1"
 dependencies = [
  "mytools-plugin-api",
  "serde_json",
  "windows 0.61.3",
+]
+
+[[package]]
+name = "mytools-ask-ai"
+version = "0.0.1"
+dependencies = [
+ "mytools-ai",
+ "mytools-plugin-api",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3468,12 +3489,11 @@ dependencies = [
 name = "mytools-translator"
 version = "0.0.1"
 dependencies = [
+ "mytools-ai",
  "mytools-plugin-api",
- "reqwest",
  "serde",
  "serde_json",
  "windows 0.61.3",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

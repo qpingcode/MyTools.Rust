@@ -11,6 +11,7 @@
 | formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；`Ctrl+Enter` 复制 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
+| Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答或开始新对话 |
 | translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，`Ctrl+Enter` 发起翻译，完成后右侧显示译文，再按 `Ctrl+Enter` 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
@@ -88,6 +89,26 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 
 DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包裹后再解析，仍不合格时自动重试一次，
 再失败则只显示译文。
+
+## Ask AI
+
+在主搜索框输入问题后按 `Tab`，进入 `ai ` 对话并直接发送；输入框为空时按 `Tab` 开始一个空的新对话。
+也可以输入 `ai ` 回到当前对话。对话只保存在插件进程内，重启 MyTools 后清空。
+
+- 回答逐字显示；进行中再按 `Enter` 不会发送，按 `Esc`（或输入框右侧的停止按钮）停止并保留已写出的部分。
+- 回答中的代码块右上角有复制按钮；`Ctrl+K` 中“复制”复制最后一个完整回答的 Markdown 原文，“新对话”清空对话。
+- 每次提问都带上本次对话的全部内容。
+
+密钥与翻译相同，只从环境变量 `DEEPSEEK_API_KEY` 读取；`DEEPSEEK_MODEL` 可覆盖模型。
+需要修改接口地址、模型、系统提示词或回答长度时，将插件目录的 `config.example.json` 复制为 `config.json`
+（`MYTOOLS_ASK_AI_CONFIG` 可指定其他路径），修改后下一次提问生效：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `base_url` | `"https://api.deepseek.com"` | OpenAI 兼容接口根地址，请求 `<base_url>/chat/completions`（流式） |
+| `model` | `"deepseek-flash"` | 模型名称 |
+| `system_prompt` | `""` | 系统提示词，留空使用默认（用提问的语言简洁回答，适当使用 Markdown） |
+| `max_tokens` | `8192` | 一次回答的上限，达到时回答末尾注明“回答达到长度上限” |
 
 ## 快捷文本数据
 

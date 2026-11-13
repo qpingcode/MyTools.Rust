@@ -1,0 +1,13 @@
+{
+  "name": "Ask AI",
+  "conversation": "Current conversation",
+  "new": "New conversation",
+  "stop": "Stop answering",
+  "busy": "An answer is still being written; stop it first",
+  "missing": "Unknown command",
+  "config.error": "Cannot load the Ask AI configuration: {error}",
+  "key.missing": "Set the DEEPSEEK_API_KEY environment variable, then ask again.",
+  "failed": "The request failed: {error}",
+  "length": "(The answer reached the length limit.)",
+  "stopped": "(Stopped.)"
+}

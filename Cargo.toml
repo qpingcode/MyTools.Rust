@@ -3,6 +3,7 @@ members = [
     "crates/launcher",
     "crates/core",
     "crates/plugin-api",
+    "crates/ai",
     "plugins/calculator",
     "plugins/applications",
     "plugins/clipboard",
@@ -20,6 +21,7 @@ members = [
     "plugins/dev-open",
     "plugins/crash-test",
     "plugins/awake",
+    "plugins/ask-ai",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"
@@ -45,6 +47,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 mytools-core = { path = "crates/core" }
 mytools-plugin-api = { path = "crates/plugin-api" }
+mytools-ai = { path = "crates/ai" }
 
 # Line tables keep file and line numbers in backtraces and test failures while skipping the
 # full debug info that dominates link time and PDB size.

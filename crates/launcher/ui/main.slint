@@ -5,12 +5,13 @@ import { SearchBar } from "components/search-bar.slint";
 import { ResultRow } from "components/result-row.slint";
 import { DetailPreview } from "components/detail-preview.slint";
 import { EditorPane } from "components/editor-pane.slint";
+import { ChatPane } from "components/chat-pane.slint";
 import { StatusBar } from "components/status-bar.slint";
 import { ActionPanel } from "components/action-panel.slint";
 import { WindowResizeHandles } from "../../../ui/components/window-resize-handles.slint";
 import { AboutSlint } from "std-widgets.slint";
-import { ResultData, ActionData } from "types.slint";
-export { ResultData, ActionData } from "types.slint";
+import { ResultData, ActionData, ChatMessageData } from "types.slint";
+export { ResultData, ActionData, ChatMessageData, ChatBlock } from "types.slint";
 export { AppTray } from "tray.slint";
 export { RestartDialog } from "restart-dialog.slint";
 export { NoticeWindow, NoticeData } from "notice.slint";
@@ -57,8 +58,14 @@ export component MainWindow inherits Window {
     in property <bool> detail-view;
     /// The `editor` view: a multi-line input beside the first result.
     in property <bool> editor-view;
-    /// What the editor holds: set from the search box, edited without changing it.
+    /// What the editor holds: set from the search box, edited without changing it. The
+    /// chat view's input holds it too.
     in-out property <string> editor-text;
+    /// The `chat` view: a conversation with an input under it.
+    in property <bool> chat-view;
+    in property <[ChatMessageData]> chat-messages;
+    /// An answer is being written; Esc stops it.
+    in property <bool> chat-busy;
     in property <string> preview-title;
     in property <string> preview-text;
     in property <string> preview-metadata;
@@ -66,6 +73,14 @@ export component MainWindow inherits Window {
     callback search(string);
     /// The editor's text changed; searches it after the alias of the search box.
     callback editor-edited(string);
+    /// Sends the chat input as the next question.
+    callback chat-send(string);
+    callback chat-stop();
+    callback copy-text(string);
+    callback open-link(string);
+    /// Tab in the search box: opens the plugin that takes it with what was typed; `false`
+    /// when there is none, or the query is in a plugin's scope.
+    callback tab-pressed() -> bool;
     /// Searches the newest query again, e.g. after an action asked for fresh results.
     callback refresh();
     callback execute(int);
@@ -95,6 +110,8 @@ export component MainWindow inherits Window {
     public function focus-search-select-all() { search-bar.focus-input-select-all(); }
     public function focus-search-at-end() { search-bar.focus-input-at-end(); }
     public function focus-editor() { editor.focus-input(); }
+    public function focus-chat() { chat.focus-input(); }
+    public function chat-scroll-to-end(force: bool) { chat.scroll-to-end(force); }
     public function reset-scroll() { list.content-y = 0px; }
 
     keyboard := FocusScope {
@@ -108,6 +125,10 @@ export component MainWindow inherits Window {
                     && (event.modifiers.control || event.modifiers.meta)) {
                 root.execute(root.selected);
                 return accept;
+            }
+            if (event.text == Key.Tab && !event.modifiers.shift && !event.modifiers.control
+                    && !root.editor-view && !root.chat-view && !root.actions-open) {
+                if (root.tab-pressed()) { return accept; }
             }
             if (root.actions-open) {
                 if (event.text == Key.UpArrow) { root.navigate-action(-1); return accept; }
@@ -125,10 +146,15 @@ export component MainWindow inherits Window {
                 query <=> root.query;
                 loading: root.show-loading;
                 edited(query) => { root.search(query); }
-                accepted => { root.execute(root.selected); }
+                accepted => {
+                    if (root.chat-view) { root.chat-send(root.editor-text); }
+                    else { root.execute(root.selected); }
+                }
                 // With a single result, Down moves into the editor instead.
                 navigate(delta) => {
-                    if (root.editor-view && delta > 0) {
+                    if (root.chat-view) {
+                        if (delta > 0) { chat.focus-input(); }
+                    } else if (root.editor-view && delta > 0) {
                         editor.focus-input();
                     } else {
                         root.navigate(delta);
@@ -137,7 +163,7 @@ export component MainWindow inherits Window {
                 drag-requested => { root.drag-requested(); }
             }
             list := Flickable {
-                visible: !root.editor-view;
+                visible: !root.editor-view && !root.chat-view;
                 x: 1px; y: Theme.search-height + 1px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px;
                 height: parent.height - Theme.search-height - Theme.status-height - 2px;
                 content-width: self.width;
@@ -172,7 +198,20 @@ export component MainWindow inherits Window {
                 empty-text: root.searching ? "" : root.empty-text;
                 edited(text) => { root.editor-edited(text); }
             }
-            if root.results.length == 0 && !root.searching && !root.editor-view: Text {
+            chat := ChatPane {
+                y: Theme.search-height;
+                width: parent.width;
+                height: parent.height - Theme.search-height - Theme.status-height;
+                visible: root.chat-view;
+                messages: root.chat-messages;
+                busy: root.chat-busy;
+                text <=> root.editor-text;
+                send(text) => { root.chat-send(text); }
+                stop => { root.chat-stop(); }
+                copy-text(text) => { root.copy-text(text); }
+                open-link(url) => { root.open-link(url); }
+            }
+            if root.results.length == 0 && !root.searching && !root.editor-view && !root.chat-view: Text {
                 x: 28px; y: Theme.search-height + 20px; text: root.empty-text;
                 color: Theme.muted; font-size: Theme.font-body;
             }
@@ -185,7 +224,7 @@ export component MainWindow inherits Window {
                 loading: root.show-loading;
                 primary-title: root.primary-title;
                 shortcut-label: root.shortcut-label;
-                primary-shortcut: root.editor-view ? "Ctrl+Enter" : "Enter";
+                primary-shortcut: root.editor-view ? "Ctrl+Enter" : root.chat-view && root.chat-busy ? "Esc" : "Enter";
                 actions-available: root.actions-available && !root.searching;
                 primary-available: root.primary-available && !root.searching;
                 busy: root.action-busy;

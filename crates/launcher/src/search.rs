@@ -256,6 +256,16 @@ impl QuerySender {
             .map(str::to_owned)
     }
 
+    /// The scope Tab opens from global search, e.g. `"ai "`.
+    pub fn tab_scope(&self) -> Option<String> {
+        self.aliases
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()?
+            .tab_scope()
+            .map(str::to_owned)
+    }
+
     pub fn send(&self, query: Query) {
         self.latest.store(query.generation, Ordering::SeqCst);
         let _ = self.requests.send(Some(query));

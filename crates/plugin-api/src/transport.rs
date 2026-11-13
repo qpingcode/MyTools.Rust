@@ -33,6 +33,8 @@ type Output = Arc<Mutex<Box<dyn Write + Send>>>;
 type InitHandler = Box<dyn FnOnce() -> Result<(), String> + Send>;
 
 static INIT: Mutex<Option<InitHandler>> = Mutex::new(None);
+/// Where [`push`] writes: the output of the running transport.
+static OUTPUT: Mutex<Option<Output>> = Mutex::new(None);
 
 thread_local! {
     static CURRENT: RefCell<Option<Current>> = const { RefCell::new(None) };
@@ -63,6 +65,15 @@ pub fn progress(message: &str) {
             );
         }
     });
+}
+
+/// Writes a line that answers no request, e.g. a chat update, from any thread. Lines are
+/// written whole, so they never interleave with responses. Does nothing before `serve`.
+pub(crate) fn push(response: SearchResponse) {
+    let output = OUTPUT.lock().unwrap().clone();
+    if let Some(output) = output {
+        let _ = write_line(&output, &response);
+    }
 }
 
 fn initialize(output: &Output) -> SearchResponse {
@@ -134,6 +145,7 @@ pub(crate) fn run(
     handle: impl Fn(SearchRequest) -> SearchResponse,
 ) -> io::Result<()> {
     let output: Output = Arc::new(Mutex::new(Box::new(output)));
+    *OUTPUT.lock().unwrap() = Some(output.clone());
     let queue = Arc::new(Queue {
         jobs: Mutex::new(VecDeque::new()),
         ready: Condvar::new(),

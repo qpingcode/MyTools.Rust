@@ -36,7 +36,7 @@ export component ToastWindow inherits Window {
                 source: BuiltinIcons.lookup("builtin:loader-circle");
                 colorize: Theme.accent;
                 // One turn per second while the window is up.
-                rotation-angle: animation-tick() / 1s * 360deg;
+                transform-rotation: animation-tick() / 1s * 360deg;
                 accessible-role: none;
             }
         }

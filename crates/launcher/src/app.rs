@@ -20,14 +20,17 @@ pub(crate) struct State {
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,
+    pub chat: crate::chat::ChatState,
 }
 
 pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let config = config::load();
-    let load_options = config
+    let mut load_options = config
         .as_ref()
         .map(config::Config::load_options)
         .unwrap_or_default();
+    let (chat_updates, chat_receiver) = crate::chat::updates();
+    load_options.chat_updates = Some(chat_updates);
     let requested = config
         .as_ref()
         .map(|config| config.language.as_str())
@@ -123,6 +126,18 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let desktop: Rc<RefCell<Option<desktop::Desktop>>> = Rc::default();
     wire_search(&ui, &state, &worker);
     actions::wire(&ui, &state);
+    crate::chat::wire(&ui, &state, &worker.sender());
+    let weak = ui.as_weak();
+    let chat_state = state.clone();
+    let _chat_updates = slint::spawn_local(async move {
+        while let Ok((plugin, update)) = chat_receiver.recv().await {
+            let Some(ui) = weak.upgrade() else { break };
+            let refresh = crate::chat::update(&ui, &mut chat_state.borrow_mut(), &plugin, update);
+            if refresh {
+                ui.invoke_refresh();
+            }
+        }
+    })?;
     let tray_controller = tray::Controller::new(&tray, &ui)?;
     let weak_about = about.as_weak();
     ui.on_show_license(move || {
@@ -297,11 +312,12 @@ fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String
 fn apply_results(
     ui: &MainWindow,
     state: &mut State,
-    results: SearchResults,
+    mut results: SearchResults,
     icons: &icons::Loader,
 ) {
     ui.set_detail_view(results.view == mytools_plugin_api::View::ListDetail);
     ui.set_editor_view(results.view == mytools_plugin_api::View::Editor);
+    crate::chat::apply(ui, state, &mut results);
     actions::close_panel(ui, state);
     let empty_text = empty_text(&results);
     let mut errors = results.errors;
@@ -310,13 +326,17 @@ fn apply_results(
     let status = if !errors.is_empty() {
         errors.join("；")
     } else if let Some(name) = results.plugin_name {
-        i18n::format(
-            "status.plugin",
-            &[
-                ("name", &name),
-                ("count", &results.entries.len().to_string()),
-            ],
-        )
+        if results.view == mytools_plugin_api::View::Chat {
+            name
+        } else {
+            i18n::format(
+                "status.plugin",
+                &[
+                    ("name", &name),
+                    ("count", &results.entries.len().to_string()),
+                ],
+            )
+        }
     } else if let Some((ready, total)) = results.partial {
         i18n::format(
             "status.partial",
@@ -331,6 +351,11 @@ fn apply_results(
             "status.ready",
             &[("count", &results.entries.len().to_string())],
         )
+    };
+    // Global search tells where Tab goes.
+    let status = match (&results.tab, errors.is_empty()) {
+        (Some(name), true) => i18n::format("status.tab", &[("status", &status), ("name", name)]),
+        _ => status,
     };
     let rows: Vec<_> = results
         .entries
@@ -362,6 +387,7 @@ fn apply_results(
     state.entries = results.entries;
     ui.set_selected(selected);
     actions::sync_selection(ui, state);
+    crate::chat::sync_primary(ui, state);
     ui.set_results(Rc::new(VecModel::from(rows)).into());
     ui.set_empty_text(empty_text.into());
     ui.set_failed(!errors.is_empty());
@@ -421,6 +447,8 @@ mod tests {
             waiting: false,
             partial: None,
             query: query.into(),
+            chat: None,
+            tab: None,
         }
     }
 

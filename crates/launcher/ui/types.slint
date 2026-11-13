@@ -13,3 +13,24 @@ export struct ResultData {
 }
 
 export struct ActionData { title: string, icon: string }
+
+/// A block of a chat message: text (0), a heading (1), code (2) or a quote (3).
+export struct ChatBlock {
+    kind: int,
+    /// The block as styled text, for every kind but code.
+    text: styled-text,
+    /// Plain text: the code of a code block, the text to copy otherwise.
+    plain: string,
+    /// A code block's language, e.g. "rust"; may be empty.
+    language: string,
+}
+
+export struct ChatMessageData {
+    /// From the user; otherwise from the assistant.
+    user: bool,
+    blocks: [ChatBlock],
+    /// The answer is still being written.
+    streaming: bool,
+    /// The answer failed; its text says why.
+    error: bool,
+}
