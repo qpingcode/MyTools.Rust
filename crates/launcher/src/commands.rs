@@ -1,21 +1,67 @@
 //! Plugin commands run by their global shortcut: the launcher window stays as it is, the
 //! result goes to the application that was in front, and problems appear as notices.
-use crate::{desktop, i18n, notices::Notifier};
+//!
+//! Commands that work on the selection (such as translating it) first read the text selected
+//! in that application. When it is editable the result replaces it; otherwise the plugin's
+//! scope opens with the selected text, so the result shows in the launcher.
+use crate::{MainWindow, desktop, i18n, notices::Notifier};
 use anyhow::Result;
 use mytools_core::{Action, ActionEffect, Notice};
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
-/// Runs a command for its shortcut. Call it on the UI thread as soon as the shortcut fires,
+/// Where a command was started.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Origin {
+    /// Its global shortcut, with another application in front.
+    Shortcut,
+    /// A search result; the launcher hid itself first.
+    Launcher,
+}
+
+struct Context {
+    window: slint::Weak<MainWindow>,
+    notifier: Rc<Notifier>,
+}
+
+thread_local! {
+    static CONTEXT: RefCell<Option<Context>> = const { RefCell::new(None) };
+}
+
+/// Gives commands the window they may open and where to report problems.
+pub fn init(ui: &MainWindow, notifier: Rc<Notifier>) {
+    use slint::ComponentHandle;
+    CONTEXT.with_borrow_mut(|context| {
+        *context = Some(Context {
+            window: ui.as_weak(),
+            notifier,
+        })
+    });
+}
+
+/// Runs a command on the UI thread. For a shortcut, call it as soon as the shortcut fires,
 /// so the application in front is still the one to paste into.
-pub fn run(action: Action, notifier: &Rc<Notifier>) {
-    desktop::remember_target();
-    let notifier = notifier.clone();
+pub fn run(action: Action, origin: Origin) {
+    if origin == Origin::Shortcut {
+        desktop::remember_target();
+    }
+    let Some((window, notifier)) = CONTEXT.with_borrow(|context| {
+        context
+            .as_ref()
+            .map(|context| (context.window.clone(), context.notifier.clone()))
+    }) else {
+        return;
+    };
     let spawned = slint::spawn_local(async move {
-        if let Err(error) = execute(&action).await {
+        let result = if action.needs_selection() {
+            run_on_selection(&action, origin, &window).await
+        } else {
+            execute(&action).await
+        };
+        if let Err(error) = result {
             let command = action.title.clone().unwrap_or_default();
             mytools_plugin_api::log::warn(
                 "command.failed",
-                format!("shortcut command {command} failed: {error:#}"),
+                format!("command {command} failed: {error:#}"),
             );
             notifier.show(vec![Notice {
                 title: i18n::format("notice.command", &[("command", &command)]),
@@ -28,17 +74,31 @@ pub fn run(action: Action, notifier: &Rc<Notifier>) {
     }
 }
 
-async fn execute(action: &Action) -> Result<()> {
+/// Runs `work` on its own thread, e.g. a plugin that may still be starting.
+async fn background<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
     let (sender, finished) = async_channel::bounded(1);
-    let worker = action.clone();
-    // The plugin may still be starting, so wait off the UI thread.
     std::thread::spawn(move || {
-        let _ = sender.send_blocking(worker.execute());
+        let _ = sender.send_blocking(work());
     });
-    let effect = finished
+    finished
         .recv()
         .await
-        .map_err(|_| anyhow::anyhow!(i18n::t("status.command_lost")))??;
+        .map_err(|_| anyhow::anyhow!(i18n::t("status.command_lost")))?
+}
+
+async fn wait(duration: Duration) -> Result<()> {
+    background(move || {
+        std::thread::sleep(duration);
+        Ok(())
+    })
+    .await
+}
+
+async fn execute(action: &Action) -> Result<()> {
+    let worker = action.clone();
+    let effect = background(move || worker.execute()).await?;
     match effect {
         ActionEffect::Plugin(effect) => {
             if let Some(text) = effect.copy_text {
@@ -52,4 +112,94 @@ async fn execute(action: &Action) -> Result<()> {
         ActionEffect::Completed | ActionEffect::Retry(_) => {}
     }
     Ok(())
+}
+
+async fn run_on_selection(
+    action: &Action,
+    origin: Origin,
+    window: &slint::Weak<MainWindow>,
+) -> Result<()> {
+    if origin == Origin::Launcher {
+        // Give the application its focus back, so its selection is the current one again.
+        desktop::activate_target()?;
+        wait(Duration::from_millis(150)).await?;
+    }
+    let selection = background(desktop::selection::capture).await?;
+    let text = selection.text.trim().to_owned();
+    let result = if text.is_empty() {
+        Err(anyhow::anyhow!(i18n::t("selection.empty")))
+    } else {
+        let worker = action.with_item(text.clone());
+        background(move || worker.execute()).await
+    };
+    let effect = match result {
+        Ok(ActionEffect::Plugin(effect)) => effect,
+        Ok(_) => return restore(selection.previous_clipboard),
+        Err(error) => {
+            restore(selection.previous_clipboard)?;
+            return Err(error);
+        }
+    };
+    let Some(output) = effect.copy_text else {
+        return restore(selection.previous_clipboard);
+    };
+    if !effect.paste {
+        return Ok(arboard::Clipboard::new()?.set_text(output)?);
+    }
+    if selection.editable && desktop::target_in_front() {
+        // What the user had copied comes back once the result was pasted.
+        let previous = match selection.previous_clipboard {
+            Some(previous) => previous,
+            None => arboard::Clipboard::new()?.get_text().ok(),
+        };
+        set_private(desktop::selection::replacement(&selection.text, &output))?;
+        let pasted = desktop::paste_into_target().await;
+        wait(Duration::from_millis(500)).await?;
+        restore(Some(previous))?;
+        return pasted;
+    }
+    restore(selection.previous_clipboard)?;
+    match action.selection_scope() {
+        Some(scope) => open_scope(window, scope, &text),
+        None => arboard::Clipboard::new()?.set_text(output)?,
+    }
+    Ok(())
+}
+
+/// Shows the plugin's scope with `text` in its input, as if typed there.
+fn open_scope(window: &slint::Weak<MainWindow>, scope: &str, text: &str) {
+    let Some(ui) = window.upgrade() else {
+        return;
+    };
+    desktop::show(&ui);
+    ui.set_query(scope.into());
+    ui.invoke_search(scope.into());
+    ui.set_editor_text(text.into());
+    ui.invoke_editor_edited(text.into());
+}
+
+/// Sets text that clipboard histories (Windows' and the clipboard plugin's) should skip.
+fn set_private(text: String) -> Result<()> {
+    let mut clipboard = arboard::Clipboard::new()?;
+    #[cfg(windows)]
+    {
+        use arboard::SetExtWindows;
+        clipboard
+            .set()
+            .exclude_from_monitoring()
+            .exclude_from_history()
+            .text(text)?;
+    }
+    #[cfg(not(windows))]
+    clipboard.set_text(text)?;
+    Ok(())
+}
+
+/// Puts back the clipboard text from before the selection was read, if it was changed.
+fn restore(previous: Option<Option<String>>) -> Result<()> {
+    match previous {
+        Some(Some(text)) => set_private(text),
+        // It held no text (e.g. an image); leave what is there.
+        Some(None) | None => Ok(()),
+    }
 }

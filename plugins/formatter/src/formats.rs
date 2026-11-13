@@ -1,10 +1,34 @@
-pub fn format(format: &str, input: &str) -> Result<String, String> {
+//! JSON and XML pretty-printing; the format is recognized from the text itself.
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Format {
+    Json,
+    Xml,
+}
+
+/// The format a document is written in, from its first character: JSON objects and arrays
+/// start with `{` or `[`, XML with `<`. Anything else (including bare JSON values, which
+/// have nothing to indent) is not recognized.
+pub fn detect(input: &str) -> Option<Format> {
+    match input
+        .trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+        .chars()
+        .next()?
+    {
+        '{' | '[' => Some(Format::Json),
+        '<' => Some(Format::Xml),
+        _ => None,
+    }
+}
+
+pub fn format(format: Format, input: &str) -> Result<String, String> {
     let result = match format {
-        "json" => serde_json::from_str::<serde_json::Value>(input)
-            .and_then(|value| serde_json::to_string_pretty(&value))
-            .map_err(|e| e.to_string()),
-        "xml" => xml(input),
-        _ => Err("json / xml".into()),
+        Format::Json => {
+            serde_json::from_str::<serde_json::Value>(input.trim_start_matches('\u{feff}'))
+                .and_then(|value| serde_json::to_string_pretty(&value))
+                .map_err(|e| e.to_string())
+        }
+        Format::Xml => xml(input.trim_start_matches('\u{feff}')),
     }?;
     if result.len() > 128 * 1024 {
         return Err("128 KiB".into());
@@ -54,38 +78,48 @@ fn xml(input: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recognizes_the_format_from_the_first_character() {
+        assert_eq!(detect("  \n{\"a\":1}"), Some(Format::Json));
+        assert_eq!(detect("[1,2]"), Some(Format::Json));
+        assert_eq!(detect("\u{feff}<a/>"), Some(Format::Xml));
+        assert_eq!(detect("<?xml version=\"1.0\"?><a/>"), Some(Format::Xml));
+        for other in ["", "   ", "json {}", "123", "\"text\"", "a: b"] {
+            assert_eq!(detect(other), None, "{other}");
+        }
+    }
+
     #[test]
     fn formats_and_rejects_invalid_documents() {
-        let json = format("json", r#"{"a":[1,2]}"#).unwrap();
+        let json = format(Format::Json, r#"{"a":[1,2]}"#).unwrap();
         assert!(json.contains('\n'));
-        assert_eq!(format("json", &json).unwrap(), json);
+        assert_eq!(format(Format::Json, &json).unwrap(), json);
         assert_eq!(
             format(
-                "json",
+                Format::Json,
                 r#"{"z":123456789012345678901234567890,"a":0.12345678901234567890}"#
             )
             .unwrap(),
             "{\n  \"z\": 123456789012345678901234567890,\n  \"a\": 0.12345678901234567890\n}"
         );
-        assert!(format("json", "{broken}").is_err());
-        assert!(format("xml", "<a><b></a>").is_err());
-        assert!(format("xml", "<a/><b/>").is_err());
+        assert!(format(Format::Json, "\u{feff}{}").is_ok());
+        assert!(format(Format::Json, "{broken}").is_err());
+        assert!(format(Format::Xml, "<a><b></a>").is_err());
+        assert!(format(Format::Xml, "<a/><b/>").is_err());
         assert!(
-            format("xml", "<a><b>1</b><c/></a>")
+            format(Format::Xml, "<a><b>1</b><c/></a>")
                 .unwrap()
                 .contains("\n  <b>")
         );
         assert_eq!(
-            format("xml", "<p>Hello <b>world</b> !</p>").unwrap(),
+            format(Format::Xml, "<p>Hello <b>world</b> !</p>").unwrap(),
             "<p>Hello <b>world</b> !</p>"
         );
         assert!(
-            format("xml", "<a><b> </b></a>")
+            format(Format::Xml, "<a><b> </b></a>")
                 .unwrap()
                 .contains("<b> </b>")
         );
-        for removed in ["json-min", "yaml", "yml", "toml"] {
-            assert!(format(removed, "{}").is_err());
-        }
     }
 }

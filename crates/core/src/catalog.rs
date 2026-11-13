@@ -351,28 +351,7 @@ impl Catalog {
         crate::commands::bindings(&self.plugins)
     }
 
-    /// Lists the commands of every plugin for input such as `>paste`.
-    fn search_commands(&self, query: &str) -> SearchResults {
-        use mytools_plugin_api::matching::{normalize, tier};
-        let mut entries = crate::commands::entries(&self.plugins, query);
-        entries.sort_by_cached_key(|entry| (tier(&entry.name, query), normalize(&entry.name)));
-        SearchResults {
-            entries,
-            errors: self.errors.clone(),
-            plugin_name: Some(i18n::t("command.scope")),
-            view: Default::default(),
-            revision: None,
-            cancelled: false,
-            waiting: false,
-            partial: None,
-            query: query.into(),
-        }
-    }
-
     pub fn search_with(&self, input: &str, options: &SearchOptions) -> SearchResults {
-        if let Some(query) = crate::commands::command_query(input) {
-            return self.search_commands(query);
-        }
         let (target, query) = route(&self.plugins, input);
         let mut output = SearchResults {
             entries: vec![],
@@ -729,6 +708,16 @@ impl AliasTable {
         let (index, _) = route_by(self.0.iter().map(|(aliases, _)| aliases.as_slice()), input);
         index.map(|index| self.0[index].1.as_str())
     }
+
+    /// The alias part of an alias query with the whitespace around it, e.g. `"tr "` of
+    /// `"tr hello"`, so the rest can be edited on its own; `None` for global search.
+    pub fn scope_prefix<'a>(&self, input: &'a str) -> Option<&'a str> {
+        self.plugin_for(input)?;
+        let alias_start = input.len() - input.trim_start().len();
+        let alias_end = alias_start + input[alias_start..].find(char::is_whitespace)?;
+        let query_start = input.len() - input[alias_end..].trim_start().len();
+        Some(&input[..query_start])
+    }
 }
 
 fn eligible(index: usize, global: bool, target: Option<usize>) -> bool {
@@ -905,12 +894,13 @@ mod tests {
             keywords: vec!["纯文本".into()],
             icon: "builtin:type".into(),
             hotkey: hotkey.map(str::to_owned),
+            input: Default::default(),
         }];
         plugin
     }
 
     #[test]
-    fn commands_are_found_by_title_keyword_or_prefix_without_their_plugin() {
+    fn commands_are_found_by_title_or_keyword_without_their_plugin() {
         let mut clipboard = with_command(plugin(), Some("Ctrl+Shift+Alt+V"));
         clipboard.id = "clipboard".into();
         clipboard.name = "Clipboard".into();
@@ -930,10 +920,8 @@ mod tests {
             );
         }
         assert!(catalog.search("").entries.is_empty());
-        let listed = catalog.search(">");
-        assert_eq!(listed.entries.len(), 1);
-        assert_eq!(listed.plugin_name, Some(i18n::t("command.scope")));
-        assert!(catalog.search(">zzz").entries.is_empty());
+        // `>` is not the host's: it opens no command scope and is left to plugin aliases.
+        assert_eq!(catalog.search("> ").plugin_name, None);
         // Like a Raycast command's own view, a plugin's scope holds only its results.
         for input in ["cb ", "cb paste"] {
             let scoped = catalog.search(input);
@@ -985,6 +973,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn selection_commands_carry_their_scope_until_given_the_text() {
+        let mut plugin = with_command(plugin(), Some("Ctrl+Alt+T"));
+        plugin.commands[0].input = mytools_plugin_api::commands::CommandInput::Selection;
+        let bindings = catalog(vec![plugin]).hotkeys();
+        let crate::commands::HotkeyTarget::Command(action) = &bindings[0].target else {
+            panic!("a command shortcut");
+        };
+        assert!(action.needs_selection());
+        assert_eq!(action.selection_scope(), Some("calc "));
+        let given = action.with_item("hello".into());
+        assert!(!given.needs_selection());
+        assert_eq!(given.selection_scope(), None);
+        let plain = with_command(super::tests::plugin(), Some("Ctrl+Alt+V"));
+        let bindings = catalog(vec![plain]).hotkeys();
+        let crate::commands::HotkeyTarget::Command(action) = &bindings[0].target else {
+            panic!("a command shortcut");
+        };
+        assert!(!action.needs_selection());
+    }
+
     fn catalog(plugins: Vec<Plugin>) -> Catalog {
         Catalog {
             plugins,
@@ -1016,6 +1025,16 @@ mod tests {
         assert_eq!(table.plugin_for("计算 2"), Some("计算器"));
         assert_eq!(table.plugin_for("calc"), None);
         assert_eq!(table.plugin_for("other 1"), None);
+    }
+
+    #[test]
+    fn scope_prefix_keeps_the_alias_and_its_whitespace() {
+        let table = AliasTable(vec![(vec!["tr".into()], "Translator".into())]);
+        assert_eq!(table.scope_prefix("tr hello"), Some("tr "));
+        assert_eq!(table.scope_prefix(" TR \n hello\nworld "), Some(" TR \n "));
+        assert_eq!(table.scope_prefix("tr "), Some("tr "));
+        assert_eq!(table.scope_prefix("tr"), None);
+        assert_eq!(table.scope_prefix("hello tr"), None);
     }
 
     #[test]

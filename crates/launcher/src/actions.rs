@@ -191,11 +191,17 @@ fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
 }
 
 pub fn close_panel(ui: &MainWindow, state: &mut State) {
+    let was_open = ui.get_actions_open();
     state.panel = None;
     ui.set_actions_open(false);
     ui.set_actions(ModelRc::default());
     ui.set_selected_action(0);
-    ui.invoke_focus_search();
+    // Searches close the panel too: typing in the editor must keep its focus there.
+    if !ui.get_editor_view() {
+        ui.invoke_focus_search();
+    } else if was_open {
+        ui.invoke_focus_editor();
+    }
 }
 
 pub fn sync_selection(ui: &MainWindow, state: &State) {
@@ -252,6 +258,12 @@ pub fn sync_selection(ui: &MainWindow, state: &State) {
 }
 
 fn start_action(ui: &MainWindow, action: Action) {
+    // It works on the application behind the launcher, so give that its focus back.
+    if action.needs_selection() {
+        let _ = ui.hide();
+        crate::commands::run(action, crate::commands::Origin::Launcher);
+        return;
+    }
     ui.set_action_status(
         i18n::format(
             "actions.running",
@@ -281,7 +293,7 @@ fn start_action(ui: &MainWindow, action: Action) {
                 }
                 ActionEffect::Retry(attempt) => {
                     crate::search::request_retry(attempt);
-                    ui.invoke_search(ui.get_query());
+                    ui.invoke_refresh();
                     Ok(i18n::t("status.retrying"))
                 }
                 ActionEffect::Plugin(effect) => {
@@ -292,7 +304,7 @@ fn start_action(ui: &MainWindow, action: Action) {
                         desktop::paste(&ui)?;
                     }
                     if effect.refresh {
-                        ui.invoke_search(ui.get_query());
+                        ui.invoke_refresh();
                     }
                     if effect.dismiss && ui.get_query() == query {
                         ui.hide()?;

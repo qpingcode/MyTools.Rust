@@ -1,12 +1,15 @@
 use crate::{
     i18n, runner,
     store::{Script, Store},
+    terminal,
 };
 use mytools_plugin_api::{
     PluginActionRequest, PluginEffect, Resource, SearchItem, SearchResponse, matching, text,
 };
 
-pub fn search(store: &Store, query: &str) -> anyhow::Result<SearchResponse> {
+/// Scripts matching `query`. After an alias (`scoped`), e.g. `> podman ps`, the query can
+/// also be run as a command in a terminal; see [`terminal_item`].
+pub fn search(store: &Store, query: &str, scoped: bool) -> anyhow::Result<SearchResponse> {
     // "Manage Scripts" is the manifest command `manage`, which the launcher lists itself.
     let mut items = vec![];
     let mut scripts: Vec<_> = store
@@ -26,8 +29,15 @@ pub fn search(store: &Store, query: &str) -> anyhow::Result<SearchResponse> {
             script.id.clone(),
         )
     });
+    let exact = scripts
+        .iter()
+        .take_while(|script| exact_match(script, query))
+        .count();
     for script in scripts.into_iter().take(49) {
         items.push(item(&script));
+    }
+    if scoped && let Some(command) = terminal_item(query) {
+        items.insert(exact.min(items.len()), command);
     }
     let mut bytes = 0;
     items.retain(|item| {
@@ -38,6 +48,34 @@ pub fn search(store: &Store, query: &str) -> anyhow::Result<SearchResponse> {
         items,
         ..Default::default()
     })
+}
+
+/// A script whose alias or name is exactly the query stays above the terminal command, so
+/// `> dev` still runs the script `dev` first.
+fn exact_match(script: &Script, query: &str) -> bool {
+    let query = matching::normalize(query);
+    (!script.alias.is_empty() && matching::normalize(&script.alias) == query)
+        || matching::normalize(&script.name) == query
+}
+
+/// Runs the typed text, e.g. `podman ps`, in a terminal window that stays open.
+fn terminal_item(query: &str) -> Option<SearchItem> {
+    let command = query.trim();
+    if command.is_empty() {
+        return None;
+    }
+    let mut item = text::item(command, command.to_owned(), i18n::t("terminal.description"));
+    item.icon = Some("builtin:chevron-right".into());
+    item.resource = Resource::PluginItem {
+        id: format!("terminal:{command}"),
+    };
+    let action = |name: &str, title: &str| text::command(name, i18n::t(title)).with_item(command);
+    let mut actions = vec![action("terminal", "terminal.run")];
+    if cfg!(windows) {
+        actions.push(action("terminal-admin", "admin"));
+    }
+    item.actions = Some(actions);
+    Some(item)
 }
 
 fn item(script: &Script) -> SearchItem {
@@ -71,6 +109,8 @@ pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<Pl
             dismiss: true,
             ..Default::default()
         });
+    } else if let Some(admin) = terminal_command(&request.command) {
+        terminal::run(item, admin)?;
     } else {
         let script = store
             .load()?
@@ -88,6 +128,15 @@ pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<Pl
         ..Default::default()
     })
 }
+/// Whether `command` runs a terminal command, and if so whether elevated.
+fn terminal_command(command: &str) -> Option<bool> {
+    match command {
+        "terminal" => Some(false),
+        "terminal-admin" => Some(true),
+        _ => None,
+    }
+}
+
 fn open_manager(id: Option<&str>) -> anyhow::Result<()> {
     let mut command = std::process::Command::new(std::env::current_exe()?);
     command.arg("--manage");
@@ -120,7 +169,7 @@ mod tests {
             mode: Default::default(),
         };
         store.update(script.clone(), None).unwrap();
-        let items = search(&store, "dev").unwrap().items;
+        let items = search(&store, "dev", false).unwrap().items;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].resource, Resource::PluginItem { id: script.id });
         assert_eq!(
@@ -136,10 +185,56 @@ mod tests {
                 .any(|action| action.command.as_deref() == Some("admin")),
             cfg!(windows)
         );
-        assert_eq!(search(&store, "开发").unwrap().items.len(), 1);
+        assert_eq!(search(&store, "开发", false).unwrap().items.len(), 1);
         // The manager is a manifest command now, not a result of the plugin.
-        assert!(search(&store, "scripts").unwrap().items.is_empty());
-        assert!(search(&store, "no match").unwrap().items.is_empty());
+        assert!(search(&store, "scripts", false).unwrap().items.is_empty());
+        assert!(search(&store, "no match", false).unwrap().items.is_empty());
+        std::fs::remove_dir_all(store.root).unwrap();
+    }
+
+    #[test]
+    fn after_the_alias_the_query_runs_in_a_terminal_unless_a_script_is_named() {
+        let store = Store {
+            root: std::env::temp_dir().join(format!("scripts-terminal-{}", uuid::Uuid::new_v4())),
+        };
+        let script = Script {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "Podman 状态".into(),
+            alias: "dev".into(),
+            kind: crate::store::Kind::Ps1,
+            content: "podman ps".into(),
+            directory: String::new(),
+            mode: Default::default(),
+        };
+        store.update(script.clone(), None).unwrap();
+        let resource = |id: &str| Resource::PluginItem { id: id.into() };
+        let terminal = resource("terminal:podman");
+        // `> ` lists every script and offers nothing to run.
+        let all = search(&store, "", true).unwrap().items;
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].resource, resource(&script.id));
+        // `> podman` runs the command first; the script it also matches follows.
+        let items = search(&store, " podman ", true).unwrap().items;
+        assert_eq!(items[0].resource, terminal);
+        assert_eq!(items[0].title, "podman");
+        let action = &items[0].actions.as_ref().unwrap()[0];
+        assert_eq!(action.command.as_deref(), Some("terminal"));
+        assert_eq!(action.item.as_deref(), Some("podman"));
+        assert_eq!(items[1].resource, resource(&script.id));
+        // A script's exact alias keeps it first.
+        let items = search(&store, "dev", true).unwrap().items;
+        assert_eq!(items[0].resource, resource(&script.id));
+        assert_eq!(items[1].resource, resource("terminal:dev"));
+        // Global search never offers to run what was typed.
+        assert!(
+            search(&store, "podman", false)
+                .unwrap()
+                .items
+                .iter()
+                .all(|item| item.resource != terminal)
+        );
+        assert_eq!(terminal_command("terminal-admin"), Some(true));
+        assert_eq!(terminal_command("run"), None);
         std::fs::remove_dir_all(store.root).unwrap();
     }
 }

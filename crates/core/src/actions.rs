@@ -15,6 +15,19 @@ pub struct Action {
     pub icon: String,
     operation: Operation,
     pub(crate) selection: Option<crate::history::Selection>,
+    input: Input,
+}
+
+/// What the host gathers before running a plugin command.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum Input {
+    #[default]
+    None,
+    /// The text selected in the application in front becomes the action's `item`.
+    Selection {
+        /// The plugin's scope ("alias "), where a result for a read-only selection is shown.
+        scope: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +77,29 @@ impl Action {
         )
     }
 
+    /// Whether the host must read the selected text and pass it with [`Self::with_item`].
+    pub fn needs_selection(&self) -> bool {
+        matches!(self.input, Input::Selection { .. })
+    }
+
+    /// For a selection command: the query that opens its plugin's scope, if it has one.
+    pub fn selection_scope(&self) -> Option<&str> {
+        match &self.input {
+            Input::Selection { scope } => scope.as_deref(),
+            Input::None => None,
+        }
+    }
+
+    /// This plugin command with `item`, e.g. the selected text.
+    pub fn with_item(&self, item: String) -> Self {
+        let mut action = self.clone();
+        if let Operation::Plugin { item: target, .. } = &mut action.operation {
+            *target = Some(item);
+        }
+        action.input = Input::None;
+        action
+    }
+
     /// OS operations run on a worker; clipboard effects are applied by the UI thread.
     pub fn execute(&self) -> Result<ActionEffect> {
         match &self.operation {
@@ -110,6 +146,7 @@ impl Action {
             icon: "builtin:refresh-cw".into(),
             operation: Operation::Retry(attempt),
             selection: None,
+            input: Input::None,
         }
     }
 
@@ -130,15 +167,18 @@ impl Action {
                 process: Some(process.clone()),
             },
             selection: None,
+            input: Input::None,
         }
     }
 
-    /// Runs a command the plugin declared in its manifest; plugin commands carry no `item`.
+    /// Runs a command the plugin declared in its manifest. It carries no `item` unless it
+    /// works on the selection (`selection` is then `Some(scope)`), which the host adds.
     pub(crate) fn command(
         command: &str,
         title: &str,
         icon: &mytools_plugin_api::Icon,
         process: &std::sync::Arc<crate::search_process::SearchProcess>,
+        selection: Option<Option<String>>,
     ) -> Self {
         let icon = match icon {
             mytools_plugin_api::Icon::Name(name) if name.starts_with("builtin:") => name.clone(),
@@ -155,6 +195,10 @@ impl Action {
                 process: Some(process.clone()),
             },
             selection: None,
+            input: match selection {
+                Some(scope) => Input::Selection { scope },
+                None => Input::None,
+            },
         }
     }
 
@@ -234,6 +278,7 @@ pub fn resolve_actions(
             icon: icon.into(),
             operation,
             selection: None,
+            input: Input::None,
         });
     }
     Ok(actions)

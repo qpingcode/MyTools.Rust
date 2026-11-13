@@ -6,15 +6,12 @@ use crate::{
 use anyhow::{Result, bail};
 use mytools_plugin_api::{
     Icon, Resource,
-    commands::{self, CommandManifest},
+    commands::{self, CommandInput, CommandManifest},
     hotkeys::Hotkey,
     matching::rank,
     plugin_settings::Settings,
 };
 use std::{collections::HashSet, path::Path, sync::Arc};
-
-/// Input starting with this lists every command, e.g. `>paste`.
-pub const PREFIX: char = '>';
 
 #[derive(Clone, Debug)]
 pub struct Command {
@@ -24,6 +21,7 @@ pub struct Command {
     pub icon: Icon,
     /// The shortcut in effect, as the user or the manifest wrote it.
     pub hotkey: Option<String>,
+    pub input: CommandInput,
 }
 
 /// Reads a plugin's commands with the user's shortcut overrides applied.
@@ -55,6 +53,7 @@ pub fn load(
             hotkey: settings
                 .command_hotkey(plugin_id, &manifest.id, manifest.hotkey.as_deref())
                 .map(str::to_owned),
+            input: manifest.input,
         });
     }
     Ok(loaded)
@@ -66,8 +65,16 @@ pub fn label(plugin: &Plugin, command: &Command) -> String {
 }
 
 /// The action that runs a command; it starts a lazy plugin when needed.
-pub fn action(command: &Command, process: &Arc<SearchProcess>) -> Action {
-    Action::command(&command.id, &command.title, &command.icon, process)
+pub fn action(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> Action {
+    let selection = (command.input == CommandInput::Selection)
+        .then(|| plugin.aliases.first().map(|alias| format!("{alias} ")));
+    Action::command(
+        &command.id,
+        &command.title,
+        &command.icon,
+        process,
+        selection,
+    )
 }
 
 fn matches(plugin: &Plugin, command: &Command, query: &str) -> bool {
@@ -78,7 +85,7 @@ fn matches(plugin: &Plugin, command: &Command, query: &str) -> bool {
 }
 
 /// Search results for the commands that match `query`; every command when it is empty.
-/// They answer global search and `>`, never a plugin's alias scope.
+/// They answer global search only, never a plugin's alias scope.
 pub fn entries(plugins: &[Plugin], query: &str) -> Vec<Entry> {
     let mut entries = Vec::new();
     for plugin in plugins {
@@ -113,7 +120,7 @@ fn entry(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> En
     )
     .expect("an empty action list fits every resource");
     entry.set_source(&plugin.id);
-    entry.actions.push(action(command, process));
+    entry.actions.push(action(plugin, command, process));
     entry
 }
 
@@ -154,7 +161,7 @@ pub fn bindings(plugins: &[Plugin]) -> Vec<HotkeyBinding> {
                 bindings.push(HotkeyBinding {
                     owner: label(plugin, command),
                     hotkey: hotkey.clone(),
-                    target: HotkeyTarget::Command(action(command, process)),
+                    target: HotkeyTarget::Command(action(plugin, command, process)),
                 });
             }
         }
@@ -162,22 +169,9 @@ pub fn bindings(plugins: &[Plugin]) -> Vec<HotkeyBinding> {
     bindings
 }
 
-/// The query of a command search, or `None` for any other input.
-pub fn command_query(input: &str) -> Option<&str> {
-    input.trim_start().strip_prefix(PREFIX).map(str::trim)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn command_queries_start_with_the_prefix() {
-        assert_eq!(command_query(">paste"), Some("paste"));
-        assert_eq!(command_query("  > paste text "), Some("paste text"));
-        assert_eq!(command_query(">"), Some(""));
-        assert_eq!(command_query("cb >"), None);
-    }
 
     #[test]
     fn loads_titles_icons_and_shortcut_overrides() {

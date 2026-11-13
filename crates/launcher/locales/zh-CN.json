@@ -69,5 +69,11 @@
   "desktop.hotkey_taken": "{hotkey} 已被 MyTools 的其他快捷键使用",
   "status.command_lost": "命令未返回结果就结束了",
   "drag.missing": "文件已不存在",
-  "drag.failed": "无法拖动文件"
+  "drag.failed": "无法拖动文件",
+  "editor.placeholder": "输入或粘贴文本，Ctrl+Enter 执行",
+  "selection.empty": "没有读到选中的文字。请先选中文字，再按快捷键。",
+  "selection.unsupported": "目前只有 Windows 支持读取选中的文字",
+  "selection.no_window": "前台没有应用",
+  "selection.keys_held": "请松开快捷键后再读取选中的文字",
+  "selection.failed": "无法读取选中的文字"
 }

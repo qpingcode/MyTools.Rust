@@ -1,7 +1,7 @@
 use crate::{
     AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, commands, config,
     desktop, i18n, icons,
-    search::{Event, Query, SearchWorker},
+    search::{Event, Query, QuerySender, SearchWorker},
     theme, tray,
 };
 use mytools_core::{Action, Entry, Notice, SearchResults};
@@ -11,6 +11,9 @@ use std::{cell::RefCell, rc::Rc};
 #[derive(Default)]
 pub(crate) struct State {
     generation: u64,
+    /// The query of the newest search: the search box, or in the editor view its alias
+    /// followed by the editor's text.
+    sent: String,
     displayed_query: String,
     pub entries: Vec<Entry>,
     pub panel: Option<Vec<Action>>,
@@ -169,10 +172,10 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     })?;
 
     let (command_sender, command_receiver) = async_channel::unbounded();
-    let command_notifier = notifier.clone();
+    commands::init(&ui, notifier.clone());
     let _commands = slint::spawn_local(async move {
         while let Ok(action) = command_receiver.recv().await {
-            commands::run(action, &command_notifier);
+            commands::run(action, commands::Origin::Shortcut);
         }
     })?;
     let run_command = move |action| {
@@ -230,27 +233,64 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
 fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorker) {
     let requests = worker.sender();
     let weak = ui.as_weak();
-    let state = state.clone();
+    let search_state = state.clone();
+    let search_requests = requests.clone();
     ui.on_search(move |text| {
         let Some(ui) = weak.upgrade() else { return };
-        let mut state = state.borrow_mut();
-        actions::close_panel(&ui, &mut state);
-        state.generation += 1;
-        let searching = match requests.plugin_for(&text) {
-            Some(name) => i18n::format("search.loading_plugin", &[("name", &name)]),
-            None => i18n::t("search.loading"),
-        };
-        ui.set_searching_status(searching.into());
-        ui.set_searching(true);
-        // Typing never starts the indicator, but one already showing stays until results.
-        if !ui.get_show_loading() {
-            ui.set_search_running(false);
-        }
-        requests.send(Query {
-            generation: state.generation,
-            text: text.into(),
-            attempt: crate::search::take_retry_attempt(),
-        });
+        // The search box fills the editor with what follows the alias; never the reverse.
+        let prefix = search_requests.scope_prefix(&text).unwrap_or_default();
+        ui.set_editor_text(text.get(prefix.len()..).unwrap_or_default().into());
+        send(
+            &ui,
+            &mut search_state.borrow_mut(),
+            &search_requests,
+            text.into(),
+        );
+    });
+    let weak = ui.as_weak();
+    let editor_state = state.clone();
+    let editor_requests = requests.clone();
+    ui.on_editor_edited(move |content| {
+        let Some(ui) = weak.upgrade() else { return };
+        let prefix = editor_requests
+            .scope_prefix(&ui.get_query())
+            .unwrap_or_default();
+        send(
+            &ui,
+            &mut editor_state.borrow_mut(),
+            &editor_requests,
+            format!("{prefix}{content}"),
+        );
+    });
+    let weak = ui.as_weak();
+    let refresh_state = state.clone();
+    ui.on_refresh(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut state = refresh_state.borrow_mut();
+        let text = state.sent.clone();
+        send(&ui, &mut state, &requests, text);
+    });
+}
+
+/// Searches `text` as the newest query; older results are ignored when they arrive.
+fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String) {
+    actions::close_panel(ui, state);
+    state.generation += 1;
+    let searching = match requests.plugin_for(&text) {
+        Some(name) => i18n::format("search.loading_plugin", &[("name", &name)]),
+        None => i18n::t("search.loading"),
+    };
+    ui.set_searching_status(searching.into());
+    ui.set_searching(true);
+    // Typing never starts the indicator, but one already showing stays until results.
+    if !ui.get_show_loading() {
+        ui.set_search_running(false);
+    }
+    state.sent = text.clone();
+    requests.send(Query {
+        generation: state.generation,
+        text,
+        attempt: crate::search::take_retry_attempt(),
     });
 }
 
@@ -261,6 +301,7 @@ fn apply_results(
     icons: &icons::Loader,
 ) {
     ui.set_detail_view(results.view == mytools_plugin_api::View::ListDetail);
+    ui.set_editor_view(results.view == mytools_plugin_api::View::Editor);
     actions::close_panel(ui, state);
     let empty_text = empty_text(&results);
     let mut errors = results.errors;
@@ -310,14 +351,14 @@ fn apply_results(
             }
         })
         .collect();
-    let same_query = state.displayed_query == ui.get_query().as_str();
+    let same_query = state.displayed_query == state.sent;
     let selected = if same_query {
         refreshed_selection(&state.entries, &results.entries, ui.get_selected())
     } else {
         ui.invoke_reset_scroll();
         0
     };
-    state.displayed_query = ui.get_query().to_string();
+    state.displayed_query = state.sent.clone();
     state.entries = results.entries;
     ui.set_selected(selected);
     actions::sync_selection(ui, state);

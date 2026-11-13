@@ -30,6 +30,11 @@
 - 除非用户特别说明，只在 `master` 上开发，不新建分支，也不使用 git worktree。
 - push 前先用 `gh auth status` 查看当前活动的 GitHub 账号；不是 `qpingcode` 时先执行 `gh auth switch --user qpingcode` 再 push，push 完成后（无论成功与否）用 `gh auth switch --user <原账号>` 切换回原来的账号。
 
+## 提交
+
+- 每次修改完成（测试通过）后自动 `git commit`，提交信息简要说明改动；不需要用户再要求。
+- 不自动 push，只有用户明确要求时才 push。
+
 ## 完成任务后更新本机程序
 
 - 每次完成任务、测试通过后，执行 `./scripts/deploy.ps1`（PowerShell 7），把改动编译并更新到本机实际使用的 `C:\soft\MyTools`。

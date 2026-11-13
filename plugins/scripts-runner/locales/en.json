@@ -48,5 +48,8 @@
   "mode.close.hint": "Opens a terminal that closes on success and stays open on errors.",
   "mode.background.hint": "Runs hidden without input; shows a dialog only if it fails.",
   "background.failed": "“{name}” failed with exit code {code}.\n\n{output}\n\nFull output: {log}",
-  "background.error": "“{name}” could not run: {error}"
+  "background.error": "“{name}” could not run: {error}",
+  "terminal.description": "Run in a terminal",
+  "terminal.run": "Run in terminal",
+  "validation.command": "Enter a command (up to 4 KiB, no null characters)."
 }

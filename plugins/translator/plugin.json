@@ -15,6 +15,24 @@
   "search": {
     "global": false
   },
-  "view": "list-detail",
-  "hotkey": "Alt+V"
+  "view": "editor",
+  "hotkey": "Alt+V",
+  "commands": [
+    {
+      "id": "translate-selection",
+      "title": {
+        "key": "command.selection",
+        "defaultValue": "Translate Selection"
+      },
+      "keywords": [
+        "selection",
+        "replace",
+        "划词",
+        "选中",
+        "翻译"
+      ],
+      "hotkey": "Ctrl+Alt+T",
+      "input": "selection"
+    }
+  ]
 }

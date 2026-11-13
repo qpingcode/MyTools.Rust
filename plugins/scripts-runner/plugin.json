@@ -10,7 +10,8 @@
   "icon": "builtin:square-terminal",
   "alias": [
     "scripts",
-    "script"
+    "script",
+    ">"
   ],
   "search": {
     "global": true

@@ -6,6 +6,7 @@ mod manager;
 mod runner;
 mod search;
 mod store;
+mod terminal;
 slint::include_modules!();
 fn main() -> anyhow::Result<()> {
     mytools_plugin_api::crash::install();
@@ -19,8 +20,10 @@ fn main() -> anyhow::Result<()> {
         return background::run(std::path::Path::new(&run));
     }
     let store = store::Store::new()?;
-    mytools_plugin_api::serve_interactive(
-        |query| search::search(&store, query).unwrap_or_else(response_error),
+    mytools_plugin_api::serve_requests(
+        |request| {
+            search::search(&store, &request.query, request.scoped).unwrap_or_else(response_error)
+        },
         |request| {
             search::execute(&store, request)
                 .map(|effect| mytools_plugin_api::SearchResponse {

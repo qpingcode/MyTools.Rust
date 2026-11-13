@@ -1,9 +1,11 @@
 {
   "name": "Formatter",
   "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
-  "result": "Formatted text",
-  "copy": "Preview the complete result; Enter to copy",
-  "invalid": "Cannot format this input",
-  "formats": "json / xml; Enter copies the formatted text.",
-  "usage": "fmt <format> <text or @file>"
+  "result.json": "Formatted JSON",
+  "result.xml": "Formatted XML",
+  "invalid.json": "Not valid JSON",
+  "invalid.xml": "Not valid XML",
+  "unknown": "Not JSON or XML",
+  "formats": "JSON starts with { or [, XML with <; @file loads a file. Ctrl+Enter copies the result.",
+  "usage": "Paste JSON or XML on the left"
 }

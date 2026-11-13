@@ -53,7 +53,6 @@
   "plugin.disabled_detail": "已在设置中停用，可在设置中重新启用",
   "plugin.disabled_reason": "已在设置中停用",
   "error.command_id": "命令 id 无效或重复：{id}",
-  "command.scope": "命令",
   "command.description": "{plugin} · 命令",
   "command.description_hotkey": "{plugin} · 命令 · {hotkey}"
 }

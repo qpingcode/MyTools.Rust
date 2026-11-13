@@ -14,6 +14,25 @@ pub fn remember_target() {
     platform::remember();
 }
 
+/// Brings the application remembered by [`remember_target`] to the front.
+pub fn activate_target() -> Result<()> {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        platform::activate()?;
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    anyhow::bail!(i18n::t("paste.target_missing"))
+}
+
+/// Whether the application remembered by [`remember_target`] is the one in front.
+pub fn target_in_front() -> bool {
+    #[cfg(windows)]
+    return platform::in_front();
+    #[cfg(not(windows))]
+    false
+}
+
 /// Pastes into the application remembered by [`remember_target`] without touching the
 /// launcher window, e.g. for a command run by its shortcut. Finishes once the paste
 /// shortcut was sent.

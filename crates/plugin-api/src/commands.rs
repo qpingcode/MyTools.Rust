@@ -11,7 +11,9 @@
 //! }]
 //! ```
 //!
-//! Running one sends the plugin the action `{"command":"<id>"}` without an `item`.
+//! Running one sends the plugin the action `{"command":"<id>"}` without an `item`; with
+//! `"input": "selection"` the host first reads the text selected in the application in front
+//! and sends it as the `item` (see [`CommandInput::Selection`]).
 use serde::Deserialize;
 use std::path::Path;
 
@@ -52,6 +54,23 @@ pub struct CommandManifest {
     /// The default global shortcut; the user may change it in the settings.
     #[serde(default)]
     pub hotkey: Option<String>,
+    /// What the host passes as the action's `item`; see [`CommandInput`].
+    #[serde(default)]
+    pub input: CommandInput,
+}
+
+/// What a command works on.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandInput {
+    /// Nothing: the action has no `item`.
+    #[default]
+    None,
+    /// The text selected in the application in front, as the action's `item`. The plugin
+    /// returns the replacement as `effect.copy_text` with `paste: true`: the host replaces
+    /// the selection when it is editable, and otherwise opens the plugin's scope with the
+    /// selected text (or copies the result when the plugin has no alias).
+    Selection,
 }
 
 /// A command id is one word, so it can name the command in `plugin-settings.json`.
@@ -74,6 +93,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(command.hotkey.as_deref(), Some("Ctrl+Shift+Alt+V"));
+        assert_eq!(command.input, CommandInput::None);
+        let selection: CommandManifest =
+            serde_json::from_str(r#"{"id":"t","title":{"defaultValue":"T"},"input":"selection"}"#)
+                .unwrap();
+        assert_eq!(selection.input, CommandInput::Selection);
         assert!(command.keywords.is_empty());
         assert!(
             serde_json::from_str::<CommandManifest>(

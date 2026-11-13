@@ -117,7 +117,7 @@ fn close_parameters(kind: Kind, interpreter: &str, file: &str) -> String {
 }
 
 #[cfg(windows)]
-fn launch(
+pub(crate) fn launch(
     executable: &std::path::Path,
     parameters: &str,
     directory: &std::path::Path,

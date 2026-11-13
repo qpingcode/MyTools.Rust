@@ -8,6 +8,8 @@ export component StatusBar inherits Rectangle {
     in property <bool> failed;
     in property <string> primary-title;
     in property <string> shortcut-label;
+    /// The key that runs the primary action; the editor view needs Ctrl+Enter.
+    in property <string> primary-shortcut: "Enter";
     in property <bool> actions-available;
     in property <bool> primary-available;
     in property <bool> busy;
@@ -48,7 +50,7 @@ export component StatusBar inherits Rectangle {
         primary := ActionButton {
             x: 0px; y: 0px;
             text: root.busy ? I18n.text("actions.busy") : root.primary-title;
-            shortcut: "Enter";
+            shortcut: root.primary-shortcut;
             enabled: root.primary-available && !root.busy;
             clicked => { root.execute(); }
         }

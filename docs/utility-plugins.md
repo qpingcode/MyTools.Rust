@@ -8,10 +8,10 @@
 | Chrome 书签 | 直接输入书签标题、URL、文件夹关键词 | 全局搜索，不设置 alias；Enter 在系统默认浏览器打开，操作菜单可复制链接 |
 | encode | `encode hello`、`encode base64 hello` | 普通列表展示各格式结果；Enter 复制 |
 | decode | `decode base64 5Lit5paH` | 普通列表展示各格式结果；Enter 复制 |
-| formatter | `fmt json {"a":1}`、`fmt xml @C:\Temp\input.xml` | 详情展示格式化结果；Enter 复制 |
+| formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；`Ctrl+Enter` 复制 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
-| translator | `tr hello`、`tr en 你好`、`tr zh Hello`、`tr` | Enter 发起翻译，完成后 Enter 复制译文；单词另有音标（Enter 朗读）、英文释义和例句；只输入 `tr` 列出最近翻译 |
+| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，`Ctrl+Enter` 发起翻译，完成后右侧显示译文，再按 `Ctrl+Enter` 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
 
@@ -20,7 +20,7 @@ decode 按 `base64`、`url` 的顺序展示结果。URL 使用 URI component 编
 哈希不能解码。格式名使用这里的小写值。
 decode 严格验证编码与 UTF-8，二进制结果显示错误，不把无效字节替换成乱码。
 
-formatter 仅支持 `json`、`xml`。JSON 保留对象键顺序及数字精度。
+formatter 仅支持 JSON 和 XML，按内容的第一个字符识别：`{` 或 `[` 为 JSON，`<` 为 XML（开头的空白和 BOM 会被忽略），其他内容提示无法识别。JSON 保留对象键顺序及数字精度。
 XML 保留文本内容；含混合文本或 `xml:space="preserve"` 的文档保留原格式，避免改变空白语义。
 文本输入上限为 16 KiB，格式化结果上限为 128 KiB。文本工具支持 `@文件路径` 读取多行 UTF-8 输入；
 quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同短语再次执行 add 即可。
@@ -45,33 +45,45 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 | --- | --- | --- |
 | `base_url` | `"https://api.deepseek.com"` | OpenAI 兼容接口根地址，请求 `<base_url>/chat/completions` |
 | `model` | `"deepseek-flash"` | 模型名称 |
-| `cache_size` | `100` | 本地保存的最近翻译条数，`0` 关闭缓存和历史 |
+| `cache_size` | `100` | 本地保存的最近翻译条数，`0` 关闭缓存 |
 | `speech.voice` | `"auto"` | `"auto"` 自动选美式英语语音，或填写语音名称，如 `"Microsoft Zira Desktop"`、macOS 的 `"Samantha"` |
 | `speech.rate` | `0` | 语速，`-10`（最慢）到 `10`（最快） |
 
 默认模型与请求格式参考 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start)。
 配置及环境变量在每次执行翻译时读取；macOS 修改环境变量后需要从带有新环境的进程重新启动 MyTools。
 不带方向时，含汉字的文本译成英文，其他文本译成简体中文；可显式使用 `en` 或 `zh`。
-输入完成后按 Enter 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
+输入完成后按 `Ctrl+Enter` 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
 同一时间只执行一个请求，全程不轮询。
-超时、鉴权失败、限流及响应截断会显示“翻译失败，按 Enter 重试”，副标题和详情面板显示完整错误原因（含所用代理）。
+超时、鉴权失败、限流及响应截断会显示“翻译失败，按 Ctrl+Enter 重试”，右侧显示完整错误原因（含所用代理）。
 
-### 缓存与最近记录
+### 翻译选中文字
 
-翻译成功后保存到 `%LOCALAPPDATA%\MyTools	ranslator\cache.json`（macOS 为
+在其他应用中选中文字后按 `Ctrl+Alt+T`（命令“翻译选中文字”，可在设置中修改，目前仅 Windows）：
+
+- 选中的文字在输入框中（Teams/网页输入框、Word、Outlook 写邮件、VS Code 等）时，译文直接替换选中内容，
+  原文前后的空白和换行保持不变。
+- 不可编辑（网页正文、Teams 聊天记录、Outlook 阅读窗格等）时打开 `tr ` 编辑视图，左侧为原文，右侧显示译文。
+
+方向与 `tr` 自动模式相同。翻译期间没有进度提示，完成后才替换或打开窗口；失败时在右下角提示。
+译文同样写入缓存。替换时借用剪贴板粘贴，完成后恢复原来的剪贴板文本（图片等非文本内容不恢复），
+这次临时内容不进入剪贴板历史。
+
+### 缓存
+
+翻译成功后保存到 `%LOCALAPPDATA%\MyTools\translator\cache.json`（macOS 为
 `~/Library/Application Support/MyTools/translator/cache.json`，可用 `MYTOOLS_TRANSLATOR_CACHE` 指定），
 保留最近 `cache_size` 条，满了删除最早翻译的一条。再次输入相同内容时直接显示译文，不再请求 API；
-`Ctrl+K` →“重新翻译”会重新请求并覆盖缓存。失败结果只保存在内存中。只输入 `tr` 时按时间倒序列出最近的翻译。
+`Ctrl+K` →“重新翻译”会重新请求并覆盖缓存。失败结果只保存在内存中。只输入 `tr` 时显示用法说明。
 
 ### 单词：音标、朗读、释义与例句
 
 输入单个英文单词（如 `tr hello`），或输入简短中文且译文是单个英文单词（如 `tr 苹果` → apple）时，
-同一次请求额外返回该英文单词的信息，依次显示：
+同一次请求额外返回该英文单词的信息，在右侧译文下方依次显示（可选中复制）：
 
-1. 译文 — Enter 复制；`Ctrl+K` 可朗读或重新翻译
-2. 音标，如 `/həˈləʊ/` — Enter 用系统语音朗读（Windows SAPI / macOS `say`，离线）
-3. 英文释义 — Enter 复制
-4. 两三条例句及中文翻译 — Enter 复制例句，`Ctrl+K` 可朗读
+1. 译文 — `Ctrl+Enter` 复制；`Ctrl+K` 可朗读该单词（Windows SAPI / macOS `say`，离线）或重新翻译
+2. 音标，如 `/həˈləʊ/`
+3. 英文释义
+4. 两三条例句及中文翻译
 
 DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包裹后再解析，仍不合格时自动重试一次，
 再失败则只显示译文。

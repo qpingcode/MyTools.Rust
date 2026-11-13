@@ -136,6 +136,22 @@ pub fn serve_interactive(
     })
 }
 
+/// Like [`serve_interactive`], for a search that needs the whole request, e.g. `scoped` to
+/// tell input after the plugin's alias from global search.
+pub fn serve_requests(
+    search: impl Fn(&SearchRequest) -> SearchResponse,
+    action: impl Fn(PluginActionRequest) -> SearchResponse,
+) -> io::Result<()> {
+    transport::run(
+        io::BufReader::new(io::stdin()),
+        io::stdout(),
+        |mut request| match request.action.take() {
+            Some(command) => action(command),
+            None => search(&request),
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

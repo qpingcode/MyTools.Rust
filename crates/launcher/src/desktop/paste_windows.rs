@@ -42,6 +42,10 @@ pub fn validate() -> Result<()> {
     Ok(())
 }
 
+pub fn in_front() -> bool {
+    validate().is_ok() && unsafe { GetForegroundWindow() } as isize == TARGET.load(Ordering::SeqCst)
+}
+
 pub fn activate() -> Result<isize> {
     validate()?;
     let window = TARGET.load(Ordering::SeqCst);

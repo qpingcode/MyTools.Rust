@@ -69,5 +69,11 @@
   "desktop.hotkey_taken": "{hotkey} is already used by another MyTools shortcut",
   "status.command_lost": "The command stopped without a result",
   "drag.missing": "The file no longer exists",
-  "drag.failed": "Could not drag the file"
+  "drag.failed": "Could not drag the file",
+  "editor.placeholder": "Type or paste text; Ctrl+Enter runs the first action",
+  "selection.empty": "No selected text was found. Select some text, then press the shortcut again.",
+  "selection.unsupported": "Reading the selection is only supported on Windows",
+  "selection.no_window": "No application is in front",
+  "selection.keys_held": "Release the shortcut's keys to read the selection",
+  "selection.failed": "Cannot read the selection"
 }

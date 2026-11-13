@@ -48,5 +48,8 @@
   "mode.close.hint": "打开终端，成功后自动关闭，出错时保留窗口。",
   "mode.background.hint": "隐藏运行且不接收输入，仅在失败时弹窗提示。",
   "background.failed": "“{name}”执行失败，退出码 {code}。\n\n{output}\n\n完整输出：{log}",
-  "background.error": "“{name}”无法运行：{error}"
+  "background.error": "“{name}”无法运行：{error}",
+  "terminal.description": "在终端中运行",
+  "terminal.run": "在终端运行",
+  "validation.command": "请输入命令（最多 4 KiB，不能含空字符）。"
 }

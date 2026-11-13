@@ -15,5 +15,5 @@
   "search": {
     "global": false
   },
-  "view": "list-detail"
+  "view": "editor"
 }

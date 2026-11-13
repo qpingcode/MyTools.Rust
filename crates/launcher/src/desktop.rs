@@ -209,7 +209,9 @@ fn set_taskbar_icon(ui: &MainWindow) {
 pub mod drag;
 #[path = "desktop/paste.rs"]
 mod paste;
-pub use paste::{paste, paste_into_target, remember_target};
+pub use paste::{activate_target, paste, paste_into_target, remember_target, target_in_front};
+#[path = "desktop/selection.rs"]
+pub mod selection;
 
 pub fn drag(ui: &MainWindow) {
     ui.window().with_winit_window(|window| {

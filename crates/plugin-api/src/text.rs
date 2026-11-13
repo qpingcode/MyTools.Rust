@@ -47,6 +47,36 @@ pub fn hint(title: impl Into<String>, description: impl Into<String>) -> SearchI
     item
 }
 
+/// The result of a text tool in the `editor` view: the right side shows `shown` alone, and
+/// Ctrl+Enter copies `copied` (the default action of a text result). `title` is not shown
+/// there but names the result, e.g. for screen readers.
+pub fn editor_result(title: impl Into<String>, copied: String, shown: String) -> SearchItem {
+    let title = title.into();
+    SearchItem {
+        intent_match: false,
+        title: title.clone(),
+        icon: None,
+        description: String::new(),
+        resource: Resource::Text { text: copied },
+        actions: None,
+        preview: Some(Preview {
+            title,
+            text: shown,
+            ..Default::default()
+        }),
+    }
+}
+
+/// A prompt or an error in the `editor` view: without a preview, the right side shows
+/// `title` and `description`, e.g. "Translate / Ctrl+Enter sends the text". It has no
+/// actions; add the one Ctrl+Enter should run.
+pub fn editor_prompt(title: impl Into<String>, description: impl Into<String>) -> SearchItem {
+    let mut item = item(title, String::new(), description);
+    item.preview = None;
+    item.actions = Some(vec![]);
+    item
+}
+
 pub fn command(command: &str, title: String) -> ActionSpec {
     ActionSpec {
         id: ActionId::Plugin,
@@ -59,6 +89,23 @@ pub fn command(command: &str, title: String) -> ActionSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_results_show_text_and_prompts_show_title_and_description() {
+        let result = editor_result("Translation", "你好".into(), "你好\n\n/həˈləʊ/".into());
+        assert_eq!(result.preview.as_ref().unwrap().text, "你好\n\n/həˈləʊ/");
+        assert_eq!(
+            result.resource,
+            Resource::Text {
+                text: "你好".into()
+            }
+        );
+        assert!(result.actions.is_none(), "Ctrl+Enter copies by default");
+        let prompt = editor_prompt("Translate", "Ctrl+Enter sends the text");
+        assert!(prompt.preview.is_none());
+        assert_eq!(prompt.description, "Ctrl+Enter sends the text");
+        assert!(prompt.actions.is_some_and(|actions| actions.is_empty()));
+    }
 
     #[test]
     fn literal_input_preserves_whitespace_and_rejects_oversized_text() {

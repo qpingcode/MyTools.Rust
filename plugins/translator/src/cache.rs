@@ -79,6 +79,8 @@ impl Cache {
         self.save();
     }
 
+    /// Not shown at the moment; a history command is planned to list these again.
+    #[cfg(test)]
     pub fn recent(&self) -> &[Entry] {
         &self.entries
     }

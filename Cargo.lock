@@ -3440,6 +3440,7 @@ name = "mytools-scripts-runner"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "mytools-plugin-api",
  "serde",
  "serde_json",

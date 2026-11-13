@@ -1,0 +1,52 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+
+/// A themed multi-line text field that scrolls to keep the cursor visible. Read-only text
+/// can still be selected and copied with Ctrl+C.
+export component TextArea inherits Rectangle {
+    in-out property <string> text;
+    in property <bool> read-only;
+    in property <string> placeholder;
+    /// Draws its own background and border; turn off inside a panel that already has them.
+    in property <bool> framed: true;
+    callback edited(string);
+    forward-focus: input;
+    public function focus-input() { input.focus(); }
+    background: root.framed ? Theme.preview : transparent;
+    border-radius: Theme.radius;
+    border-width: root.framed ? 1px : 0px;
+    border-color: input.has-focus && !root.read-only ? Theme.control-border : Theme.border;
+
+    scroll := ScrollView {
+        x: root.framed ? 12px : 0px;
+        y: root.framed ? 10px : 0px;
+        width: parent.width - 2 * self.x;
+        height: parent.height - 2 * self.y;
+        content-width: self.visible-width;
+        content-height: input.height;
+        input := TextInput {
+            width: scroll.visible-width;
+            height: max(scroll.visible-height, self.preferred-height);
+            text <=> root.text;
+            read-only: root.read-only;
+            single-line: false;
+            wrap: word-wrap;
+            color: Theme.foreground;
+            font-size: Theme.font-body;
+            selection-background-color: Theme.selection;
+            edited => { root.edited(self.text); }
+            cursor-position-changed(position) => {
+                if (position.y + scroll.content-y < 0px) {
+                    scroll.content-y = -position.y;
+                } else if (position.y + self.font-size * 1.6 + scroll.content-y > scroll.visible-height) {
+                    scroll.content-y = min(0px, scroll.visible-height - position.y - self.font-size * 1.6);
+                }
+            }
+        }
+    }
+    if root.text == "" && root.placeholder != "": Text {
+        x: scroll.x; y: scroll.y; width: scroll.width;
+        text: root.placeholder; color: Theme.placeholder; font-size: Theme.font-body;
+        wrap: word-wrap;
+    }
+}

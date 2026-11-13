@@ -1,0 +1,51 @@
+import { I18n } from "../../../../ui/i18n.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { TextArea } from "../../../../ui/components/text-area.slint";
+
+/// The `editor` view: the text to work on at the left, the plugin's first result at the
+/// right, where it can be selected and copied.
+export component EditorPane inherits Rectangle {
+    in-out property <string> text;
+    in property <string> result-title;
+    in property <string> result-description;
+    in property <string> result-text;
+    /// Shown when there is no result, e.g. which plugin returned nothing.
+    in property <string> empty-text;
+    callback edited(string);
+    public function focus-input() { input.focus-input(); }
+
+    input := TextArea {
+        x: 10px; y: 9px;
+        width: (parent.width - 30px) / 2; height: parent.height - 18px;
+        text <=> root.text;
+        placeholder: I18n.text("editor.placeholder");
+        edited(text) => { root.edited(text); }
+    }
+    Rectangle {
+        x: input.x + input.width + 10px; y: input.y;
+        width: input.width; height: input.height;
+        background: Theme.preview;
+        border-radius: Theme.radius;
+        VerticalLayout {
+            padding: 14px; spacing: 6px;
+            if root.result-title != "": Text {
+                text: root.result-title; color: Theme.foreground;
+                font-size: Theme.font-title; wrap: word-wrap;
+            }
+            if root.result-description != "": Text {
+                text: root.result-description; color: Theme.muted;
+                font-size: Theme.font-caption; wrap: word-wrap;
+            }
+            if root.result-title == "" && root.result-description == "" && root.result-text == "": Text {
+                text: root.empty-text; color: Theme.muted;
+                font-size: Theme.font-body; wrap: word-wrap;
+            }
+            TextArea {
+                vertical-stretch: 1;
+                framed: false;
+                read-only: true;
+                text: root.result-text;
+            }
+        }
+    }
+}

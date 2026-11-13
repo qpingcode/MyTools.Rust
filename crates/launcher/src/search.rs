@@ -246,6 +246,16 @@ impl QuerySender {
             .map(str::to_owned)
     }
 
+    /// The alias part of an alias query, e.g. `"tr "`; see [`AliasTable::scope_prefix`].
+    pub fn scope_prefix(&self, text: &str) -> Option<String> {
+        self.aliases
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()?
+            .scope_prefix(text)
+            .map(str::to_owned)
+    }
+
     pub fn send(&self, query: Query) {
         self.latest.store(query.generation, Ordering::SeqCst);
         let _ = self.requests.send(Some(query));

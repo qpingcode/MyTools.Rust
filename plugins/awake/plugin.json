@@ -8,12 +8,8 @@
   "type": "search",
   "entry": "mytools-awake",
   "icon": "builtin:sun",
-  "alias": [
-    "awake"
-  ],
   "search": {
     "global": false
   },
-  "view": "list",
   "startup": "eager"
 }

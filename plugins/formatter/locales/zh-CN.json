@@ -1,9 +1,11 @@
 {
   "name": "文本格式化",
   "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
-  "result": "格式化结果",
-  "copy": "详情中预览完整结果；Enter 复制",
-  "invalid": "无法格式化该文本",
-  "formats": "json / xml；Enter 复制格式化结果。",
-  "usage": "fmt <格式> <文本或 @文件路径>"
+  "result.json": "JSON 格式化结果",
+  "result.xml": "XML 格式化结果",
+  "invalid.json": "不是有效的 JSON",
+  "invalid.xml": "不是有效的 XML",
+  "unknown": "无法识别为 JSON 或 XML",
+  "formats": "以 { 或 [ 开头按 JSON 处理，以 < 开头按 XML 处理；@文件路径 读取文件。Ctrl+Enter 复制结果。",
+  "usage": "在左侧粘贴 JSON 或 XML"
 }

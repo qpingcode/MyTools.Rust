@@ -8,6 +8,10 @@ pub enum View {
     #[default]
     List,
     ListDetail,
+    /// A multi-line input on the left and the first result on the right, for text tools
+    /// such as translator. The input mirrors the query after the alias; editing it searches
+    /// without changing the search box.
+    Editor,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
