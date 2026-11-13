@@ -4,13 +4,15 @@ import { Theme } from "../../../../ui/theme.slint";
 import { Icon } from "../../../../ui/components/icon.slint";
 import { ChatMessageData, ChatBlock, ChatStep, ChatSource } from "../types.slint";
 
-/// Read-only text that can be selected and copied with Ctrl+C; it wraps at `width`.
+/// Read-only text that can be selected and copied with Ctrl+C; it wraps at `width`. Lines
+/// are spaced apart so long answers stay easy to read.
 component SelectableText inherits TextInput {
     read-only: true;
     single-line: false;
     wrap: word-wrap;
     color: Theme.foreground;
-    font-size: Theme.font-body;
+    font-size: Theme.font-chat;
+    line-height-factor: Theme.chat-line-height;
     selection-background-color: Theme.selection;
 }
 
@@ -42,6 +44,7 @@ component TableView inherits Rectangle {
                             text: cell;
                             font-size: Theme.font-small;
                             font-weight: r == 0 ? 600 : 400;
+                            line-height-factor: 1.1;
                         }
                     }
                     if c > 0: Rectangle { x: 0px; width: 1px; background: Theme.border; }
@@ -52,18 +55,48 @@ component TableView inherits Rectangle {
     }
 }
 
-/// One block of an answer: text, a heading, a quote, a table, or code with a copy button.
+/// A list: each item on its own with a little room between items, its marker in a column
+/// of its own so wrapped lines line up under the item's text.
+component ListView inherits VerticalLayout {
+    in property <[[string]]> items;
+    in property <length> available-width;
+    in property <brush> text-color;
+    private property <length> marker-width: Theme.font-chat * 2;
+    spacing: 6px;
+    for item in root.items: HorizontalLayout {
+        spacing: 6px;
+        Text {
+            width: root.marker-width;
+            text: item[0];
+            color: Theme.muted;
+            font-size: Theme.font-chat;
+            line-height-factor: Theme.chat-line-height;
+            horizontal-alignment: right;
+            vertical-alignment: top;
+        }
+        SelectableText {
+            width: root.available-width - root.marker-width - 6px;
+            text: item[1];
+            color: root.text-color;
+        }
+    }
+}
+
+/// One block of an answer: text, a heading, a list, a quote, a table, or code with a copy
+/// button.
 /// Wrapped text needs a fixed width to measure its height, hence `available-width`.
 component ChatBlockView inherits VerticalLayout {
     in property <ChatBlock> block;
     in property <length> available-width;
     in property <brush> text-color: Theme.foreground;
     callback copy-text(string);
+    // A heading starts a new section, so it keeps more room above it than below.
+    padding-top: root.block.kind == 1 ? 6px : 0px;
     if root.block.kind == 0 || root.block.kind == 1: SelectableText {
         width: root.available-width;
         text: root.block.plain;
         color: root.text-color;
-        font-size: root.block.kind == 1 ? Theme.font-title : Theme.font-body;
+        font-size: root.block.kind == 1 ? Theme.font-heading : Theme.font-chat;
         font-weight: root.block.kind == 1 ? 600 : 400;
     }
     if root.block.kind == 3: HorizontalLayout {
@@ -74,6 +107,11 @@ component ChatBlockView inherits VerticalLayout {
             text: root.block.plain;
             color: Theme.muted;
         }
+    }
+    if root.block.kind == 5: ListView {
+        items: root.block.rows;
+        available-width: root.available-width;
+        text-color: root.text-color;
     }
     if root.block.kind == 4: TableView {
         rows: root.block.rows;
@@ -114,6 +152,7 @@ component ChatBlockView inherits VerticalLayout {
                 text: root.block.plain;
                 font-size: Theme.font-small;
                 font-family: "Consolas";
+                line-height-factor: 1.1;
             }
         }
     }
@@ -131,7 +170,7 @@ component UserBubble inherits Rectangle {
     height: column.preferred-height + 20px;
     background: Theme.selected;
     border-radius: Theme.radius + 2px;
-    measure := Text { visible: false; text: root.text; font-size: Theme.font-body; }
+    measure := Text { visible: false; text: root.text; font-size: Theme.font-chat; }
     column := VerticalLayout {
         x: 12px; y: 10px; width: root.text-width; height: self.preferred-height;
         spacing: 6px;
@@ -275,7 +314,7 @@ component MessageView inherits VerticalLayout {
         }
     }
     if !root.message.user: VerticalLayout {
-        spacing: 10px;
+        spacing: 14px;
         if root.message.reasoning != "": ReasoningView {
             text: root.message.reasoning;
             thinking: root.message.streaming && root.message.blocks.length == 0;
@@ -373,7 +412,7 @@ export component ChatPane inherits Rectangle {
         column := VerticalLayout {
             // Its own height, or the layout would stretch the messages to fill the view.
             x: 20px; y: 16px; width: list.visible-width - 40px; height: self.preferred-height;
-            spacing: 18px;
+            spacing: 24px;
             for message in root.messages: MessageView {
                 message: message;
                 available-width: column.width;

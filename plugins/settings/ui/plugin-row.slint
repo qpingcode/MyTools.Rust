@@ -10,7 +10,7 @@ export struct HotkeyRow {
     label: string,
     /// As edited, e.g. "Ctrl+Shift+V"; "" for none.
     hotkey: string,
-    /// The manifest's shortcut, shown as the placeholder and restored by "Reset".
+    /// The manifest's shortcut, restored by "Reset".
     default-hotkey: string,
 }
 
@@ -141,8 +141,8 @@ component HotkeyField inherits HorizontalLayout {
             alignment: center;
             LineEdit {
                 text <=> root.text;
-                placeholder-text: root.shortcut.default-hotkey != ""
-                    ? root.shortcut.default-hotkey : I18n.text("hotkeys.none");
+                // An empty field means no shortcut, so it never shows the default here.
+                placeholder-text: I18n.text("hotkeys.none");
                 enabled: root.enabled;
                 edited(text) => { root.edited(text); }
                 accessible-label: I18n.text("hotkeys.label") + " " + root.plugin-name + " · "

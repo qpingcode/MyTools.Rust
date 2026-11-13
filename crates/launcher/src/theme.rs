@@ -1,6 +1,6 @@
 //! Applies the optional `theme` object of config.json to the shared Slint `Theme` global.
 //! Keys match the property names in `ui/theme.slint`; colors are `#rrggbb` / `#rrggbbaa`,
-//! sizes are logical pixels. Unknown keys and invalid values are reported, not fatal.
+//! sizes are logical pixels (`chat-line-height` is a plain factor). Unknown keys and invalid values are reported, not fatal.
 use crate::Theme;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -101,6 +101,8 @@ fn length_setter(key: &str) -> Option<LengthSetter> {
         "font-body" => |t, v| t.set_font_body(v),
         "font-small" => |t, v| t.set_font_small(v),
         "font-caption" => |t, v| t.set_font_caption(v),
+        "font-chat" => |t, v| t.set_font_chat(v),
+        "chat-line-height" => |t, v| t.set_chat_line_height(v),
         "search-height" => |t, v| t.set_search_height(v),
         "status-height" => |t, v| t.set_status_height(v),
         "row-height" => |t, v| t.set_row_height(v),
@@ -161,7 +163,7 @@ mod tests {
         for key in ["background", "accent", "icon-background", "warning"] {
             assert!(color_setter(key).is_some(), "{key}");
         }
-        for key in ["font-title", "font-search", "row-height", "radius"] {
+        for key in ["font-title", "font-chat", "chat-line-height", "radius"] {
             assert!(length_setter(key).is_some(), "{key}");
         }
         assert!(color_setter("font-title").is_none());

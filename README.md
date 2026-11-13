@@ -238,12 +238,14 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 
 所有颜色、字号和尺寸集中在 [ui/theme.slint](ui/theme.slint) 的 `Theme` 全局中，默认值比早期版本整体缩小
 （搜索框 18px、标题 14px、正文 13px、说明 12px、结果行高 52px）。可在 `config.json` 的 `theme` 中按属性名覆盖，
-颜色用 `#rrggbb` / `#rrggbbaa`，尺寸为逻辑像素，修改后重启生效；未知键或无效值会在状态栏提示：
+颜色用 `#rrggbb` / `#rrggbbaa`，尺寸为逻辑像素，修改后重启生效；未知键或无效值会在状态栏提示。
+AI 对话的回答有单独的字号 `font-chat`（默认 14）和行距 `chat-line-height`（字体自然行高的倍数，默认 1.25，1 为不加行距）：
 
 ```json
 {
   "theme": {
     "font-search": 18, "font-title": 14, "font-body": 13, "font-small": 12, "font-caption": 11,
+    "font-chat": 14, "chat-line-height": 1.25,
     "row-height": 52, "icon-box": 30, "icon-size": 20,
     "accent": "#94ded1", "background": "#1f1f1f"
   }

@@ -1,6 +1,6 @@
-//! Turns an answer's Markdown into the blocks the chat view draws: paragraphs and lists,
+//! Turns an answer's Markdown into the blocks the chat view draws: paragraphs, lists,
 //! headings, code, quotes and tables. Every block is plain text, so it can be selected and
-//! copied; list markers stay, emphasis and link targets do not.
+//! copied; list markers stay (beside their items), emphasis and link targets do not.
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10,6 +10,7 @@ pub enum Kind {
     Code = 2,
     Quote = 3,
     Table = 4,
+    List = 5,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,7 +20,7 @@ pub struct Block {
     pub text: String,
     /// A code block's language, e.g. "rust".
     pub language: String,
-    /// A table's rows, the header first.
+    /// A table's rows, the header first; a list's items as `[marker, text]`.
     pub rows: Vec<Vec<String>>,
 }
 
@@ -84,6 +85,10 @@ fn finish(tag: &Tag, source: &str) -> Option<Block> {
         Tag::Table(_) => Block {
             rows: table(source),
             ..Block::new(Kind::Table, String::new())
+        },
+        Tag::List(start) => Block {
+            rows: list(source, *start),
+            ..Block::new(Kind::List, String::new())
         },
         Tag::HtmlBlock => Block::new(Kind::Text, source.to_owned()),
         _ => Block::new(Kind::Text, plain(source)),
@@ -159,6 +164,46 @@ fn plain(source: &str) -> String {
     text.trim().to_owned()
 }
 
+/// A list's top-level items, each as its marker ("•" or its number) and its text, so the
+/// view can space them apart and indent wrapped lines under the text. Nested lists stay in
+/// their item's text, marked and indented as [`plain`] does.
+fn list(source: &str, start: Option<u64>) -> Vec<Vec<String>> {
+    let mut items = Vec::new();
+    let mut depth = 0usize;
+    let mut item_start = 0;
+    for (event, range) in Parser::new_ext(source, options()).into_offset_iter() {
+        match event {
+            Event::Start(Tag::List(_)) => depth += 1,
+            Event::End(TagEnd::List(_)) => depth = depth.saturating_sub(1),
+            Event::Start(Tag::Item) if depth == 1 => item_start = range.start,
+            Event::End(TagEnd::Item) if depth == 1 => {
+                let marker = match start {
+                    Some(first) => format!("{}.", first + items.len() as u64),
+                    None => "•".to_owned(),
+                };
+                let text = plain(&source[item_start..range.end.min(source.len())]);
+                // An item that starts with a nested list has nothing on its first line.
+                let text = without_marker(&text).trim_start_matches('\n');
+                items.push(vec![marker, text.to_owned()]);
+            }
+            _ => {}
+        }
+    }
+    items
+}
+
+/// An item's text without the "• " or "3. " that [`plain`] put in front of it.
+fn without_marker(text: &str) -> &str {
+    if let Some(rest) = text.strip_prefix("• ") {
+        return rest;
+    }
+    let digits = text.len() - text.trim_start_matches(|ch: char| ch.is_ascii_digit()).len();
+    match text[digits..].strip_prefix(". ") {
+        Some(rest) if digits > 0 => rest,
+        _ => text,
+    }
+}
+
 /// A table's cells as plain text, row by row.
 fn table(source: &str) -> Vec<Vec<String>> {
     let mut rows: Vec<Vec<String>> = Vec::new();
@@ -222,9 +267,16 @@ mod tests {
             .into_iter()
             .map(|block| match block.kind {
                 Kind::Code => (block.kind, format!("{}|{}", block.language, block.text)),
+                Kind::List => (block.kind, items(&block)),
                 _ => (block.kind, block.text),
             })
             .collect()
+    }
+
+    /// A list's items as "marker|text", one per line.
+    fn items(block: &Block) -> String {
+        let items: Vec<String> = block.rows.iter().map(|item| item.join("|")).collect();
+        items.join("\n")
     }
 
     #[test]
@@ -235,7 +287,7 @@ mod tests {
             [
                 (Kind::Heading, "Title x".into()),
                 (Kind::Text, "Some bold code and a link\nnext line.".into()),
-                (Kind::Text, "• one\n• two\n  1. sub\n  2. sub two".into()),
+                (Kind::List, "•|one\n•|two\n  1. sub\n  2. sub two".into()),
                 (Kind::Code, "rust|fn main() {}".into()),
                 (Kind::Quote, "quoted\nmore".into()),
                 (Kind::Text, "End.".into()),
@@ -245,8 +297,11 @@ mod tests {
 
     #[test]
     fn numbered_lists_keep_their_start_and_tasks_their_boxes() {
-        assert_eq!(kinds("3. c\n4. d")[0].1, "3. c\n4. d");
-        assert_eq!(kinds("- [x] done\n- [ ] todo")[0].1, "• ☑ done\n• ☐ todo");
+        assert_eq!(kinds("3. c\n4. d")[0].1, "3.|c\n4.|d");
+        assert_eq!(kinds("1. a\n1. b")[0].1, "1.|a\n2.|b");
+        assert_eq!(kinds("- [x] done\n- [ ] todo")[0].1, "•|☑ done\n•|☐ todo");
+        // A loose list keeps each item's paragraphs on their own lines.
+        assert_eq!(kinds("- **a**\n\n  more\n\n- b")[0].1, "•|a\nmore\n•|b");
     }
 
     #[test]

@@ -39,6 +39,10 @@ export global Theme {
     in-out property <length> font-body: 13px;
     in-out property <length> font-small: 12px;
     in-out property <length> font-caption: 11px;
+    // Chat answers: their own size, and spacing between lines as a multiple of the font's
+    // natural line height (1 = as tight as other text).
+    in-out property <length> font-chat: 14px;
+    in-out property <float> chat-line-height: 1.25;
 
     // Metrics
     in-out property <length> search-height: 64px;
