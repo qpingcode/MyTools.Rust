@@ -185,6 +185,7 @@ mod tests {
             PluginActionRequest {
                 command: "emacs".into(),
                 item: Some("C:\\".into()),
+                editable: None,
             },
             &catalog(),
         );
@@ -193,6 +194,7 @@ mod tests {
             PluginActionRequest {
                 command: "rider".into(),
                 item: Some(r"Z:\missing\App.sln".into()),
+                editable: None,
             },
             &catalog(),
         );

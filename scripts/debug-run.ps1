@@ -34,10 +34,8 @@ try {
         Get-ChildItem -LiteralPath (Join-Path $root "plugins/$plugin/locales") -Filter '*.json' |
             Copy-Item -Destination $localeDirectory
         Copy-Item -LiteralPath (Join-Path $output "$entry.exe") -Destination $pluginDirectory
-        $example = Join-Path $root "plugins/$plugin/config.example.json"
-        if (Test-Path -LiteralPath $example) {
-            Copy-Item -LiteralPath $example -Destination $pluginDirectory
-        }
+        Get-ChildItem -Path (Join-Path $root "plugins/$plugin") -Filter '*.example.json' |
+            Copy-Item -Destination $pluginDirectory
     }
     if (-not $BuildOnly) {
         $startArguments = @{}

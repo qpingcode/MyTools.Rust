@@ -140,9 +140,15 @@ async fn run_on_selection(
         desktop::activate_target()?;
         wait(Duration::from_millis(150)).await?;
     }
-    let selection = background(desktop::selection::capture).await?;
+    let optional = action.selection_optional();
+    let selection = match background(desktop::selection::capture).await {
+        Ok(selection) => selection,
+        // A command that also works without a selection runs without one.
+        Err(_) if optional => Default::default(),
+        Err(error) => return Err(error),
+    };
     let text = selection.text.trim().to_owned();
-    let result = if text.is_empty() {
+    let result = if text.is_empty() && !optional {
         Err(anyhow::anyhow!(i18n::t("selection.empty")))
     } else {
         let next = if selection.editable {
@@ -154,7 +160,7 @@ async fn run_on_selection(
         };
         let command = action.title.clone().unwrap_or_default();
         toast.start(running(&command), i18n::t(next));
-        let worker = action.with_item(text.clone());
+        let worker = action.with_selection(text.clone(), selection.editable);
         let result = background(move || worker.execute()).await;
         toast.close();
         result
@@ -167,6 +173,13 @@ async fn run_on_selection(
             return Err(error);
         }
     };
+    if effect.open {
+        restore(selection.previous_clipboard)?;
+        if let Some(scope) = action.selection_scope() {
+            open_scope(window, scope, "");
+        }
+        return Ok(());
+    }
     let Some(output) = effect.copy_text else {
         return restore(selection.previous_clipboard);
     };

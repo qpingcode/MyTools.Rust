@@ -1,18 +1,53 @@
 // Ask AI 配置。复制为同目录的 config.json 后修改；支持 // 和 /* */ 注释。
-// 修改后无需重启，下一次提问时生效。API 密钥只从环境变量 DEEPSEEK_API_KEY 读取。
+// 修改后无需重启，下一次提问时生效。API 密钥只从环境变量读取：
+//   DEEPSEEK_API_KEY  对话（与翻译相同）
+//   TAVILY_API_KEY    Tavily 联网搜索（可选）
 {
   // OpenAI 兼容的对话接口地址，插件会请求 <base_url>/chat/completions。
   //   "https://api.deepseek.com"  DeepSeek 官方（默认）
   "base_url": "https://api.deepseek.com",
 
-  // 模型名称；环境变量 DEEPSEEK_MODEL 优先于此项。
+  // 默认模型；环境变量 DEEPSEEK_MODEL 优先于此项。
   //   "deepseek-flash"  默认，速度快
   //   其他取值以所用服务的模型列表为准
   "model": "deepseek-flash",
+
+  // 可在 Ctrl+K 中切换的其他模型，例如 ["deepseek-pro"]。切换后一直使用，直到再次切换。
+  "models": [],
 
   // 系统提示词：告诉模型它的角色和回答方式。留空使用默认。
   "system_prompt": "",
 
   // 一次回答最多多少 token，超过时回答会被截断。
-  "max_tokens": 8192
+  "max_tokens": 8192,
+
+  // 保留最近多少个对话，可在 Ctrl+K 中重新打开；0 不保存。
+  // 保存在 %LOCALAPPDATA%\MyTools\ask-ai\chats。
+  "history": 50,
+
+  // 是否允许模型联网搜索（内置的 web_search 和 fetch_page 工具）。
+  "web_search": true,
+
+  "search": {
+    // 依次尝试，前一个没有 key、出错或没有结果时换下一个：
+    //   "tavily"      Tavily API，需要环境变量 TAVILY_API_KEY
+    //   "bing"        抓取必应搜索结果页，无需 key
+    //   "duckduckgo"  抓取 DuckDuckGo 结果页，无需 key；国内通常需要代理
+    "providers": ["tavily", "bing"],
+
+    // 每次搜索返回的结果数，1~10。
+    "max_results": 5,
+
+    "bing": {
+      // "www.bing.com" 或 "cn.bing.com"
+      "host": "www.bing.com",
+      // 结果的语言与地区，例如 "zh-CN"、"en-US"
+      "market": "zh-CN"
+    },
+
+    "duckduckgo": {
+      // 地区，例如 "cn-zh"、"us-en"、"wt-wt"（不限）
+      "region": "cn-zh"
+    }
+  }
 }

@@ -215,6 +215,7 @@ mod tests {
         PluginActionRequest {
             command: command.into(),
             item: Some(item.into()),
+            editable: None,
         }
     }
 

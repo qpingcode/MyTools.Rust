@@ -439,7 +439,12 @@ impl SearchProcess {
         true
     }
 
-    pub fn execute(&self, command: &str, item: Option<&str>) -> Result<PluginEffect> {
+    pub fn execute(
+        &self,
+        command: &str,
+        item: Option<&str>,
+        editable: Option<bool>,
+    ) -> Result<PluginEffect> {
         let mut busy = self.action_busy.lock().unwrap();
         if *busy {
             bail!(i18n::t("error.action_in_progress"));
@@ -451,6 +456,7 @@ impl SearchProcess {
                 action: Some(PluginActionRequest {
                     command: command.into(),
                     item: item.map(str::to_owned),
+                    editable,
                 }),
                 timeout_ms: None,
                 ping: None,
@@ -807,7 +813,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let worker = process.clone();
-        let action = std::thread::spawn(move || worker.execute("translate", Some("test")));
+        let action = std::thread::spawn(move || worker.execute("translate", Some("test"), None));
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
         while !*process.action_busy.lock().unwrap() {
             assert!(std::time::Instant::now() < deadline);

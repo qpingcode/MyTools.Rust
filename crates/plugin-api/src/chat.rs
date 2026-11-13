@@ -34,6 +34,41 @@ pub struct ChatMessage {
     /// The answer failed; `text` says why.
     #[serde(default, skip_serializing_if = "crate::is_false")]
     pub error: bool,
+    /// What the model thought before answering, for models that share it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reasoning: String,
+    /// Text the question is about, e.g. the selection it was asked on; shown folded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<String>,
+    /// What was done to answer, e.g. web searches, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<ChatStep>,
+    /// Pages the answer cites as `[1]`, `[2]`… in this order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<ChatSource>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum StepState {
+    #[default]
+    Running,
+    Done,
+    Failed,
+}
+
+/// One thing done for an answer, e.g. "Searched: rust slint · 5 results".
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChatStep {
+    pub text: String,
+    #[serde(default)]
+    pub state: StepState,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChatSource {
+    pub title: String,
+    pub url: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -41,6 +76,9 @@ pub struct Chat {
     /// Changes with each new conversation, so late updates of an old one are dropped.
     pub id: String,
     pub messages: Vec<ChatMessage>,
+    /// Text that goes with the next question, shown above the input until it is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<String>,
 }
 
 impl Chat {

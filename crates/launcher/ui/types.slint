@@ -25,6 +25,13 @@ export struct ChatBlock {
     language: string,
 }
 
+/// Something done for an answer, e.g. a web search; `state` is running (0), done (1) or
+/// failed (2).
+export struct ChatStep { text: string, state: int }
+
+/// A page an answer cites as `[number]`.
+export struct ChatSource { number: int, title: string, url: string, host: string }
+
 export struct ChatMessageData {
     /// From the user; otherwise from the assistant.
     user: bool,
@@ -33,4 +40,10 @@ export struct ChatMessageData {
     streaming: bool,
     /// The answer failed; its text says why.
     error: bool,
+    /// What the model thought before answering.
+    reasoning: string,
+    /// Text the question was asked about, e.g. a selection.
+    attachment: string,
+    steps: [ChatStep],
+    sources: [ChatSource],
 }

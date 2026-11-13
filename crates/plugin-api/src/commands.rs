@@ -69,8 +69,12 @@ pub enum CommandInput {
     /// The text selected in the application in front, as the action's `item`. The plugin
     /// returns the replacement as `effect.copy_text` with `paste: true`: the host replaces
     /// the selection when it is editable, and otherwise opens the plugin's scope with the
-    /// selected text (or copies the result when the plugin has no alias).
+    /// selected text (or copies the result when the plugin has no alias). The action also
+    /// says whether the selection is `editable`; `effect.open` shows the plugin's scope.
     Selection,
+    /// Like `Selection`, but runs with an empty `item` when nothing is selected.
+    #[serde(rename = "selection-optional")]
+    OptionalSelection,
 }
 
 /// A command id is one word, so it can name the command in `plugin-settings.json`.

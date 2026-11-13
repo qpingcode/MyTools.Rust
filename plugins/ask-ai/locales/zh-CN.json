@@ -9,5 +9,17 @@
   "key.missing": "请设置环境变量 DEEPSEEK_API_KEY，然后重新提问。",
   "failed": "请求失败：{error}",
   "length": "（回答达到长度上限。）",
-  "stopped": "（已停止。）"
+  "stopped": "（已停止。）",
+  "mcp.error": "无法读取 MCP 服务配置：{error}",
+  "step.search": "搜索：{query}",
+  "step.searched": "已搜索：{query} · {count} 条结果",
+  "step.read": "读取 {page}",
+  "step.tool": "调用 {tool}",
+  "step.failed": "{step}，失败：{error}",
+  "copy": "复制回答",
+  "paste": "用回答替换选中的文字",
+  "detach": "移除附加的文字",
+  "open": "打开：{title}",
+  "model": "使用模型 {model}",
+  "command.ask": "就选中文字询问 AI"
 }

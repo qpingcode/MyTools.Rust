@@ -34,8 +34,8 @@ try {
         $executable = "$($metadata.entry).exe"
         Copy-Item -LiteralPath (Join-Path $source $executable) -Destination $directory
         Copy-Item -LiteralPath (Join-Path $manifest.Directory.FullName 'locales') -Destination $directory -Recurse
-        $example = Join-Path $manifest.Directory.FullName 'config.example.json'
-        if (Test-Path -LiteralPath $example) { Copy-Item -LiteralPath $example -Destination $directory }
+        Get-ChildItem -Path $manifest.Directory.FullName -Filter '*.example.json' |
+            Copy-Item -Destination $directory
     }
     $archive = Join-Path $destination 'MyTools-windows-x64-portable.zip'
     Compress-Archive -LiteralPath $package -DestinationPath $archive -Force

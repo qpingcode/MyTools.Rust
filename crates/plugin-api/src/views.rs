@@ -36,6 +36,10 @@ pub struct PluginActionRequest {
     /// The `item` the action declared; absent when it declared none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub item: Option<String>,
+    /// For a command on the selection: whether the selection can be replaced, i.e. it is
+    /// in a text field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -52,4 +56,7 @@ pub struct PluginEffect {
     /// Hide the launcher after the action succeeded (e.g. an external editor was opened).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dismiss: bool,
+    /// Show the plugin's scope (its first alias), e.g. a conversation a command started.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub open: bool,
 }

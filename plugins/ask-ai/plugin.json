@@ -15,5 +15,23 @@
     "global": false,
     "tab": true
   },
-  "view": "chat"
+  "view": "chat",
+  "commands": [
+    {
+      "id": "ask-selection",
+      "title": {
+        "key": "command.ask",
+        "defaultValue": "Ask AI about Selection"
+      },
+      "keywords": [
+        "ask",
+        "ai",
+        "selection",
+        "选中",
+        "划词",
+        "提问"
+      ],
+      "input": "selection-optional"
+    }
+  ]
 }

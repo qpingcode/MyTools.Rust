@@ -28,9 +28,11 @@ for plugin in calculator applications clipboard chrome-bookmark encode decode fo
     mkdir -p "$directory/locales"
     cp plugins/"$plugin"/locales/*.json "$directory/locales/"
     cp "target/$profile/mytools-$plugin" "$directory/"
-    if [[ -f "plugins/$plugin/config.example.json" ]]; then
-        cp "plugins/$plugin/config.example.json" "$directory/"
-    fi
+    for example in plugins/"$plugin"/*.example.json; do
+        if [[ -f "$example" ]]; then
+            cp "$example" "$directory/"
+        fi
+    done
 done
 if ! "$build_only"; then
     exec "target/$profile/mytools" "${show_args[@]}"

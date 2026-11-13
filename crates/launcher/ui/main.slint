@@ -11,7 +11,7 @@ import { ActionPanel } from "components/action-panel.slint";
 import { WindowResizeHandles } from "../../../ui/components/window-resize-handles.slint";
 import { AboutSlint } from "std-widgets.slint";
 import { ResultData, ActionData, ChatMessageData } from "types.slint";
-export { ResultData, ActionData, ChatMessageData, ChatBlock } from "types.slint";
+export { ResultData, ActionData, ChatMessageData, ChatBlock, ChatStep, ChatSource } from "types.slint";
 export { AppTray } from "tray.slint";
 export { RestartDialog } from "restart-dialog.slint";
 export { NoticeWindow, NoticeData } from "notice.slint";
@@ -69,6 +69,8 @@ export component MainWindow inherits Window {
     in property <[ChatMessageData]> chat-messages;
     /// An answer is being written; Esc stops it.
     in property <bool> chat-busy;
+    /// Text waiting to go with the next question, e.g. a selection.
+    in property <string> chat-attachment;
     in property <string> preview-title;
     in property <string> preview-text;
     in property <string> preview-metadata;
@@ -79,6 +81,7 @@ export component MainWindow inherits Window {
     /// Sends the chat input as the next question.
     callback chat-send(string);
     callback chat-stop();
+    callback chat-detach();
     callback copy-text(string);
     callback open-link(string);
     /// Tab in the search box: opens the plugin that takes it with what was typed; `false`
@@ -208,9 +211,11 @@ export component MainWindow inherits Window {
                 visible: root.chat-view;
                 messages: root.chat-messages;
                 busy: root.chat-busy;
+                attachment: root.chat-attachment;
                 text <=> root.editor-text;
                 send(text) => { root.chat-send(text); }
                 stop => { root.chat-stop(); }
+                detach => { root.chat-detach(); }
                 copy-text(text) => { root.copy-text(text); }
                 open-link(url) => { root.open-link(url); }
             }

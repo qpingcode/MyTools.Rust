@@ -47,6 +47,11 @@ impl ChatSession {
         self.action("new", text)
     }
 
+    /// Drops the text waiting to go with the next question.
+    pub fn detach(&self) -> Action {
+        self.action("detach", "")
+    }
+
     /// Stops the answer being written.
     pub fn stop(&self) -> Action {
         self.action("stop", "")

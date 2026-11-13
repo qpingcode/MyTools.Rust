@@ -16,6 +16,8 @@ pub struct Action {
     operation: Operation,
     pub(crate) selection: Option<crate::history::Selection>,
     input: Input,
+    /// Sent with a command on the selection: whether the selection can be replaced.
+    editable: Option<bool>,
 }
 
 /// What the host gathers before running a plugin command.
@@ -27,6 +29,8 @@ enum Input {
     Selection {
         /// The plugin's scope ("alias "), where a result for a read-only selection is shown.
         scope: Option<String>,
+        /// The command also runs without a selection.
+        optional: bool,
     },
 }
 
@@ -85,18 +89,30 @@ impl Action {
     /// For a selection command: the query that opens its plugin's scope, if it has one.
     pub fn selection_scope(&self) -> Option<&str> {
         match &self.input {
-            Input::Selection { scope } => scope.as_deref(),
+            Input::Selection { scope, .. } => scope.as_deref(),
             Input::None => None,
         }
     }
 
-    /// This plugin command with `item`, e.g. the selected text.
+    /// Whether the command also runs when nothing is selected.
+    pub fn selection_optional(&self) -> bool {
+        matches!(self.input, Input::Selection { optional: true, .. })
+    }
+
+    /// This plugin command with `item`, e.g. a question.
     pub fn with_item(&self, item: String) -> Self {
         let mut action = self.clone();
         if let Operation::Plugin { item: target, .. } = &mut action.operation {
             *target = Some(item);
         }
         action.input = Input::None;
+        action
+    }
+
+    /// This command on the selected `text`, saying whether it can be replaced.
+    pub fn with_selection(&self, text: String, editable: bool) -> Self {
+        let mut action = self.with_item(text);
+        action.editable = Some(editable);
         action
     }
 
@@ -119,9 +135,11 @@ impl Action {
                 let process = process
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!(i18n::t("error.process_stopped")))?;
-                return Ok(ActionEffect::Plugin(
-                    process.execute(command, item.as_deref())?,
-                ));
+                return Ok(ActionEffect::Plugin(process.execute(
+                    command,
+                    item.as_deref(),
+                    self.editable,
+                )?));
             }
             Operation::Launch(path) => {
                 std::process::Command::new(path)
@@ -147,6 +165,7 @@ impl Action {
             operation: Operation::Retry(attempt),
             selection: None,
             input: Input::None,
+            editable: None,
         }
     }
 
@@ -168,6 +187,7 @@ impl Action {
             },
             selection: None,
             input: Input::None,
+            editable: None,
         }
     }
 
@@ -178,7 +198,7 @@ impl Action {
         title: &str,
         icon: &mytools_plugin_api::Icon,
         process: &std::sync::Arc<crate::search_process::SearchProcess>,
-        selection: Option<Option<String>>,
+        selection: Option<(Option<String>, bool)>,
     ) -> Self {
         let icon = match icon {
             mytools_plugin_api::Icon::Name(name) if name.starts_with("builtin:") => name.clone(),
@@ -196,9 +216,10 @@ impl Action {
             },
             selection: None,
             input: match selection {
-                Some(scope) => Input::Selection { scope },
+                Some((scope, optional)) => Input::Selection { scope, optional },
                 None => Input::None,
             },
+            editable: None,
         }
     }
 
@@ -234,7 +255,7 @@ pub fn resolve_actions(
     let mut seen = HashSet::new();
     let mut actions = Vec::new();
     for spec in specs {
-        if !seen.insert((spec.id, spec.command.clone())) {
+        if !seen.insert((spec.id, spec.command.clone(), spec.item.clone())) {
             continue;
         }
         // Plugin commands work on any result type; the result's own resource stays what the
@@ -279,6 +300,7 @@ pub fn resolve_actions(
             operation,
             selection: None,
             input: Input::None,
+            editable: None,
         });
     }
     Ok(actions)
@@ -430,6 +452,10 @@ mod tests {
         assert_eq!(actions.len(), 4);
         assert_eq!(actions[0].title.as_deref(), Some("paste"));
         assert_eq!(actions[2].icon, "builtin:trash");
+        // The same command for different items, e.g. "Open" for each recent conversation.
+        let open = ["1", "2", "1"]
+            .map(|item| mytools_plugin_api::text::command("open", item.into()).with_item(item));
+        assert_eq!(resolve_actions(&resource, Some(&open)).unwrap().len(), 2);
         assert!(resolve_actions(&resource, Some(&[ActionId::Plugin.into()])).is_err());
     }
 

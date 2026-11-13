@@ -89,5 +89,10 @@
   "chat.stop": "Stop",
   "chat.copied": "Copied",
   "chat.copy_code": "Copy code",
-  "chat.busy": "Still answering; press Esc to stop first"
+  "chat.busy": "Still answering; press Esc to stop first",
+  "chat.reasoning": "Thoughts",
+  "chat.sources": "Sources",
+  "chat.attached": "Selected text",
+  "chat.detach": "Remove the attached text",
+  "chat.placeholder_attached": "What should AI do with the text? Enter sends as is"
 }

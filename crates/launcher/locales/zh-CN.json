@@ -89,5 +89,10 @@
   "chat.stop": "停止",
   "chat.copied": "已复制",
   "chat.copy_code": "复制代码",
-  "chat.busy": "正在回答，请先按 Esc 停止"
+  "chat.busy": "正在回答，请先按 Esc 停止",
+  "chat.reasoning": "思考过程",
+  "chat.sources": "来源",
+  "chat.attached": "选中的文字",
+  "chat.detach": "移除附加的文字",
+  "chat.placeholder_attached": "想对这段文字做什么？直接按 Enter 也可以"
 }

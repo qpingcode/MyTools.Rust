@@ -9,3 +9,5 @@ mytools-plugin-api.workspace = true
 mytools-ai.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+scraper = "0.29"

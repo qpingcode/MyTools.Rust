@@ -66,8 +66,12 @@ pub fn label(plugin: &Plugin, command: &Command) -> String {
 
 /// The action that runs a command; it starts a lazy plugin when needed.
 pub fn action(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> Action {
-    let selection = (command.input == CommandInput::Selection)
-        .then(|| plugin.aliases.first().map(|alias| format!("{alias} ")));
+    let scope = || plugin.aliases.first().map(|alias| format!("{alias} "));
+    let selection = match command.input {
+        CommandInput::None => None,
+        CommandInput::Selection => Some((scope(), false)),
+        CommandInput::OptionalSelection => Some((scope(), true)),
+    };
     Action::command(
         &command.id,
         &command.title,

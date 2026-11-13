@@ -3,9 +3,12 @@
 #[path = "chat/markdown.rs"]
 mod markdown;
 
-use crate::{ChatBlock, ChatMessageData, MainWindow, app::State, i18n, search::QuerySender};
+use crate::{
+    ChatBlock, ChatMessageData, ChatSource, ChatStep, MainWindow, app::State, i18n,
+    search::QuerySender,
+};
 use mytools_core::{Action, ActionEffect, ChatSession, SearchResults};
-use mytools_plugin_api::chat::{ChatMessage, ChatUpdate, Role};
+use mytools_plugin_api::chat::{ChatMessage, ChatUpdate, Role, StepState};
 use slint::{ComponentHandle, Model, ModelRc, StyledText, VecModel};
 use std::{cell::RefCell, rc::Rc};
 
@@ -68,6 +71,14 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>, requests: &QuerySender)
         }
     });
     let weak = ui.as_weak();
+    let detach_state = state.clone();
+    ui.on_chat_detach(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        if let Some(session) = &detach_state.borrow().chat.session {
+            run(&ui, session.detach());
+        }
+    });
+    let weak = ui.as_weak();
     ui.on_copy_text(move |text| {
         let copied = arboard::Clipboard::new().and_then(|mut board| board.set_text(text.as_str()));
         if let Some(ui) = weak.upgrade() {
@@ -91,7 +102,12 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>, requests: &QuerySender)
 /// Shows the conversation of a chat search, and starts the one Tab asked for.
 pub fn apply(ui: &MainWindow, state: &mut State, results: &mut SearchResults) {
     let chat_view = results.view == mytools_plugin_api::View::Chat;
+    // Typing goes to the conversation's input as soon as it shows.
+    let appeared = chat_view && !ui.get_chat_view();
     ui.set_chat_view(chat_view);
+    if appeared {
+        ui.invoke_focus_chat();
+    }
     let chat = &mut state.chat;
     match results.chat.take() {
         Some(session) => {
@@ -165,6 +181,7 @@ fn show(ui: &MainWindow, chat: &mut ChatState, session: ChatSession) {
     }
     let session_grew = same && session.chat.messages.len() > old.len();
     ui.set_chat_busy(session.chat.busy());
+    ui.set_chat_attachment(session.chat.attachment.clone().unwrap_or_default().into());
     chat.session = Some(session);
     if changed {
         // A new question or conversation shows its end even after scrolling up.
@@ -233,6 +250,29 @@ fn message_data(message: &ChatMessage) -> ChatMessageData {
             })
             .collect()
     };
+    let steps: Vec<ChatStep> = message
+        .steps
+        .iter()
+        .map(|step| ChatStep {
+            text: step.text.clone().into(),
+            state: match step.state {
+                StepState::Running => 0,
+                StepState::Done => 1,
+                StepState::Failed => 2,
+            },
+        })
+        .collect();
+    let sources: Vec<ChatSource> = message
+        .sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| ChatSource {
+            number: index as i32 + 1,
+            title: source.title.clone().into(),
+            url: source.url.clone().into(),
+            host: host(&source.url).into(),
+        })
+        .collect();
     ChatMessageData {
         user: message.role == Role::User,
         blocks: ModelRc::new(VecModel::from(
@@ -243,7 +283,18 @@ fn message_data(message: &ChatMessage) -> ChatMessageData {
         )),
         streaming: message.streaming,
         error: message.error,
+        reasoning: message.reasoning.trim().into(),
+        attachment: message.attachment.clone().unwrap_or_default().into(),
+        steps: ModelRc::new(VecModel::from(steps)),
+        sources: ModelRc::new(VecModel::from(sources)),
     }
+}
+
+/// `example.com` of `https://www.example.com/page`.
+fn host(url: &str) -> &str {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let host = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    host.strip_prefix("www.").unwrap_or(host)
 }
 
 /// Sends the input as the next question; while an answer is written, an empty input
@@ -260,7 +311,8 @@ fn send(ui: &MainWindow, state: &State, text: &str) {
         }
         return;
     }
-    if text.trim().is_empty() {
+    // The attached text alone is a question too.
+    if text.trim().is_empty() && session.chat.attachment.is_none() {
         return;
     }
     run(ui, session.send(text));
@@ -344,6 +396,12 @@ fn status(ui: &MainWindow, result: anyhow::Result<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hosts_drop_the_scheme_path_and_www() {
+        assert_eq!(host("https://www.example.com/a?b"), "example.com");
+        assert_eq!(host("http://docs.rs"), "docs.rs");
+    }
 
     #[test]
     fn scope_keeps_the_alias_and_its_whitespace() {

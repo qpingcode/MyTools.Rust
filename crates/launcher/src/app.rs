@@ -328,7 +328,13 @@ fn apply_results(
         errors.join("；")
     } else if let Some(name) = results.plugin_name {
         if results.view == mytools_plugin_api::View::Chat {
-            name
+            // The conversation's result describes it, e.g. "Ask AI · model".
+            results
+                .entries
+                .first()
+                .map(|entry| entry.description.clone())
+                .filter(|description| !description.is_empty())
+                .unwrap_or(name)
         } else {
             i18n::format(
                 "status.plugin",

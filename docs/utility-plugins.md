@@ -11,7 +11,7 @@
 | formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；`Ctrl+Enter` 复制 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
-| Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答或开始新对话 |
+| Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，可联网搜索并标注来源；`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答、新对话、历史对话；可就选中文字提问 |
 | translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，`Ctrl+Enter` 发起翻译，完成后右侧显示译文，再按 `Ctrl+Enter` 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
@@ -93,22 +93,68 @@ DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包�
 ## Ask AI
 
 在主搜索框输入问题后按 `Tab`，进入 `ai ` 对话并直接发送；输入框为空时按 `Tab` 开始一个空的新对话。
-也可以输入 `ai ` 回到当前对话。对话只保存在插件进程内，重启 MyTools 后清空。
+也可以输入 `ai ` 回到当前对话。
 
 - 回答逐字显示；进行中再按 `Enter` 不会发送，按 `Esc`（或输入框右侧的停止按钮）停止并保留已写出的部分。
-- 回答中的代码块右上角有复制按钮；`Ctrl+K` 中“复制”复制最后一个完整回答的 Markdown 原文，“新对话”清空对话。
-- 每次提问都带上本次对话的全部内容。
+- 模型有思考过程时，回答上方显示折叠的“思考过程”，点击展开。
+- 回答中的代码块右上角有复制按钮。`Ctrl+K` 中：复制最后一个完整回答（Markdown 原文）、新对话、
+  切换模型（配置了 `models` 时）、打开最近的对话。
+- 每次提问都带上本次对话的全部内容。对话结束后保存最近 50 个（`history`），在 `Ctrl+K` 中重新打开；
+  保存在 `%LOCALAPPDATA%\MyTools\ask-ai\chats`（`MYTOOLS_ASK_AI_DATA` 可指定其他目录）。
 
-密钥与翻译相同，只从环境变量 `DEEPSEEK_API_KEY` 读取；`DEEPSEEK_MODEL` 可覆盖模型。
-需要修改接口地址、模型、系统提示词或回答长度时，将插件目录的 `config.example.json` 复制为 `config.json`
-（`MYTOOLS_ASK_AI_CONFIG` 可指定其他路径），修改后下一次提问生效：
+### 就选中文字提问
+
+命令“就选中文字询问 AI”默认没有快捷键，在设置窗口中为它指定一个（例如 `Ctrl+Alt+Q`），或在搜索框输入“询问 AI”找到它。
+在其他应用中选中文字后执行：打开新对话，选中的文字作为附件显示在输入框上方（可点 × 移除），
+输入要做什么（如“改得更礼貌”“这是什么意思”）后按 `Enter`，也可以直接按 `Enter` 让 AI 自行处理。
+没有选中文字时直接打开一个空对话。原文在输入框中时，`Ctrl+K` 有“用回答替换选中的文字”，
+把最后一个回答粘贴回原来的应用（替换仍处于选中状态的原文）。读取选中文字的方式与“翻译选中文字”相同，目前仅 Windows。
+
+### 联网搜索与 MCP
+
+模型可以调用工具：需要最新信息或不确定的事实时，它会先联网搜索，界面上显示“已搜索：… · 5 条结果”，
+回答中用 `[1]`、`[2]` 标注引用，末尾列出来源，点击打开网页。需要细节时模型还会读取某个网页的正文。
+一次回答最多 6 轮工具调用。
+
+内置搜索按 `search.providers` 依次尝试，前一个没有 key、出错或没有结果时换下一个：
+
+| 名称 | 说明 |
+| --- | --- |
+| `tavily` | [Tavily](https://tavily.com) API，需要环境变量 `TAVILY_API_KEY`；结果质量最好 |
+| `bing` | 抓取必应结果页，无需 key；`search.bing.host` 可设为 `cn.bing.com`，`market` 控制语言和地区 |
+| `duckduckgo` | 抓取 DuckDuckGo 的 HTML 结果页，无需 key；国内通常需要代理 |
+
+默认 `["tavily", "bing"]`：设置了 `TAVILY_API_KEY` 用 Tavily，否则用必应。抓取结果页依赖页面结构，
+搜索引擎改版或出现验证码时会失败，这时换下一个服务，回答照常继续。`web_search: false` 关闭内置搜索。
+
+内置搜索本身是一个 MCP 服务（插件以 `--mcp-web-search` 参数启动自己）。还可以接入其他 MCP 服务：
+在插件目录新建 `mcp.json`（`MYTOOLS_ASK_AI_MCP` 可指定其他路径），格式与 Claude Desktop 的 `mcpServers` 相同，
+示例见 `mcp.example.json`：
+
+- 本地服务写 `command`、`args`、`env`；Windows 上 `npx`、`uvx` 这类批处理会自动通过 `cmd` 启动，不弹出窗口。
+- 远程服务写 `url` 和可选的 `headers`（Streamable HTTP）。
+- 只有服务标为只读（`readOnlyHint`）或列在 `autoApprove` 中的工具会提供给模型，其余工具不会被调用。
+  `disabled: true` 暂时停用。
+- 服务在第一次提问时启动并保持运行；修改 `mcp.json` 后下一次提问时重新启动。启动失败的服务写入日志，本次不使用。
+
+### 配置
+
+密钥只从环境变量读取：`DEEPSEEK_API_KEY`（与翻译相同）、`TAVILY_API_KEY`（可选）；`DEEPSEEK_MODEL` 可覆盖模型。
+将插件目录的 `config.example.json` 复制为 `config.json`（`MYTOOLS_ASK_AI_CONFIG` 可指定其他路径），修改后下一次提问生效：
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `base_url` | `"https://api.deepseek.com"` | OpenAI 兼容接口根地址，请求 `<base_url>/chat/completions`（流式） |
-| `model` | `"deepseek-flash"` | 模型名称 |
+| `model` | `"deepseek-flash"` | 默认模型 |
+| `models` | `[]` | 可在 `Ctrl+K` 中切换的其他模型；选中的模型会记住，直到再次切换 |
 | `system_prompt` | `""` | 系统提示词，留空使用默认（用提问的语言简洁回答，适当使用 Markdown） |
 | `max_tokens` | `8192` | 一次回答的上限，达到时回答末尾注明“回答达到长度上限” |
+| `history` | `50` | 保存的对话数，`0` 不保存 |
+| `web_search` | `true` | 是否提供内置联网搜索 |
+| `search.providers` | `["tavily", "bing"]` | 搜索服务及顺序，见上表 |
+| `search.max_results` | `5` | 每次搜索的结果数，1–10 |
+| `search.bing.host` / `market` | `"www.bing.com"` / `"zh-CN"` | 必应地址与地区 |
+| `search.duckduckgo.region` | `"cn-zh"` | DuckDuckGo 地区 |
 
 ## 快捷文本数据
 

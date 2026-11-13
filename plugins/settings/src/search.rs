@@ -31,6 +31,7 @@ mod tests {
         let unknown = PluginActionRequest {
             command: "delete".into(),
             item: None,
+            editable: None,
         };
         assert!(execute(unknown).is_err());
     }

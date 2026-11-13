@@ -9,5 +9,17 @@
   "key.missing": "Set the DEEPSEEK_API_KEY environment variable, then ask again.",
   "failed": "The request failed: {error}",
   "length": "(The answer reached the length limit.)",
-  "stopped": "(Stopped.)"
+  "stopped": "(Stopped.)",
+  "mcp.error": "Cannot read the MCP servers: {error}",
+  "step.search": "Searching: {query}",
+  "step.searched": "Searched: {query} · {count} results",
+  "step.read": "Reading {page}",
+  "step.tool": "Running {tool}",
+  "step.failed": "{step} — failed: {error}",
+  "copy": "Copy answer",
+  "paste": "Replace the selection with the answer",
+  "detach": "Remove the attached text",
+  "open": "Open: {title}",
+  "model": "Use model {model}",
+  "command.ask": "Ask AI about Selection"
 }

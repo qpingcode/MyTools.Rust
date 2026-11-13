@@ -4,10 +4,11 @@
 mod client;
 pub mod environment;
 pub mod jsonc;
+pub mod mcp;
 mod stream;
 
 pub use client::{Provider, complete, describe};
-pub use stream::{Delta, Stopped, stream};
+pub use stream::{Delta, Stopped, ToolCall, stream};
 
 /// The variable holding the DeepSeek API key; configuration files never carry keys.
 pub const DEEPSEEK_API_KEY: &str = "DEEPSEEK_API_KEY";

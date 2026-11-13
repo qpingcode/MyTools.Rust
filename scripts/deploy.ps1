@@ -81,9 +81,9 @@ try {
         foreach ($locale in Get-ChildItem -Path (Join-Path $manifest.Directory.FullName 'locales') -Filter '*.json') {
             $changed = (Update-File $locale.FullName (Join-Path $directory "locales/$($locale.Name)")) -or $changed
         }
-        $example = Join-Path $manifest.Directory.FullName 'config.example.json'
-        if (Test-Path -LiteralPath $example) {
-            $changed = (Update-File $example (Join-Path $directory 'config.example.json')) -or $changed
+        # Examples such as config.example.json and mcp.example.json; the user's own files stay.
+        foreach ($example in Get-ChildItem -Path $manifest.Directory.FullName -Filter '*.example.json') {
+            $changed = (Update-File $example.FullName (Join-Path $directory $example.Name)) -or $changed
         }
         if ($changed) { $restartPlugins += Join-Path $directory $entry }
     }
