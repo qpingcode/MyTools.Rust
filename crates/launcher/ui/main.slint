@@ -46,6 +46,9 @@ export component MainWindow inherits Window {
     /// Searches and actions that finish quickly never show the indicator; once shown it
     /// stays until both are done, even while the user keeps typing.
     out property <bool> show-loading;
+    /// Plugins the shown results need are still starting; the results refresh when they are
+    /// ready, so the indicator keeps running until then.
+    in property <bool> plugins-starting;
     in property <[ActionData]> actions;
     in-out property <bool> actions-open;
     in-out property <int> selected-action: 0;
@@ -144,7 +147,7 @@ export component MainWindow inherits Window {
                 x: 0px; y: 0px;
                 width: parent.width;
                 query <=> root.query;
-                loading: root.show-loading;
+                loading: root.show-loading || root.plugins-starting;
                 edited(query) => { root.search(query); }
                 accepted => {
                     if (root.chat-view) { root.chat-send(root.editor-text); }
@@ -221,7 +224,7 @@ export component MainWindow inherits Window {
                     : root.action-busy && root.action-status != "" ? root.action-status
                     : root.searching-status != "" ? root.searching-status : root.status;
                 failed: root.failed && !root.show-loading;
-                loading: root.show-loading;
+                loading: root.show-loading || root.plugins-starting;
                 primary-title: root.primary-title;
                 shortcut-label: root.shortcut-label;
                 primary-shortcut: root.editor-view ? "Ctrl+Enter" : root.chat-view && root.chat-busy ? "Esc" : "Enter";

@@ -318,6 +318,7 @@ fn apply_results(
     ui.set_detail_view(results.view == mytools_plugin_api::View::ListDetail);
     ui.set_editor_view(results.view == mytools_plugin_api::View::Editor);
     crate::chat::apply(ui, state, &mut results);
+    ui.set_plugins_starting(results.waiting);
     actions::close_panel(ui, state);
     let empty_text = empty_text(&results);
     let mut errors = results.errors;
