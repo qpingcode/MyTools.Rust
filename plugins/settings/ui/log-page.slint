@@ -44,6 +44,9 @@ component LogLine inherits Rectangle {
     in property <LogRow> entry;
     callback toggle();
     callback copy();
+    // The expanded part lines up under the message: past the time column and its spacing.
+    private property <length> indent: 130px;
+    private property <length> text-width: root.width - 20px - root.indent;
     height: layout.preferred-height;
     border-radius: 6px;
     background: root.entry.expanded ? Theme.panel : touch.has-hover ? Theme.hover : transparent;
@@ -75,18 +78,22 @@ component LogLine inherits Rectangle {
                 }
             }
         }
+        // Wrapped text needs a fixed width to measure its height, or the line comes out too
+        // short and long messages run over the records below it.
         if root.entry.expanded: VerticalLayout {
-            spacing: 6px; padding-left: 130px; padding-bottom: 4px;
+            spacing: 6px; padding-left: root.indent; padding-bottom: 4px;
             Text {
                 text: root.entry.event != "" ? root.entry.stamp + " · " + root.entry.event : root.entry.stamp;
                 color: Theme.placeholder; font-size: Theme.font-caption;
                 font-family: "Cascadia Mono";
             }
             Text {
+                width: root.text-width;
                 text: root.entry.message; color: Theme.foreground; font-size: Theme.font-small;
                 wrap: word-wrap;
             }
             if root.entry.detail != "": Rectangle {
+                width: root.text-width;
                 height: detail.preferred-height + 16px;
                 border-radius: 6px;
                 background: Theme.background;
