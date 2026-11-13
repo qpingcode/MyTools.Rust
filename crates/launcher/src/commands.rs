@@ -4,7 +4,10 @@
 //! Commands that work on the selection (such as translating it) first read the text selected
 //! in that application. When it is editable the result replaces it; otherwise the plugin's
 //! scope opens with the selected text, so the result shows in the launcher.
-use crate::{MainWindow, desktop, i18n, notices::Notifier};
+//!
+//! A command that takes a while shows a toast in the lower middle of the screen meanwhile,
+//! which says what will happen with the result.
+use crate::{MainWindow, desktop, i18n, notices::Notifier, toast::Toast};
 use anyhow::Result;
 use mytools_core::{Action, ActionEffect, Notice};
 use std::{cell::RefCell, rc::Rc, time::Duration};
@@ -21,6 +24,7 @@ pub enum Origin {
 struct Context {
     window: slint::Weak<MainWindow>,
     notifier: Rc<Notifier>,
+    toast: Rc<Toast>,
 }
 
 thread_local! {
@@ -28,12 +32,13 @@ thread_local! {
 }
 
 /// Gives commands the window they may open and where to report problems.
-pub fn init(ui: &MainWindow, notifier: Rc<Notifier>) {
+pub fn init(ui: &MainWindow, notifier: Rc<Notifier>, font: &str) {
     use slint::ComponentHandle;
     CONTEXT.with_borrow_mut(|context| {
         *context = Some(Context {
             window: ui.as_weak(),
             notifier,
+            toast: Toast::new(font),
         })
     });
 }
@@ -44,21 +49,27 @@ pub fn run(action: Action, origin: Origin) {
     if origin == Origin::Shortcut {
         desktop::remember_target();
     }
-    let Some((window, notifier)) = CONTEXT.with_borrow(|context| {
-        context
-            .as_ref()
-            .map(|context| (context.window.clone(), context.notifier.clone()))
+    let Some((window, notifier, toast)) = CONTEXT.with_borrow(|context| {
+        context.as_ref().map(|context| {
+            (
+                context.window.clone(),
+                context.notifier.clone(),
+                context.toast.clone(),
+            )
+        })
     }) else {
         return;
     };
     let spawned = slint::spawn_local(async move {
+        let command = action.title.clone().unwrap_or_default();
         let result = if action.needs_selection() {
-            run_on_selection(&action, origin, &window).await
+            run_on_selection(&action, origin, &window, &toast).await
         } else {
+            toast.start(running(&command), String::new());
             execute(&action).await
         };
+        toast.close();
         if let Err(error) = result {
-            let command = action.title.clone().unwrap_or_default();
             mytools_plugin_api::log::warn(
                 "command.failed",
                 format!("command {command} failed: {error:#}"),
@@ -72,6 +83,10 @@ pub fn run(action: Action, origin: Origin) {
     if let Err(error) = spawned {
         mytools_plugin_api::log::error("command.failed", format!("{error}"));
     }
+}
+
+fn running(command: &str) -> String {
+    i18n::format("toast.running", &[("command", command)])
 }
 
 /// Runs `work` on its own thread, e.g. a plugin that may still be starting.
@@ -118,6 +133,7 @@ async fn run_on_selection(
     action: &Action,
     origin: Origin,
     window: &slint::Weak<MainWindow>,
+    toast: &Rc<Toast>,
 ) -> Result<()> {
     if origin == Origin::Launcher {
         // Give the application its focus back, so its selection is the current one again.
@@ -129,8 +145,19 @@ async fn run_on_selection(
     let result = if text.is_empty() {
         Err(anyhow::anyhow!(i18n::t("selection.empty")))
     } else {
+        let next = if selection.editable {
+            "toast.replace"
+        } else if action.selection_scope().is_some() {
+            "toast.show"
+        } else {
+            "toast.copy"
+        };
+        let command = action.title.clone().unwrap_or_default();
+        toast.start(running(&command), i18n::t(next));
         let worker = action.with_item(text.clone());
-        background(move || worker.execute()).await
+        let result = background(move || worker.execute()).await;
+        toast.close();
+        result
     };
     let effect = match result {
         Ok(ActionEffect::Plugin(effect)) => effect,

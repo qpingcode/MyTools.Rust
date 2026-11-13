@@ -11,9 +11,11 @@ mod highlight;
 mod i18n;
 mod icons;
 mod notices;
+mod screen;
 mod search;
 mod single_instance;
 mod theme;
+mod toast;
 mod tray;
 mod window_geometry;
 

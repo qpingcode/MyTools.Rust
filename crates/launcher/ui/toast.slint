@@ -1,0 +1,55 @@
+import { Theme } from "../../../ui/theme.slint";
+import { BuiltinIcons } from "../../../ui/icons.slint";
+
+/// What a command run by its shortcut is doing, in the lower middle of the screen the user
+/// works on. It never takes focus, so the result can still be pasted into that application.
+export component ToastWindow inherits Window {
+    title: "MyTools";
+    icon: @image-url("../../../ui/assets/app.png");
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    width: content.preferred-width;
+    height: content.preferred-height;
+    in property <string> app-font-family;
+    default-font-family: root.app-font-family;
+    in property <string> heading;
+    in property <string> detail;
+    out property <length> content-width: content.preferred-width;
+    out property <length> content-height: content.preferred-height;
+    callback content-resized();
+    changed content-width => { root.content-resized(); }
+    changed content-height => { root.content-resized(); }
+    Rectangle {
+        background: Theme.popup;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: Theme.control-border;
+    }
+    content := HorizontalLayout {
+        padding-left: 16px; padding-right: 18px; padding-top: 10px; padding-bottom: 10px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Image {
+                width: 18px; height: 18px;
+                source: BuiltinIcons.lookup("builtin:loader-circle");
+                colorize: Theme.accent;
+                // One turn per second while the window is up.
+                rotation-angle: animation-tick() / 1s * 360deg;
+                accessible-role: none;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.heading; color: Theme.foreground;
+                font-size: Theme.font-body; font-weight: 600;
+            }
+            if root.detail != "": Text {
+                text: root.detail; color: Theme.muted; font-size: Theme.font-small;
+            }
+        }
+    }
+}

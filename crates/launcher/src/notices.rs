@@ -27,6 +27,14 @@ pub fn creating() -> bool {
     CREATING.with(Cell::get)
 }
 
+/// Creates a window that shows without taking focus or a taskbar button.
+pub fn without_focus<T>(create: impl FnOnce() -> T) -> T {
+    CREATING.with(|creating| creating.set(true));
+    let window = create();
+    CREATING.with(|creating| creating.set(false));
+    window
+}
+
 pub struct Notifier {
     window: RefCell<Option<NoticeWindow>>,
     shown: RefCell<Vec<Notice>>,
@@ -100,10 +108,7 @@ impl Notifier {
     }
 
     fn create(self: &Rc<Self>) -> Result<NoticeWindow, slint::PlatformError> {
-        CREATING.with(|creating| creating.set(true));
-        let window = NoticeWindow::new();
-        CREATING.with(|creating| creating.set(false));
-        let window = window?;
+        let window = without_focus(NoticeWindow::new)?;
         theme::apply_configured(&window.global::<Theme>());
         window.global::<I18n>().on_text(|key| i18n::t(&key).into());
         window.set_app_font_family(self.font.clone().into());
@@ -147,7 +152,8 @@ impl Notifier {
 
 /// Puts the window in the bottom-right corner of the primary screen's work area.
 fn place(window: &NoticeWindow) {
-    let Some(area) = work_area(window) else {
+    let Some(area) = crate::screen::work_area(window.window(), crate::screen::Screen::Primary)
+    else {
         return;
     };
     // From the layout rather than the native size, which lags behind a change of notices,
@@ -159,76 +165,4 @@ fn place(window: &NoticeWindow) {
         area.left + area.width - size.width as i32 - margin,
         area.top + area.height - size.height as i32 - margin,
     ));
-}
-
-/// The primary screen without the taskbar, in physical pixels, and its scale factor.
-struct WorkArea {
-    left: i32,
-    top: i32,
-    width: i32,
-    height: i32,
-    scale: f32,
-}
-
-#[cfg(windows)]
-fn work_area(_: &NoticeWindow) -> Option<WorkArea> {
-    use windows_sys::Win32::{
-        Foundation::{POINT, RECT},
-        Graphics::Gdi::{MONITOR_DEFAULTTOPRIMARY, MonitorFromPoint},
-        UI::{
-            HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
-            WindowsAndMessaging::{SPI_GETWORKAREA, SystemParametersInfoW},
-        },
-    };
-    let mut rect = RECT {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-    };
-    let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, (&raw mut rect).cast(), 0) };
-    if ok == 0 {
-        return None;
-    }
-    // The monitor holding the work area's bottom-right corner, where the notice goes.
-    let corner = POINT {
-        x: rect.right - 1,
-        y: rect.bottom - 1,
-    };
-    let monitor = unsafe { MonitorFromPoint(corner, MONITOR_DEFAULTTOPRIMARY) };
-    let (mut dpi_x, mut dpi_y) = (0u32, 0u32);
-    let read = unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) };
-    let scale = if read >= 0 && dpi_x > 0 {
-        dpi_x as f32 / 96.0
-    } else {
-        1.0
-    };
-    Some(WorkArea {
-        left: rect.left,
-        top: rect.top,
-        width: rect.right - rect.left,
-        height: rect.bottom - rect.top,
-        scale,
-    })
-}
-
-#[cfg(not(windows))]
-fn work_area(window: &NoticeWindow) -> Option<WorkArea> {
-    use slint::winit_030::WinitWindowAccessor;
-    window
-        .window()
-        .with_winit_window(|native| {
-            let monitor = native
-                .primary_monitor()
-                .or_else(|| native.current_monitor())?;
-            let (position, size) = (monitor.position(), monitor.size());
-            Some(WorkArea {
-                left: position.x,
-                top: position.y,
-                width: size.width as i32,
-                height: size.height as i32,
-                scale: monitor.scale_factor() as f32,
-            })
-        })
-        .flatten()
 }

@@ -42,6 +42,7 @@ keyboard
 link
 link-2
 list
+loader-circle
 lock
 mail
 minus

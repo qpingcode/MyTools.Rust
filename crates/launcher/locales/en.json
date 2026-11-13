@@ -75,5 +75,9 @@
   "selection.unsupported": "Reading the selection is only supported on Windows",
   "selection.no_window": "No application is in front",
   "selection.keys_held": "Release the shortcut's keys to read the selection",
-  "selection.failed": "Cannot read the selection"
+  "selection.failed": "Cannot read the selection",
+  "toast.running": "{command}…",
+  "toast.replace": "The result will replace the selected text",
+  "toast.show": "The selection can't be edited; the result will open in MyTools",
+  "toast.copy": "The result will be copied to the clipboard"
 }

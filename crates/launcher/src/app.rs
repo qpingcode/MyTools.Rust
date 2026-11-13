@@ -172,7 +172,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     })?;
 
     let (command_sender, command_receiver) = async_channel::unbounded();
-    commands::init(&ui, notifier.clone());
+    commands::init(&ui, notifier.clone(), font);
     let _commands = slint::spawn_local(async move {
         while let Ok(action) = command_receiver.recv().await {
             commands::run(action, commands::Origin::Shortcut);

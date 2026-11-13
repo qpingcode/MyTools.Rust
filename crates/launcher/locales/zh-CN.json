@@ -75,5 +75,9 @@
   "selection.unsupported": "目前只有 Windows 支持读取选中的文字",
   "selection.no_window": "前台没有应用",
   "selection.keys_held": "请松开快捷键后再读取选中的文字",
-  "selection.failed": "无法读取选中的文字"
+  "selection.failed": "无法读取选中的文字",
+  "toast.running": "正在{command}…",
+  "toast.replace": "完成后将替换选中的文字",
+  "toast.show": "选中的文字不可编辑，完成后在 MyTools 中显示结果",
+  "toast.copy": "完成后将结果复制到剪贴板"
 }
