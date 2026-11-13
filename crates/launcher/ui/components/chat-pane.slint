@@ -153,9 +153,9 @@ export component ChatPane inherits Rectangle {
     public function scroll-to-end(force: bool) {
         if (force) { root.follow = true; }
         if (root.follow) {
-            list.viewport-y = min(0px, list.visible-height - list.viewport-height);
-            root.last-y = list.viewport-y;
-            root.last-height = list.viewport-height;
+            list.content-y = min(0px, list.visible-height - list.content-height);
+            root.last-y = list.content-y;
+            root.last-height = list.content-height;
         }
     }
     /// The view follows new text until the user scrolls up.
@@ -167,20 +167,20 @@ export component ChatPane inherits Rectangle {
     list := ScrollView {
         x: 0px; y: 0px; width: parent.width;
         height: parent.height - root.input-height - 20px;
-        viewport-height: max(self.visible-height, column.preferred-height + 32px);
-        viewport-width: self.visible-width;
+        content-height: max(self.visible-height, column.preferred-height + 32px);
+        content-width: self.visible-width;
         // Only the user scrolling up stops following new text; a view that moves because
         // the content changed height does not.
         scrolled => {
-            if (self.viewport-height == root.last-height && self.viewport-y > root.last-y + 2px) {
+            if (self.content-height == root.last-height && self.content-y > root.last-y + 2px) {
                 root.follow = false;
-            } else if (self.viewport-y <= self.visible-height - self.viewport-height + 24px) {
+            } else if (self.content-y <= self.visible-height - self.content-height + 24px) {
                 root.follow = true;
             }
-            root.last-y = self.viewport-y;
-            root.last-height = self.viewport-height;
+            root.last-y = self.content-y;
+            root.last-height = self.content-height;
         }
-        changed viewport-height => { root.scroll-to-end(false); }
+        changed content-height => { root.scroll-to-end(false); }
         column := VerticalLayout {
             // Its own height, or the layout would stretch the messages to fill the view.
             x: 20px; y: 16px; width: list.visible-width - 40px; height: self.preferred-height;
