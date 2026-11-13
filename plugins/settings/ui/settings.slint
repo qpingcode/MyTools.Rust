@@ -194,21 +194,25 @@ export component SettingsWindow inherits Window {
                 ScrollView {
                     vertical-stretch: 1;
                     VerticalLayout {
-                        alignment: start; spacing: 8px; padding-right: 10px;
-                        for plugin[index] in root.plugins: PluginCard {
-                            plugin: plugin;
-                            // Filtered-out cards collapse instead of leaving gaps.
+                        // No spacing: hidden cards would still add it, leaving gaps between
+                        // the shown ones. Each shown card carries its own gap below it.
+                        alignment: start; padding-right: 10px;
+                        for plugin[index] in root.plugins: Rectangle {
                             visible: plugin.shown;
-                            height: plugin.shown ? self.full-height : 0px;
-                            aliases-edited(text) => { root.aliases-edited(index, text); }
-                            toggled(value) => { root.toggled(index, value); }
-                            restart => { root.restart(index); }
-                            startup-toggled => { root.startup-toggled(index); }
-                            hotkey-edited(row, text) => { root.hotkey-edited(index, row, text); }
-                            status-hovered(inside, x, y) => {
-                                root.tip = inside ? plugin.status-text : "";
-                                root.tip-x = x;
-                                root.tip-y = y + 22px;
+                            height: plugin.shown ? card.full-height + 8px : 0px;
+                            card := PluginCard {
+                                x: 0px; y: 0px; width: parent.width;
+                                plugin: plugin;
+                                aliases-edited(text) => { root.aliases-edited(index, text); }
+                                toggled(value) => { root.toggled(index, value); }
+                                restart => { root.restart(index); }
+                                startup-toggled => { root.startup-toggled(index); }
+                                hotkey-edited(row, text) => { root.hotkey-edited(index, row, text); }
+                                status-hovered(inside, x, y) => {
+                                    root.tip = inside ? plugin.status-text : "";
+                                    root.tip-x = x;
+                                    root.tip-y = y + 22px;
+                                }
                             }
                         }
                         if root.shown-count == 0: Text {
