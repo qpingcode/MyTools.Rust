@@ -128,7 +128,8 @@ Rust 插件使用 `serve_interactive(search, action)`，仅搜索插件继续使
 
 - 别名范围内的每次搜索，插件都在 `SearchResponse.chat` 中返回当前对话（`id` 和 `messages`，每条消息有
   `role`、`text`、`streaming`、`error`），查询内容不影响结果。用户消息按纯文本显示，回答按 Markdown 显示：
-  段落、列表、粗体、行内代码和链接直接显示，标题、代码块（带复制按钮）、引用和表格单独成块。
+  段落、标题、列表（保留编号和 •）、引用、代码块（带复制按钮）和表格（表头加粗、按内容分配列宽）各成一块。
+  所有文字都可以用鼠标选中后 `Ctrl+C` 复制；为此按纯文本显示，粗体、斜体不再区分，链接只显示文字。
 - 回答消息还可以带 `reasoning`（模型的思考过程，折叠显示）、`steps`（做了什么，如联网搜索，每项有 `text` 和
   `state`：`running`、`done`、`failed`）和 `sources`（引用的网页 `title`、`url`，回答中的 `[n]` 对应第 n 个）；
   用户消息可以带 `attachment`（提问所针对的文字，如选中的内容）。`Chat.attachment` 是等待随下一个问题发送的文字，

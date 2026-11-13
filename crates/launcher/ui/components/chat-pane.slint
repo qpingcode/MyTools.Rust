@@ -4,33 +4,81 @@ import { Theme } from "../../../../ui/theme.slint";
 import { Icon } from "../../../../ui/components/icon.slint";
 import { ChatMessageData, ChatBlock, ChatStep, ChatSource } from "../types.slint";
 
-/// One block of an answer: text, a heading, a quote, or code with a copy button. Wrapped
-/// text needs a fixed width to measure its height, hence `available-width`.
+/// Read-only text that can be selected and copied with Ctrl+C; it wraps at `width`.
+component SelectableText inherits TextInput {
+    read-only: true;
+    single-line: false;
+    wrap: word-wrap;
+    color: Theme.foreground;
+    font-size: Theme.font-body;
+    selection-background-color: Theme.selection;
+}
+
+/// A table: a header row on a darker band, then the rows with lines between them. Columns
+/// take shares of the width by their longest cell.
+component TableView inherits Rectangle {
+    in property <[[string]]> rows;
+    in property <[float]> widths;
+    in property <length> available-width;
+    width: root.available-width;
+    height: body.preferred-height;
+    border-radius: Theme.radius - 2px;
+    border-width: 1px;
+    border-color: Theme.border;
+    clip: true;
+    body := VerticalLayout {
+        for row[r] in root.rows: Rectangle {
+            background: r == 0 ? Theme.panel : transparent;
+            height: cells.preferred-height;
+            cells := HorizontalLayout {
+                for cell[c] in row: Rectangle {
+                    width: (root.available-width - 2px) * root.widths[c];
+                    // Rows are as tall as their tallest cell; dividers run the full height.
+                    min-height: padded.preferred-height;
+                    padded := HorizontalLayout {
+                        padding-left: 10px; padding-right: 10px; padding-top: 6px; padding-bottom: 6px;
+                        SelectableText {
+                            width: (root.available-width - 2px) * root.widths[c] - 20px;
+                            text: cell;
+                            font-size: Theme.font-small;
+                            font-weight: r == 0 ? 600 : 400;
+                        }
+                    }
+                    if c > 0: Rectangle { x: 0px; width: 1px; background: Theme.border; }
+                }
+            }
+            if r > 0: Rectangle { y: 0px; height: 1px; background: Theme.border; }
+        }
+    }
+}
+
+/// One block of an answer: text, a heading, a quote, a table, or code with a copy button.
+/// Wrapped text needs a fixed width to measure its height, hence `available-width`.
 component ChatBlockView inherits VerticalLayout {
     in property <ChatBlock> block;
     in property <length> available-width;
     in property <brush> text-color: Theme.foreground;
     callback copy-text(string);
-    callback open-link(string);
-    if root.block.kind == 0 || root.block.kind == 1: StyledText {
+    if root.block.kind == 0 || root.block.kind == 1: SelectableText {
         width: root.available-width;
-        text: root.block.text;
-        default-color: root.text-color;
-        default-font-size: root.block.kind == 1 ? Theme.font-title : Theme.font-body;
-        link-color: Theme.accent;
-        link-clicked(url) => { root.open-link(url); }
+        text: root.block.plain;
+        color: root.text-color;
+        font-size: root.block.kind == 1 ? Theme.font-title : Theme.font-body;
+        font-weight: root.block.kind == 1 ? 600 : 400;
     }
     if root.block.kind == 3: HorizontalLayout {
         spacing: 10px;
         Rectangle { width: 3px; border-radius: 1.5px; background: Theme.border; }
-        StyledText {
+        SelectableText {
             width: root.available-width - 13px;
-            text: root.block.text;
-            default-color: Theme.muted;
-            default-font-size: Theme.font-body;
-            link-color: Theme.accent;
-            link-clicked(url) => { root.open-link(url); }
+            text: root.block.plain;
+            color: Theme.muted;
         }
+    }
+    if root.block.kind == 4: TableView {
+        rows: root.block.rows;
+        widths: root.block.widths;
+        available-width: root.available-width;
     }
     if root.block.kind == 2: Rectangle {
         width: root.available-width;
@@ -61,13 +109,11 @@ component ChatBlockView inherits VerticalLayout {
                     accessible-action-default => { root.copy-text(root.block.plain); }
                 }
             }
-            Text {
+            SelectableText {
                 width: root.available-width - 20px;
                 text: root.block.plain;
-                color: Theme.foreground;
                 font-size: Theme.font-small;
                 font-family: "Consolas";
-                wrap: word-wrap;
             }
         }
     }
@@ -99,10 +145,9 @@ component UserBubble inherits Rectangle {
                 wrap: word-wrap; overflow: elide;
             }
         }
-        if root.text != "": Text {
+        if root.text != "": SelectableText {
             width: root.text-width;
-            text: root.text; color: Theme.foreground; font-size: Theme.font-body;
-            wrap: word-wrap;
+            text: root.text;
         }
     }
 }
@@ -133,10 +178,9 @@ component ReasoningView inherits VerticalLayout {
     if root.open: HorizontalLayout {
         spacing: 10px;
         Rectangle { width: 2px; background: Theme.border; }
-        Text {
+        SelectableText {
             width: root.available-width - 12px;
             text: root.text; color: Theme.muted; font-size: Theme.font-small;
-            wrap: word-wrap;
         }
     }
 }
@@ -246,7 +290,6 @@ component MessageView inherits VerticalLayout {
             available-width: root.available-width;
             text-color: root.message.error ? Theme.danger : Theme.foreground;
             copy-text(text) => { root.copy-text(text); }
-            open-link(url) => { root.open-link(url); }
         }
         if root.message.streaming && root.message.blocks.length == 0 && root.message.reasoning == ""
                 && root.message.steps.length == 0: HorizontalLayout {

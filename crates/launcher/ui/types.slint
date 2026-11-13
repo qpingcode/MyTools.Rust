@@ -14,15 +14,17 @@ export struct ResultData {
 
 export struct ActionData { title: string, icon: string }
 
-/// A block of a chat message: text (0), a heading (1), code (2) or a quote (3).
+/// A block of a chat message: text (0), a heading (1), code (2), a quote (3) or a table (4).
 export struct ChatBlock {
     kind: int,
-    /// The block as styled text, for every kind but code.
-    text: styled-text,
-    /// Plain text: the code of a code block, the text to copy otherwise.
+    /// What the block shows (the code of a code block); empty for a table.
     plain: string,
     /// A code block's language, e.g. "rust"; may be empty.
     language: string,
+    /// A table's cells, the header row first.
+    rows: [[string]],
+    /// Each table column's share of the width.
+    widths: [float],
 }
 
 /// Something done for an answer, e.g. a web search; `state` is running (0), done (1) or

@@ -9,7 +9,7 @@ use crate::{
 };
 use mytools_core::{Action, ActionEffect, ChatSession, SearchResults};
 use mytools_plugin_api::chat::{ChatMessage, ChatUpdate, Role, StepState};
-use slint::{ComponentHandle, Model, ModelRc, StyledText, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default)]
@@ -226,30 +226,38 @@ pub fn update(ui: &MainWindow, state: &mut State, plugin: &str, update: ChatUpda
 }
 
 fn message_data(message: &ChatMessage) -> ChatMessageData {
-    let plain = |text: &str| ChatBlock {
-        kind: markdown::Kind::Text as i32,
-        text: StyledText::from_plain_text(text),
-        plain: text.into(),
-        language: Default::default(),
-    };
-    let blocks: Vec<ChatBlock> = if message.role == Role::User || message.error {
-        vec![plain(message.text.trim())]
+    let blocks: Vec<markdown::Block> = if message.role == Role::User || message.error {
+        vec![markdown::Block {
+            kind: markdown::Kind::Text,
+            text: message.text.trim().into(),
+            language: String::new(),
+            rows: Vec::new(),
+        }]
     } else {
         markdown::blocks(&message.text)
-            .into_iter()
-            .map(|block| ChatBlock {
-                kind: block.kind as i32,
-                text: if block.markdown.is_empty() {
-                    StyledText::from_plain_text(&block.plain)
-                } else {
-                    StyledText::from_markdown(&block.markdown)
-                        .unwrap_or_else(|_| StyledText::from_plain_text(&block.plain))
-                },
-                plain: block.plain.into(),
-                language: block.language.into(),
-            })
-            .collect()
     };
+    let blocks: Vec<ChatBlock> = blocks
+        .into_iter()
+        .filter(|block| !block.text.is_empty() || !block.rows.is_empty())
+        .map(|block| {
+            let widths = markdown::column_shares(&block.rows);
+            let rows: Vec<ModelRc<SharedString>> = block
+                .rows
+                .into_iter()
+                .map(|row| {
+                    let cells: Vec<SharedString> = row.into_iter().map(Into::into).collect();
+                    ModelRc::new(VecModel::from(cells))
+                })
+                .collect();
+            ChatBlock {
+                kind: block.kind as i32,
+                plain: block.text.into(),
+                language: block.language.into(),
+                rows: ModelRc::new(VecModel::from(rows)),
+                widths: ModelRc::new(VecModel::from(widths)),
+            }
+        })
+        .collect();
     let steps: Vec<ChatStep> = message
         .steps
         .iter()
@@ -275,12 +283,7 @@ fn message_data(message: &ChatMessage) -> ChatMessageData {
         .collect();
     ChatMessageData {
         user: message.role == Role::User,
-        blocks: ModelRc::new(VecModel::from(
-            blocks
-                .into_iter()
-                .filter(|block| !block.plain.is_empty())
-                .collect::<Vec<_>>(),
-        )),
+        blocks: ModelRc::new(VecModel::from(blocks)),
         streaming: message.streaming,
         error: message.error,
         reasoning: message.reasoning.trim().into(),

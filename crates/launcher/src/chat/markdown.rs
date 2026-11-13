@@ -1,8 +1,7 @@
-//! Splits an answer's Markdown into the blocks the chat view draws. Slint's styled text
-//! handles paragraphs, lists, emphasis, inline code and links, but not headings, code
-//! blocks, quotes or tables, so those become blocks of their own.
+//! Turns an answer's Markdown into the blocks the chat view draws: paragraphs and lists,
+//! headings, code, quotes and tables. Every block is plain text, so it can be selected and
+//! copied; list markers stay, emphasis and link targets do not.
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
-use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -10,104 +9,68 @@ pub enum Kind {
     Heading = 1,
     Code = 2,
     Quote = 3,
+    Table = 4,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Block {
     pub kind: Kind,
-    /// Markdown for styled text; empty for code.
-    pub markdown: String,
-    /// The block as plain text: the code of a code block, the source otherwise.
-    pub plain: String,
+    /// What the block shows; the code of a code block. Empty for a table.
+    pub text: String,
+    /// A code block's language, e.g. "rust".
     pub language: String,
+    /// A table's rows, the header first.
+    pub rows: Vec<Vec<String>>,
 }
 
 impl Block {
-    fn new(kind: Kind, markdown: &str, plain: &str) -> Self {
+    fn new(kind: Kind, text: String) -> Self {
         Self {
             kind,
-            markdown: markdown.trim().into(),
-            plain: plain.trim_end().into(),
+            text: text.trim_end().to_owned(),
             language: String::new(),
+            rows: Vec::new(),
         }
     }
 }
 
-/// One top-level element while it is read.
-struct Open {
-    tag: Tag<'static>,
-    start: usize,
-    /// Where the element's content starts and ends, e.g. a heading's text without `#`.
-    inner: Option<Range<usize>>,
-    code: String,
+fn options() -> Options {
+    Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS
 }
 
 pub fn blocks(markdown: &str) -> Vec<Block> {
-    let options = Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES;
     let mut blocks = Vec::new();
     let mut depth = 0usize;
-    let mut open: Option<Open> = None;
-    for (event, range) in Parser::new_ext(markdown, options).into_offset_iter() {
+    let mut open: Option<(Tag<'static>, usize)> = None;
+    for (event, range) in Parser::new_ext(markdown, options()).into_offset_iter() {
         match event {
             Event::Start(tag) => {
                 if depth == 0 {
-                    open = Some(Open {
-                        tag: tag.into_static(),
-                        start: range.start,
-                        inner: None,
-                        code: String::new(),
-                    });
-                } else {
-                    widen(&mut open, &range);
+                    open = Some((tag.into_static(), range.start));
                 }
                 depth += 1;
             }
-            Event::End(end) => {
+            Event::End(_) => {
                 depth = depth.saturating_sub(1);
-                if depth > 0 {
-                    widen(&mut open, &range);
-                    continue;
-                }
-                if let Some(element) = open.take() {
-                    blocks.extend(finish(markdown, element, range.end, end));
+                if depth == 0
+                    && let Some((tag, start)) = open.take()
+                {
+                    blocks.extend(finish(
+                        &tag,
+                        &markdown[start..range.end.min(markdown.len())],
+                    ));
                 }
             }
-            Event::Text(text) if depth > 0 => {
-                if let Some(element) = &mut open {
-                    element.code.push_str(&text);
-                }
-                widen(&mut open, &range);
-            }
-            _ if depth > 0 => widen(&mut open, &range),
             // A rule or stray HTML between blocks.
             _ => {}
         }
     }
-    // An answer cut off mid-element (while streaming) still shows what arrived.
-    if let Some(element) = open {
-        let end = markdown.len();
-        blocks.extend(finish(markdown, element, end, TagEnd::Paragraph));
-    }
     blocks
 }
 
-fn widen(open: &mut Option<Open>, range: &Range<usize>) {
-    if let Some(element) = open {
-        let inner = element.inner.get_or_insert(range.clone());
-        inner.start = inner.start.min(range.start);
-        inner.end = inner.end.max(range.end);
-    }
-}
-
-fn finish(markdown: &str, element: Open, end: usize, _: TagEnd) -> Option<Block> {
-    let source = &markdown[element.start..end.min(markdown.len())];
-    let inner = element
-        .inner
-        .clone()
-        .map(|inner| &markdown[inner.start..inner.end.min(markdown.len())])
-        .unwrap_or_default();
-    let block = match &element.tag {
-        Tag::Heading { .. } => Block::new(Kind::Heading, inner, inner),
+fn finish(tag: &Tag, source: &str) -> Option<Block> {
+    let block = match tag {
+        Tag::Heading { .. } => Block::new(Kind::Heading, plain(source)),
         Tag::CodeBlock(kind) => Block {
             language: match kind {
                 CodeBlockKind::Fenced(info) => {
@@ -115,26 +78,139 @@ fn finish(markdown: &str, element: Open, end: usize, _: TagEnd) -> Option<Block>
                 }
                 CodeBlockKind::Indented => String::new(),
             },
-            ..Block::new(Kind::Code, "", element.code.trim_end_matches('\n'))
+            ..Block::new(Kind::Code, code(source))
         },
-        Tag::BlockQuote(_) => {
-            let unquoted: Vec<&str> = source
-                .lines()
-                .map(|line| {
-                    let line = line.trim_start();
-                    let line = line.strip_prefix('>').unwrap_or(line);
-                    line.strip_prefix(' ').unwrap_or(line)
-                })
-                .collect();
-            let text = unquoted.join("\n");
-            Block::new(Kind::Quote, &text, &text)
-        }
-        // Columns line up in a monospace font.
-        Tag::Table(_) => Block::new(Kind::Code, "", source),
-        Tag::HtmlBlock => Block::new(Kind::Text, "", source),
-        _ => Block::new(Kind::Text, source, source),
+        Tag::BlockQuote(_) => Block::new(Kind::Quote, plain(source)),
+        Tag::Table(_) => Block {
+            rows: table(source),
+            ..Block::new(Kind::Table, String::new())
+        },
+        Tag::HtmlBlock => Block::new(Kind::Text, source.to_owned()),
+        _ => Block::new(Kind::Text, plain(source)),
     };
-    (!block.plain.trim().is_empty()).then_some(block)
+    (!block.text.trim().is_empty() || !block.rows.is_empty()).then_some(block)
+}
+
+/// The code of a code block, without its fences.
+fn code(source: &str) -> String {
+    let mut code = String::new();
+    for event in Parser::new_ext(source, options()) {
+        if let Event::Text(text) = event {
+            code.push_str(&text);
+        }
+    }
+    code.trim_end_matches('\n').to_owned()
+}
+
+/// The text of a paragraph, list, heading or quote: line breaks kept, list items marked
+/// with "•" or their number and indented by level.
+fn plain(source: &str) -> String {
+    let mut text = String::new();
+    // Each open list's next number; `None` for bullets.
+    let mut lists: Vec<Option<u64>> = Vec::new();
+    let mut paragraphs = 0;
+    let new_line = |text: &mut String| {
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+    };
+    for event in Parser::new_ext(source, options()) {
+        match event {
+            Event::Start(Tag::List(start)) => {
+                new_line(&mut text);
+                lists.push(start);
+            }
+            Event::End(TagEnd::List(_)) => {
+                lists.pop();
+            }
+            Event::Start(Tag::Item) => {
+                new_line(&mut text);
+                text.push_str(&"  ".repeat(lists.len().saturating_sub(1)));
+                match lists.last_mut() {
+                    Some(Some(number)) => {
+                        text.push_str(&format!("{number}. "));
+                        *number += 1;
+                    }
+                    _ => text.push_str("• "),
+                }
+            }
+            Event::Start(Tag::Paragraph) => {
+                if lists.is_empty() && paragraphs > 0 {
+                    new_line(&mut text);
+                    text.push('\n');
+                } else if !lists.is_empty() && !text.ends_with(". ") && !text.ends_with("• ") {
+                    new_line(&mut text);
+                }
+                paragraphs += 1;
+            }
+            Event::Start(Tag::CodeBlock(_)) => new_line(&mut text),
+            Event::Text(part) | Event::Code(part) | Event::InlineHtml(part) | Event::Html(part) => {
+                text.push_str(&part)
+            }
+            Event::SoftBreak | Event::HardBreak => text.push('\n'),
+            Event::TaskListMarker(done) => text.push_str(if done { "☑ " } else { "☐ " }),
+            Event::Rule => {
+                new_line(&mut text);
+                text.push_str("———");
+            }
+            _ => {}
+        }
+    }
+    text.trim().to_owned()
+}
+
+/// A table's cells as plain text, row by row.
+fn table(source: &str) -> Vec<Vec<String>> {
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut cell: Option<String> = None;
+    for event in Parser::new_ext(source, options()) {
+        match event {
+            Event::Start(Tag::TableHead | Tag::TableRow) => rows.push(Vec::new()),
+            Event::Start(Tag::TableCell) => cell = Some(String::new()),
+            Event::End(TagEnd::TableCell) => {
+                if let (Some(row), Some(text)) = (rows.last_mut(), cell.take()) {
+                    row.push(text.trim().to_owned());
+                }
+            }
+            Event::Text(part) | Event::Code(part) | Event::InlineHtml(part) => {
+                if let Some(cell) = &mut cell {
+                    cell.push_str(&part);
+                }
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                if let Some(cell) = &mut cell {
+                    cell.push(' ');
+                }
+            }
+            _ => {}
+        }
+    }
+    let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
+    for row in &mut rows {
+        row.resize(columns, String::new());
+    }
+    rows
+}
+
+/// How wide each column should be, as shares of the table: by its longest cell (wide
+/// characters count double), within limits so short columns stay readable.
+pub fn column_shares(rows: &[Vec<String>]) -> Vec<f32> {
+    let columns = rows.first().map_or(0, Vec::len);
+    let widths: Vec<f32> = (0..columns)
+        .map(|column| {
+            rows.iter()
+                .map(|row| {
+                    row[column]
+                        .chars()
+                        .map(|ch| if ch.is_ascii() { 1.0 } else { 2.0 })
+                        .sum::<f32>()
+                })
+                .fold(0.0, f32::max)
+                .clamp(4.0, 40.0)
+        })
+        .collect();
+    let total: f32 = widths.iter().sum();
+    widths.iter().map(|width| width / total).collect()
 }
 
 #[cfg(test)]
@@ -144,25 +220,22 @@ mod tests {
     fn kinds(markdown: &str) -> Vec<(Kind, String)> {
         blocks(markdown)
             .into_iter()
-            .map(|block| {
-                let text = match block.kind {
-                    Kind::Code => format!("{}|{}", block.language, block.plain),
-                    _ => block.markdown,
-                };
-                (block.kind, text)
+            .map(|block| match block.kind {
+                Kind::Code => (block.kind, format!("{}|{}", block.language, block.text)),
+                _ => (block.kind, block.text),
             })
             .collect()
     }
 
     #[test]
-    fn splits_headings_code_quotes_and_text() {
-        let answer = "## Title *x*\n\nSome **bold** text\nnext line.\n\n- one\n- two\n\n```rust\nfn main() {}\n```\n\n> quoted\n> more\n\n---\n\nEnd.";
+    fn splits_headings_code_quotes_and_text_as_plain_text() {
+        let answer = "## Title *x*\n\nSome **bold** `code` and [a link](https://x.y)\nnext line.\n\n- one\n- two\n  1. sub\n  2. sub two\n\n```rust\nfn main() {}\n```\n\n> quoted\n> more\n\n---\n\nEnd.";
         assert_eq!(
             kinds(answer),
             [
-                (Kind::Heading, "Title *x*".into()),
-                (Kind::Text, "Some **bold** text\nnext line.".into()),
-                (Kind::Text, "- one\n- two".into()),
+                (Kind::Heading, "Title x".into()),
+                (Kind::Text, "Some bold code and a link\nnext line.".into()),
+                (Kind::Text, "• one\n• two\n  1. sub\n  2. sub two".into()),
                 (Kind::Code, "rust|fn main() {}".into()),
                 (Kind::Quote, "quoted\nmore".into()),
                 (Kind::Text, "End.".into()),
@@ -171,10 +244,22 @@ mod tests {
     }
 
     #[test]
-    fn tables_are_monospace_and_unfinished_code_still_shows() {
-        let table = "| a | b |\n|---|---|\n| 1 | 2 |";
-        assert_eq!(blocks(table)[0].kind, Kind::Code);
-        assert_eq!(blocks(table)[0].plain, table);
+    fn numbered_lists_keep_their_start_and_tasks_their_boxes() {
+        assert_eq!(kinds("3. c\n4. d")[0].1, "3. c\n4. d");
+        assert_eq!(kinds("- [x] done\n- [ ] todo")[0].1, "• ☑ done\n• ☐ todo");
+    }
+
+    #[test]
+    fn tables_become_rows_of_cells_and_unfinished_code_still_shows() {
+        let table = "| Name | 说明 |\n|---|---|\n| **a** | 第一 |\n| b |";
+        let blocks = blocks(table);
+        assert_eq!(blocks[0].kind, Kind::Table);
+        assert_eq!(
+            blocks[0].rows,
+            [["Name", "说明"], ["a", "第一"], ["b", ""]].map(|row| row.map(String::from).to_vec())
+        );
+        let shares = column_shares(&blocks[0].rows);
+        assert!((shares.iter().sum::<f32>() - 1.0).abs() < 0.001);
         // While streaming, the closing fence has not arrived yet.
         assert_eq!(
             kinds("Try:\n\n```py\nprint(1)\nprint("),
@@ -183,6 +268,6 @@ mod tests {
                 (Kind::Code, "py|print(1)\nprint(".into())
             ]
         );
-        assert!(blocks("").is_empty());
+        assert!(super::blocks("").is_empty());
     }
 }
