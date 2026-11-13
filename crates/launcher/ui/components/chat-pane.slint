@@ -165,27 +165,52 @@ component StepView inherits HorizontalLayout {
     }
 }
 
-/// The pages an answer cites, numbered as in its text; a click opens one.
+/// The pages an answer cites, numbered as in its text; a click opens one. The first three
+/// show; the rest unfold on a click, like the reasoning.
 component SourcesView inherits VerticalLayout {
     in property <[ChatSource]> sources;
     in property <length> available-width;
     callback open-link(string);
-    spacing: 3px;
-    Text { text: I18n.text("chat.sources"); color: Theme.muted; font-size: Theme.font-caption; }
-    for source in root.sources: HorizontalLayout {
+    private property <int> shown: 3;
+    private property <bool> open;
+    Text {
+        text: I18n.text("chat.sources"); color: Theme.muted; font-size: Theme.font-caption;
+    }
+    for source[index] in root.sources: VerticalLayout {
+        if root.open || index < root.shown: HorizontalLayout {
+            padding-top: 3px;
+            spacing: 6px;
+            alignment: start;
+            Text {
+                text: "[" + source.number + "]"; color: Theme.muted; font-size: Theme.font-small;
+            }
+            Text {
+                max-width: root.available-width - 40px;
+                text: source.title + "  ·  " + source.host;
+                color: link-touch.has-hover ? Theme.foreground : Theme.accent;
+                font-size: Theme.font-small; overflow: elide;
+                link-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.open-link(source.url); }
+                }
+            }
+        }
+    }
+    if root.sources.length > root.shown: HorizontalLayout {
+        padding-top: 4px;
         spacing: 6px;
         alignment: start;
-        Text {
-            text: "[" + source.number + "]"; color: Theme.muted; font-size: Theme.font-small;
+        Icon {
+            width: 12px; height: 12px; y: 2px;
+            name: root.open ? "builtin:chevron-down" : "builtin:chevron-right"; tint: Theme.muted;
         }
         Text {
-            max-width: root.available-width - 40px;
-            text: source.title + "  ·  " + source.host;
-            color: link-touch.has-hover ? Theme.foreground : Theme.accent;
-            font-size: Theme.font-small; overflow: elide;
-            link-touch := TouchArea {
+            text: root.open ? I18n.text("chat.sources_fewer")
+                : I18n.text("chat.sources_all") + " (" + root.sources.length + ")";
+            color: Theme.muted; font-size: Theme.font-small;
+            TouchArea {
                 mouse-cursor: pointer;
-                clicked => { root.open-link(source.url); }
+                clicked => { root.open = !root.open; }
             }
         }
     }

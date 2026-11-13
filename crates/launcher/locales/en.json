@@ -94,5 +94,7 @@
   "chat.sources": "Sources",
   "chat.attached": "Selected text",
   "chat.detach": "Remove the attached text",
-  "chat.placeholder_attached": "What should AI do with the text? Enter sends as is"
+  "chat.placeholder_attached": "What should AI do with the text? Enter sends as is",
+  "chat.sources_all": "Show all sources",
+  "chat.sources_fewer": "Show fewer"
 }

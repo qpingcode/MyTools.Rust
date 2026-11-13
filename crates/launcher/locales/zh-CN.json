@@ -94,5 +94,7 @@
   "chat.sources": "来源",
   "chat.attached": "选中的文字",
   "chat.detach": "移除附加的文字",
-  "chat.placeholder_attached": "想对这段文字做什么？直接按 Enter 也可以"
+  "chat.placeholder_attached": "想对这段文字做什么？直接按 Enter 也可以",
+  "chat.sources_all": "显示全部来源",
+  "chat.sources_fewer": "收起"
 }
