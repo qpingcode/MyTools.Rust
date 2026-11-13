@@ -212,10 +212,18 @@ fn open_scope(window: &slint::Weak<MainWindow>, scope: &str, text: &str) {
         return;
     };
     desktop::show(&ui);
+    // A conversation that already shows does not appear again to take the focus, which
+    // `show` gave to the search box, still before the alias.
+    let conversation_shown = ui.get_chat_view() && ui.get_query() == scope;
     ui.set_query(scope.into());
     ui.invoke_search(scope.into());
     ui.set_editor_text(text.into());
     ui.invoke_editor_edited(text.into());
+    if conversation_shown {
+        ui.invoke_focus_chat();
+    } else {
+        ui.invoke_focus_search_at_end();
+    }
 }
 
 /// Sets text that clipboard histories (Windows' and the clipboard plugin's) should skip.
