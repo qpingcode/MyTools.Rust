@@ -1,6 +1,6 @@
 # Builds the workspace in release and updates an installed copy of MyTools in place.
-# Only changed files are replaced; user data (config.json, window-position.json, plugin
-# settings) is never touched. Running executables are renamed to *.old before the copy,
+# Only changed files are replaced; user data lives in %LOCALAPPDATA%\MyTools, outside the
+# install folder, and is never touched. Running executables are renamed to *.old before the copy,
 # changed plugins are stopped so MyTools restarts them, and MyTools itself is restarted
 # when mytools.exe changed.
 param(
@@ -81,7 +81,8 @@ try {
         foreach ($locale in Get-ChildItem -Path (Join-Path $manifest.Directory.FullName 'locales') -Filter '*.json') {
             $changed = (Update-File $locale.FullName (Join-Path $directory "locales/$($locale.Name)")) -or $changed
         }
-        # Examples such as config.example.json and mcp.example.json; the user's own files stay.
+        # Examples such as config.example.json and mcp.example.json; the user's own copies live
+        # in %LOCALAPPDATA%\MyTools\<plugin>.
         foreach ($example in Get-ChildItem -Path $manifest.Directory.FullName -Filter '*.example.json') {
             $changed = (Update-File $example.FullName (Join-Path $directory $example.Name)) -or $changed
         }

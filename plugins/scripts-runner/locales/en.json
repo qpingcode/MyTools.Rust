@@ -34,7 +34,6 @@
   "validation.content": "Enter script content (up to 64 KiB, no null characters).",
   "validation.directory": "Working directory must be an existing absolute directory.",
   "validation.duplicate": "Another script already uses this alias.",
-  "store.unavailable": "Script data directory is unavailable.",
   "store.limit": "Script store exceeds the supported size limit.",
   "store.invalid": "Script store contains invalid or duplicate IDs.",
   "store.conflict": "This script was changed in another window. Reopen the manager before editing again.",

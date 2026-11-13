@@ -66,19 +66,9 @@ pub struct Store {
 }
 
 pub fn directory() -> Result<PathBuf> {
-    if let Some(root) = std::env::var_os("MYTOOLS_CLIPBOARD_DIR") {
-        return Ok(PathBuf::from(root));
-    }
-    #[cfg(windows)]
-    return Ok(PathBuf::from(
-        std::env::var_os("LOCALAPPDATA").ok_or_else(|| anyhow::anyhow!("LOCALAPPDATA missing"))?,
-    )
-    .join("MyTools/clipboard"));
-    #[cfg(not(windows))]
-    Ok(
-        PathBuf::from(std::env::var_os("HOME").ok_or_else(|| anyhow::anyhow!("HOME missing"))?)
-            .join("Library/Application Support/MyTools/clipboard"),
-    )
+    Ok(std::env::var_os("MYTOOLS_CLIPBOARD_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| mytools_plugin_api::dirs::plugin("clipboard")))
 }
 
 pub fn now() -> u64 {

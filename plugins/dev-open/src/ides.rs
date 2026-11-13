@@ -39,7 +39,7 @@ impl Ide {
     }
 }
 
-/// Optional `config.json` beside the plugin overriding auto-detected executables.
+/// Optional `config.json` in the plugin's data folder overriding auto-detected executables.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -50,10 +50,8 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        std::env::current_exe()
+        std::fs::read(mytools_plugin_api::dirs::plugin("dev-open").join("config.json"))
             .ok()
-            .map(|exe| exe.with_file_name("config.json"))
-            .and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default()
     }

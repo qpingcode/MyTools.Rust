@@ -168,21 +168,10 @@ pub(crate) fn now() -> u64 {
 }
 
 fn path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("MYTOOLS_HISTORY_PATH") {
-        return Some(path.into());
-    }
-    #[cfg(windows)]
-    return std::env::var_os("LOCALAPPDATA")
-        .map(|root| PathBuf::from(root).join("MyTools/search-history.json"));
-    #[cfg(target_os = "macos")]
-    return std::env::var_os("HOME").map(|root| {
-        PathBuf::from(root).join("Library/Application Support/MyTools/search-history.json")
-    });
-    #[cfg(not(any(windows, target_os = "macos")))]
-    std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|root| PathBuf::from(root).join(".local/share")))
-        .map(|root| root.join("MyTools/search-history.json"))
+    Some(std::env::var_os("MYTOOLS_HISTORY_PATH").map_or_else(
+        || mytools_plugin_api::dirs::root().join("search-history.json"),
+        PathBuf::from,
+    ))
 }
 
 fn record_at(path: &Path, selection: &Selection, time: u64) -> anyhow::Result<()> {

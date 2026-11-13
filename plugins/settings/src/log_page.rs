@@ -138,7 +138,7 @@ impl LogPage {
         });
         let page = self.0.clone();
         ui.on_log_open_folder(move || {
-            open_folder(page.borrow().logs.directory());
+            crate::open_folder(page.borrow().logs.directory());
         });
     }
 
@@ -214,16 +214,4 @@ fn copy(ui: &SettingsWindow, text: &str, count: usize) {
         }
         .into(),
     );
-}
-
-fn open_folder(directory: &std::path::Path) {
-    let _ = std::fs::create_dir_all(directory);
-    let program = if cfg!(windows) {
-        "explorer"
-    } else if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    let _ = std::process::Command::new(program).arg(directory).spawn();
 }

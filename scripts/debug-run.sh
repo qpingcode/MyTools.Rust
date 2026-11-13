@@ -18,8 +18,12 @@ done
 cargo "${build_args[@]}"
 mkdir -p "target/$profile/licenses"
 cp ui/assets/icons/LICENSE "target/$profile/licenses/Lucide.txt"
-if [[ ! -e "target/$profile/config.json" ]]; then
-    cp config.example.json "target/$profile/config.json"
+# Its own data folder (config.json, window position, logs, plugin data), apart from the
+# installed copy's.
+export MYTOOLS_DATA_DIR="$PWD/target/$profile/data"
+mkdir -p "$MYTOOLS_DATA_DIR"
+if [[ ! -e "$MYTOOLS_DATA_DIR/config.json" ]]; then
+    cp config.example.json "$MYTOOLS_DATA_DIR/config.json"
 fi
 for plugin in calculator applications clipboard chrome-bookmark encode decode formatter process-killer uuid-generator translator quick-text scripts-runner; do
     directory="target/$profile/plugins/$plugin"

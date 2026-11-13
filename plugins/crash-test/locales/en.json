@@ -3,7 +3,7 @@
   "status": "Crash test plugin is running",
   "next": "Simulated crash in {seconds}s (process {pid})",
   "off": "Crash simulation is off",
-  "off_detail": "Set \"enabled\": true in config.json in the plugin folder and leave MYTOOLS_CRASH_TEST unset",
+  "off_detail": "Set \"enabled\": true in crash-test\\config.json in the MyTools data folder and leave MYTOOLS_CRASH_TEST unset",
   "running": "Process {pid}, no crash while running",
   "slow_start": "Simulated slow start: {elapsed}/{total}s",
   "result": "Test result {index}/{count}",

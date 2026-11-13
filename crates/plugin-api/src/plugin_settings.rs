@@ -133,9 +133,12 @@ pub fn valid_alias(alias: &str) -> bool {
     !alias.is_empty() && alias.len() <= MAX_ALIAS_LEN && !alias.chars().any(char::is_whitespace)
 }
 
-/// The settings file the host told this process about.
-pub fn path() -> Option<PathBuf> {
-    std::env::var_os(ENV).map(PathBuf::from)
+/// The settings file the host told this process about, else `plugin-settings.json` in the
+/// data folder ([`crate::dirs`]).
+pub fn path() -> PathBuf {
+    std::env::var_os(ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| crate::dirs::root().join("plugin-settings.json"))
 }
 
 /// A missing file means no overrides.

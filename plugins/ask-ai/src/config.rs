@@ -89,7 +89,12 @@ const DEFAULT_PROMPT: &str = "You are a helpful assistant inside MyTools, a desk
 Answer in the language of the user's latest message. Be concise and direct; use Markdown \
 (lists, inline code, fenced code blocks with a language) when it helps.";
 
-/// A JSONC file next to the executable, or the one an environment variable names;
+/// The plugin's folder in the data folder, where its files and conversations are kept.
+pub fn directory() -> PathBuf {
+    mytools_plugin_api::dirs::plugin("ask-ai")
+}
+
+/// A JSONC file in the plugin's folder, or the one an environment variable names;
 /// defaults when it does not exist.
 pub fn read<T: serde::de::DeserializeOwned + Default>(
     variable: &str,
@@ -97,11 +102,7 @@ pub fn read<T: serde::de::DeserializeOwned + Default>(
 ) -> Result<T, String> {
     let path = std::env::var_os(variable)
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::current_exe()
-                .unwrap_or_default()
-                .with_file_name(name)
-        });
+        .unwrap_or_else(|| directory().join(name));
     match std::fs::read(&path) {
         Ok(bytes) => {
             let text = String::from_utf8_lossy(&bytes);
@@ -114,7 +115,7 @@ pub fn read<T: serde::de::DeserializeOwned + Default>(
 }
 
 impl Config {
-    /// `config.json` next to the executable, or `MYTOOLS_ASK_AI_CONFIG`.
+    /// `config.json` in the plugin's folder, or `MYTOOLS_ASK_AI_CONFIG`.
     pub fn load() -> Result<Self, String> {
         read("MYTOOLS_ASK_AI_CONFIG", "config.json")
     }

@@ -86,6 +86,8 @@ export component SettingsWindow inherits Window {
     callback log-pause-toggled();
     callback log-copy-shown();
     callback log-open-folder();
+    /// Shows the folder with the user's settings and the plugins' data.
+    callback open-data-folder();
     callback log-toggle(int);
     callback log-copy-row(int);
     // Standard text widgets follow the dark theme instead of the light default.
@@ -135,6 +137,10 @@ export component SettingsWindow inherits Window {
                         clicked => { root.page = 1; root.page-changed(1); }
                     }
                     Rectangle { vertical-stretch: 1; }
+                    Button {
+                        text: I18n.text("data_folder"); icon: "builtin:folder-open"; kind: "ghost";
+                        clicked => { root.open-data-folder(); }
+                    }
                 }
             }
             Rectangle { width: 1px; background: Theme.border; }

@@ -104,14 +104,10 @@ fn write_atomically(path: &Path, entries: &[Entry]) -> std::io::Result<()> {
 }
 
 fn default_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("MYTOOLS_TRANSLATOR_CACHE") {
-        return Some(PathBuf::from(path));
-    }
-    #[cfg(windows)]
-    let root = PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("MyTools");
-    #[cfg(not(windows))]
-    let root = PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support/MyTools");
-    Some(root.join("translator").join("cache.json"))
+    Some(std::env::var_os("MYTOOLS_TRANSLATOR_CACHE").map_or_else(
+        || mytools_plugin_api::dirs::plugin("translator").join("cache.json"),
+        PathBuf::from,
+    ))
 }
 
 #[cfg(test)]

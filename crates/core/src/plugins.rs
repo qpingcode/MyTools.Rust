@@ -357,10 +357,9 @@ impl Plugin {
     }
 }
 
-/// The user's plugin overrides file, next to `config.json`.
+/// The user's plugin overrides file, in the data folder next to `config.json`.
 pub fn settings_path() -> PathBuf {
     mytools_plugin_api::plugin_settings::path()
-        .unwrap_or_else(|| directory().with_file_name("plugin-settings.json"))
 }
 
 /// The overrides in effect, or none (with the error) when the file cannot be read.

@@ -19,7 +19,8 @@ try {
     $package = Join-Path $stage 'MyTools'
     New-Item -ItemType Directory -Path $package | Out-Null
     Copy-Item -LiteralPath (Join-Path $source 'mytools.exe') -Destination $package
-    Copy-Item -LiteralPath (Join-Path $root 'config.example.json') -Destination (Join-Path $package 'config.json')
+    # Settings live in %LOCALAPPDATA%\MyTools; the example documents them.
+    Copy-Item -LiteralPath (Join-Path $root 'config.example.json') -Destination $package
     Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination $package
     Copy-Item -LiteralPath (Join-Path $root 'docs') -Destination $package -Recurse
     $licenses = Join-Path $package 'licenses'

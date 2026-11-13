@@ -38,8 +38,8 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 密钥只从环境变量 `DEEPSEEK_API_KEY` 读取，配置文件中的 `api_key` 不生效。
 优先读取进程环境变量；Windows 未继承该变量时，依次读取用户环境变量和系统环境变量，
 因此在 Windows 设置用户变量后可直接重试。插件不把密钥写入文件或日志。
-如需修改 API 地址、模型、缓存条数或朗读语音，可将插件目录的 `config.example.json` 复制为 `config.json`；
-构建脚本保留已有配置。`config.json` 支持 `//` 和 `/* */` 注释，示例中逐项列出了可选值。
+如需修改 API 地址、模型、缓存条数或朗读语音，可将插件目录的 `config.example.json` 复制到
+数据目录的 `translator\config.json`（`%LOCALAPPDATA%\MyTools\translator`，见 README 的“用户数据位置”）。`config.json` 支持 `//` 和 `/* */` 注释，示例中逐项列出了可选值。
 `MYTOOLS_TRANSLATOR_CONFIG` 可指定配置文件路径，`DEEPSEEK_MODEL` 可覆盖模型。
 
 | 字段 | 默认值 | 说明 |
@@ -128,7 +128,7 @@ DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包�
 搜索引擎改版或出现验证码时会失败，这时换下一个服务，回答照常继续。`web_search: false` 关闭内置搜索。
 
 内置搜索本身是一个 MCP 服务（插件以 `--mcp-web-search` 参数启动自己）。还可以接入其他 MCP 服务：
-在插件目录新建 `mcp.json`（`MYTOOLS_ASK_AI_MCP` 可指定其他路径），格式与 Claude Desktop 的 `mcpServers` 相同，
+在数据目录新建 `ask-ai\mcp.json`（即 `%LOCALAPPDATA%\MyTools\ask-ai\mcp.json`，`MYTOOLS_ASK_AI_MCP` 可指定其他路径），格式与 Claude Desktop 的 `mcpServers` 相同，
 示例见 `mcp.example.json`：
 
 - 本地服务写 `command`、`args`、`env`；Windows 上 `npx`、`uvx` 这类批处理会自动通过 `cmd` 启动，不弹出窗口。
@@ -140,7 +140,7 @@ DeepSeek 偶尔不按 JSON 格式返回；插件会去掉 Markdown 代码块包�
 ### 配置
 
 密钥只从环境变量读取：`DEEPSEEK_API_KEY`（与翻译相同）、`TAVILY_API_KEY`（可选）；`DEEPSEEK_MODEL` 可覆盖模型。
-将插件目录的 `config.example.json` 复制为 `config.json`（`MYTOOLS_ASK_AI_CONFIG` 可指定其他路径），修改后下一次提问生效：
+将插件目录的 `config.example.json` 复制为数据目录的 `ask-ai\config.json`（`MYTOOLS_ASK_AI_CONFIG` 可指定其他路径），修改后下一次提问生效：
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -189,7 +189,8 @@ macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚�
 - 搜索插件的卡片下方列出它的快捷键：第一行“打开启动器并进入插件”，其后是插件声明的每个命令（如剪贴板历史的“以纯文本粘贴剪贴板”）。按 `Ctrl+Shift+V` 的格式填写，留空表示不使用，输入框为空时以浅色显示默认值，右侧按钮恢复默认。快捷键不能重复，也不能使用 `Alt+Space`；保存时校验。
 - 关闭开关会停用插件：不再启动其进程，也不参与搜索和快捷键；通过别名搜索已停用的插件时会提示它已停用。设置插件本身不能停用。
 - 已启用插件之间的别名不能重复，别名不能包含空白；保存时校验，失败时显示原因。
-- 保存后写入 MyTools 目录下的 `plugin-settings.json`（只记录与默认不同的项），MyTools 随即重新加载插件并重新注册快捷键，无需重启。已被其他程序占用的快捷键在右下角提示。
+- 保存后写入数据目录（`%LOCALAPPDATA%\MyTools`）的 `plugin-settings.json`（只记录与默认不同的项），MyTools 随即重新加载插件并重新注册快捷键，无需重启。已被其他程序占用的快捷键在右下角提示。
+- 侧栏左下角的 **打开数据文件夹** 打开 `%LOCALAPPDATA%\MyTools`，MyTools 和各插件的配置文件都在这里；启动器中搜索“打开数据文件夹”也可以。
 
 **日志** 页显示 MyTools 和各插件最近的 2000 条日志，最新的在最上面：
 
@@ -202,7 +203,7 @@ macOS 可以管理脚本条目，暂不支持运行 Windows PowerShell/CMD 脚�
 
 `crash-test` 是一个故意出问题的插件（`global: true`，别名 `crash`），用来检验 MyTools 对插件异常的处理：状态圆点、右下角提示、自动重启和崩溃日志。输入 `crash` 可以看到它当前的进程号和下次崩溃的倒计时；别名后再输入内容会多返回一些测试结果：数字 1–50 表示结果条数（如 `crash 5`），其他内容返回 3 条回显该内容的结果，按 Enter 复制；全局搜索中只有搜索词包含 `crash` 或“崩溃”时才会出现。
 
-各种异常在插件目录（部署后是 `C:\soft\MyTools\plugins\crash-test`）的 `config.json` 中分别配置，参考同目录的 `config.example.json`；没有这个文件时使用默认值，即不模拟任何异常；要开始测试，至少写入 `{"enabled": true}`（此时默认只有运行期间每 30 秒崩溃一次）。修改后在设置里重启插件，或等它下次崩溃重启后生效。
+各种异常在数据目录的 `crash-test\config.json`（`%LOCALAPPDATA%\MyTools\crash-test`）中分别配置，参考插件目录的 `config.example.json`；没有这个文件时使用默认值，即不模拟任何异常；要开始测试，至少写入 `{"enabled": true}`（此时默认只有运行期间每 30 秒崩溃一次）。修改后在设置里重启插件，或等它下次崩溃重启后生效。
 
 | 字段 | 默认 | 模拟的异常 | MyTools 的表现 |
 | --- | --- | --- | --- |

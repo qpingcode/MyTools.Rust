@@ -9,6 +9,6 @@
   "will_open": "Opens {target}",
   "opened": "Opened {target} in {ide}",
   "no_project": "Cannot open in {ide}: no .sln/.slnx/.slnf or project file (.csproj/.fsproj/.vbproj) found in {path} or its parent folders",
-  "not_installed": "{ide} was not found; set its executable path in plugins/dev-open/config.json",
+  "not_installed": "{ide} was not found; set its executable path in dev-open\\config.json in the MyTools data folder",
   "launch_failed": "Failed to start {ide}: {error}"
 }

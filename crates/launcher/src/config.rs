@@ -40,21 +40,11 @@ impl Config {
     }
 }
 
+/// `config.json` in the data folder ([`mytools_plugin_api::dirs`]), or `MYTOOLS_CONFIG`.
 pub fn path() -> anyhow::Result<PathBuf> {
     Ok(std::env::var_os("MYTOOLS_CONFIG")
         .map(PathBuf::from)
-        .unwrap_or(default_path()?))
-}
-
-fn default_path() -> anyhow::Result<PathBuf> {
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var_os("HOME")
-            .ok_or_else(|| anyhow::anyhow!("Missing user home directory"))?;
-        Ok(PathBuf::from(home).join("Library/Application Support/MyTools/config.json"))
-    }
-    #[cfg(not(target_os = "macos"))]
-    Ok(std::env::current_exe()?.with_file_name("config.json"))
+        .unwrap_or_else(|| mytools_plugin_api::dirs::root().join("config.json")))
 }
 
 pub fn load() -> anyhow::Result<Config> {

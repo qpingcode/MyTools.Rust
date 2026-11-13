@@ -34,7 +34,6 @@
   "validation.content": "请输入脚本内容（最多 64 KiB，不能含空字符）。",
   "validation.directory": "工作目录必须是已存在的绝对目录。",
   "validation.duplicate": "已有脚本使用这个别名。",
-  "store.unavailable": "脚本数据目录不可用。",
   "store.limit": "脚本数量或总大小超过限制。",
   "store.invalid": "脚本数据存在无效或重复 ID。",
   "store.conflict": "脚本已被其他窗口修改，请重新打开管理窗口后再编辑。",

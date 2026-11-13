@@ -1,5 +1,6 @@
 //! A plugin that misbehaves on purpose, to exercise how MyTools handles failing plugins.
-//! Every fault is set in `config.json` next to the executable (see `config.example.json`;
+//! Every fault is set in `config.json` in the plugin's data folder,
+//! `%LOCALAPPDATA%\MyTools\crash-test` (see `config.example.json` next to the executable;
 //! a missing or invalid file means the defaults):
 //!
 //! | Key | Default | Fault |
@@ -61,7 +62,7 @@ impl Default for Config {
 
 impl Config {
     fn load() -> Self {
-        let config = std::fs::read(beside_exe("config.json"))
+        let config = std::fs::read(in_plugin_folder("config.json"))
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default();
@@ -98,10 +99,8 @@ impl Config {
     }
 }
 
-fn beside_exe(name: &str) -> PathBuf {
-    std::env::current_exe()
-        .unwrap_or_default()
-        .with_file_name(name)
+fn in_plugin_folder(name: &str) -> PathBuf {
+    mytools_plugin_api::dirs::plugin("crash-test").join(name)
 }
 
 /// Panics (so the crash is logged) and ends the process, even off the main thread.

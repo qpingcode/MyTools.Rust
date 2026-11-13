@@ -1,6 +1,7 @@
 {
   "name": "Settings",
   "open": "Open settings",
+  "data_folder": "Open data folder",
   "window.title": "MyTools Settings",
   "tab.plugins": "Plugins",
   "plugins.summary": "{enabled} of {total} plugins enabled",

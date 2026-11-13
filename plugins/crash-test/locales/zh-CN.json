@@ -3,7 +3,7 @@
   "status": "崩溃测试插件运行中",
   "next": "{seconds} 秒后模拟崩溃（进程 {pid}）",
   "off": "崩溃模拟已关闭",
-  "off_detail": "在插件目录的 config.json 中设置 \"enabled\": true，且不设 MYTOOLS_CRASH_TEST=off",
+  "off_detail": "在 MyTools 数据目录的 crash-test\\config.json 中设置 \"enabled\": true，且不设 MYTOOLS_CRASH_TEST=off",
   "running": "进程 {pid}，不模拟运行期间崩溃",
   "slow_start": "模拟慢启动：{elapsed}/{total} 秒",
   "result": "测试结果 {index}/{count}",

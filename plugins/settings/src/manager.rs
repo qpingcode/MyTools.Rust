@@ -45,6 +45,7 @@ pub fn run() -> anyhow::Result<()> {
         .map(|entry| (entry.id.clone(), entry.name.clone()))
         .collect();
     let log_page = crate::log_page::LogPage::wire(&ui, names);
+    ui.on_open_data_folder(|| crate::open_folder(&mytools_plugin_api::dirs::root()));
 
     let (weak, copy) = (ui.as_weak(), state.clone());
     let poll = slint::Timer::default();

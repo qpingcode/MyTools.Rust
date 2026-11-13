@@ -1,6 +1,7 @@
 {
   "name": "设置",
   "open": "打开设置",
+  "data_folder": "打开数据文件夹",
   "window.title": "MyTools 设置",
   "tab.plugins": "插件",
   "plugins.summary": "已启用 {enabled} / {total} 个插件",

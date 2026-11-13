@@ -9,6 +9,6 @@
   "will_open": "将打开 {target}",
   "opened": "已用 {ide} 打开 {target}",
   "no_project": "无法用 {ide} 打开：{path} 及其上级目录中没有找到 .sln/.slnx/.slnf 或项目文件（.csproj/.fsproj/.vbproj）",
-  "not_installed": "未找到 {ide}，可在 plugins/dev-open/config.json 中设置程序路径",
+  "not_installed": "未找到 {ide}，可在 MyTools 数据目录的 dev-open\\config.json 中设置程序路径",
   "launch_failed": "启动 {ide} 失败：{error}"
 }

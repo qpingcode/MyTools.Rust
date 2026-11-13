@@ -14,15 +14,10 @@ pub struct Store {
 }
 
 pub fn directory() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("MYTOOLS_QUICK_TEXT_DIR") {
-        return Some(path.into());
-    }
-    #[cfg(windows)]
-    return std::env::var_os("LOCALAPPDATA")
-        .map(|root| PathBuf::from(root).join("MyTools/quick-text"));
-    #[cfg(not(windows))]
-    std::env::var_os("HOME")
-        .map(|root| PathBuf::from(root).join("Library/Application Support/MyTools/quick-text"))
+    Some(std::env::var_os("MYTOOLS_QUICK_TEXT_DIR").map_or_else(
+        || mytools_plugin_api::dirs::plugin("quick-text"),
+        PathBuf::from,
+    ))
 }
 
 impl Store {

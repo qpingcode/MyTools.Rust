@@ -1,4 +1,4 @@
-// Ask AI 配置。复制为同目录的 config.json 后修改；支持 // 和 /* */ 注释。
+// Ask AI 配置。复制为 %LOCALAPPDATA%\MyTools\ask-ai\config.json 后修改；支持 // 和 /* */ 注释。
 // 修改后无需重启，下一次提问时生效。API 密钥只从环境变量读取：
 //   DEEPSEEK_API_KEY  对话（与翻译相同）
 //   TAVILY_API_KEY    Tavily 联网搜索（可选）

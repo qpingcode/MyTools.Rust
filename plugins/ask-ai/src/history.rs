@@ -1,6 +1,6 @@
 //! Finished conversations, one JSON file each, and the model picked with Ctrl+K. They live
-//! in `%LOCALAPPDATA%\MyTools\ask-ai` (`MYTOOLS_ASK_AI_DATA` elsewhere); the newest
-//! `limit` conversations are kept.
+//! in the plugin's folder, `%LOCALAPPDATA%\MyTools\ask-ai` (`MYTOOLS_ASK_AI_DATA` elsewhere);
+//! the newest `limit` conversations are kept.
 use mytools_plugin_api::chat::{Chat, Role};
 use std::path::PathBuf;
 
@@ -12,14 +12,10 @@ pub struct History {
 }
 
 fn default_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("MYTOOLS_ASK_AI_DATA") {
-        return Some(PathBuf::from(dir));
-    }
-    #[cfg(windows)]
-    let root = PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join("MyTools");
-    #[cfg(not(windows))]
-    let root = PathBuf::from(std::env::var_os("HOME")?).join("Library/Application Support/MyTools");
-    Some(root.join("ask-ai"))
+    Some(
+        std::env::var_os("MYTOOLS_ASK_AI_DATA")
+            .map_or_else(crate::config::directory, PathBuf::from),
+    )
 }
 
 /// Ids are made by the plugin from digits and `-`; anything else is not a file of ours.

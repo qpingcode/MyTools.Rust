@@ -39,11 +39,7 @@ impl Config {
     pub fn load() -> Result<Self, String> {
         let path = std::env::var_os("MYTOOLS_TRANSLATOR_CONFIG")
             .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                std::env::current_exe()
-                    .unwrap_or_default()
-                    .with_file_name("config.json")
-            });
+            .unwrap_or_else(|| mytools_plugin_api::dirs::plugin("translator").join("config.json"));
         let mut config = match std::fs::read(&path) {
             Ok(bytes) => {
                 let text = String::from_utf8_lossy(&bytes);

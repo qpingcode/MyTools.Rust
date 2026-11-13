@@ -73,18 +73,10 @@ pub struct Store {
 }
 impl Store {
     pub fn new() -> Result<Self> {
-        if let Some(root) = std::env::var_os("MYTOOLS_SCRIPTS_DIR") {
-            return Ok(Self { root: root.into() });
-        }
-        #[cfg(windows)]
-        let root =
-            std::env::var_os("LOCALAPPDATA").map(|r| PathBuf::from(r).join("MyTools/scripts"));
-        #[cfg(not(windows))]
-        let root = std::env::var_os("HOME")
-            .map(|r| PathBuf::from(r).join("Library/Application Support/MyTools/scripts"));
-        Ok(Self {
-            root: root.ok_or_else(|| anyhow::anyhow!(i18n::t("store.unavailable")))?,
-        })
+        let root = std::env::var_os("MYTOOLS_SCRIPTS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| mytools_plugin_api::dirs::root().join("scripts"));
+        Ok(Self { root })
     }
     pub fn load(&self) -> Result<Vec<Script>> {
         let file = match fs::File::open(self.root.join("scripts.json")) {

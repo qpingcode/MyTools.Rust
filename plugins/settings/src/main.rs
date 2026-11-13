@@ -9,6 +9,19 @@ mod manager;
 mod plugins;
 mod search;
 slint::include_modules!();
+/// Shows a folder in the file manager, creating it first.
+pub fn open_folder(directory: &std::path::Path) {
+    let _ = std::fs::create_dir_all(directory);
+    let program = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    let _ = std::process::Command::new(program).arg(directory).spawn();
+}
+
 fn main() -> anyhow::Result<()> {
     mytools_plugin_api::crash::install();
     mytools_plugin_api::i18n::language();

@@ -76,8 +76,7 @@ impl Paths {
                 .context(i18n::t("error.plugins"))?
                 .to_path_buf(),
         };
-        let settings = plugin_settings::path()
-            .unwrap_or_else(|| plugins.with_file_name("plugin-settings.json"));
+        let settings = plugin_settings::path();
         Ok(Self { plugins, settings })
     }
 }

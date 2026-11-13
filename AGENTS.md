@@ -39,7 +39,7 @@
 ## 完成任务后更新本机程序
 
 - 每次完成任务、测试通过后，执行 `./scripts/deploy.ps1`（PowerShell 7），把改动编译并更新到本机实际使用的 `C:\soft\MyTools`。
-- 脚本以 release 编译整个 workspace，只替换内容有变化的文件；不会改动 `config.json`、`window-position.json` 等用户数据。运行中的程序会先改名为 `*.old` 再替换；本体有变化时重启 MyTools，只有插件变化时只结束对应插件，由 MyTools 自动拉起。
+- 脚本以 release 编译整个 workspace，只替换内容有变化的文件；用户数据在 `%LOCALAPPDATA%\MyTools`，脚本不会改动。运行中的程序会先改名为 `*.old` 再替换；本体有变化时重启 MyTools，只有插件变化时只结束对应插件，由 MyTools 自动拉起。
 - 若按用户要求在独立分支或 worktree 上完成任务，先合并回 `master` 再在主工作区部署，避免用缺少其他改动的版本覆盖已部署的程序。
 - 可选参数：`-Target <目录>` 指定安装目录，`-SkipBuild` 跳过编译，`-NoRestart` 不重启，等下次手动重启生效。
 - 本机 VS 18 的 C++ 工具集不完整，脚本会自动加载工具集完整的 Visual Studio（目前是 VS 2019）的开发环境；部署失败时把编译错误原样报告给用户。

@@ -118,6 +118,7 @@ fn serve_io(
 
 pub mod commands;
 pub mod crash;
+pub mod dirs;
 pub mod highlight;
 pub mod hotkeys;
 pub mod i18n;

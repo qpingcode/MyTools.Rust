@@ -1,6 +1,6 @@
 //! Crash reports for MyTools and its plugins. The launcher runs without a console and
 //! plugins have no stderr, so panics, native exceptions and fatal errors are appended to
-//! `logs/crash.log` next to `mytools.exe`, where they survive the process.
+//! `logs/crash.log` in the data folder ([`crate::dirs`]), where they survive the process.
 use std::{
     fmt::Display,
     fs::OpenOptions,
@@ -14,13 +14,11 @@ const FILE: &str = "crash.log";
 /// A larger log is moved to `crash.log.1` before the next report, keeping at most two.
 const MAX_LOG_BYTES: u64 = 1024 * 1024;
 
-/// The host's log directory: inherited from the host, else `logs` next to this executable.
+/// The host's log directory: inherited from the host, else `logs` in the data folder.
 pub fn directory() -> PathBuf {
-    std::env::var_os(ENV).map(PathBuf::from).unwrap_or_else(|| {
-        std::env::current_exe()
-            .unwrap_or_default()
-            .with_file_name("logs")
-    })
+    std::env::var_os(ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(crate::dirs::logs)
 }
 
 /// Records panics (and on Windows, unhandled native exceptions) before the process dies.

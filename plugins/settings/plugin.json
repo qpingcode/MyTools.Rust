@@ -30,6 +30,22 @@
         "插件"
       ],
       "icon": "builtin:settings"
+    },
+    {
+      "id": "data-folder",
+      "title": {
+        "key": "data_folder",
+        "defaultValue": "Open Data Folder"
+      },
+      "keywords": [
+        "data",
+        "config",
+        "folder",
+        "数据",
+        "配置",
+        "文件夹"
+      ],
+      "icon": "builtin:folder-open"
     }
   ]
 }

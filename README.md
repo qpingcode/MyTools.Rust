@@ -64,11 +64,11 @@ Windows 已进行本机编译和交互验证；macOS 代码和 CI 已配置，�
 - 输入 `calc 1+1` 或 `calc (2+3)*4`，仅显示计算器返回的结果。
 - 输入别名后必须有空白才进入指定插件搜索；单独输入 `calc` 仍属于普通搜索。
 
-主窗口可拖动边缘或四角调整大小（最小 560×320），移动或调整后自动记住大小和位置，退出重启后恢复。显示器被移除、分辨率或多屏布局变化时：窗口仍部分可见则缩小到不超过该屏幕并完整拉回屏幕内，完全不可见则居中到主屏幕；保存的尺寸异常时使用默认尺寸。大小和位置保存在配置文件同目录的 `window-position.json`。
+主窗口可拖动边缘或四角调整大小（最小 560×320），移动或调整后自动记住大小和位置，退出重启后恢复。显示器被移除、分辨率或多屏布局变化时：窗口仍部分可见则缩小到不超过该屏幕并完整拉回屏幕内，完全不可见则居中到主屏幕；保存的尺寸异常时使用默认尺寸。大小和位置保存在数据目录的 `window-position.json`（见[用户数据位置](#用户数据位置)）。
 
 ## 日志
 
-MyTools 把自己和各插件的运行情况写入 `mytools.exe` 同目录的 `logs/mytools.log`，每行一条 JSON 记录，包含时间、级别（`debug`、`info`、`warn`、`error`）、来源（`mytools` 或插件 ID）、事件代码、内容和可选的详情。日志内容统一用英文，不随界面语言变化。文件超过 2 MB 时转存为 `mytools.log.1`（更旧的依次后移），共保留 10 份。
+MyTools 把自己和各插件的运行情况写入数据目录的 `logs/mytools.log`，每行一条 JSON 记录，包含时间、级别（`debug`、`info`、`warn`、`error`）、来源（`mytools` 或插件 ID）、事件代码、内容和可选的详情。日志内容统一用英文，不随界面语言变化。文件超过 2 MB 时转存为 `mytools.log.1`（更旧的依次后移），共保留 10 份。
 
 - 记录的内容：MyTools 启动和退出；插件进程启动、就绪及用时；初始化失败、启动超时、启动过程中退出；运行中崩溃（含退出码）、心跳无响应、搜索或动作卡住及随后的自动重启；反复崩溃被停止；手动重启；设置修改后重新加载插件；快捷键注册失败、配置文件有误；插件搜索出错和超时。
 - 启动用时：窗口可用且随启动的插件都已就绪（或失败）时，记一条 `startup.done`（info），列出总用时、
@@ -84,12 +84,42 @@ MyTools 把自己和各插件的运行情况写入 `mytools.exe` 同目录的 `l
 
 MyTools 和各插件发生 panic、未处理的原生异常（如访问冲突），或主程序因错误退出时，会把时间、进程名、PID、出错位置、错误信息和调用栈追加到 `logs/crash.log`。日志超过 1 MB 时转存为 `crash.log.1`，最多保留两份。插件通过 `MYTOOLS_LOG_DIR` 继承宿主的日志目录。每次崩溃同时在 `mytools.log` 中记一条错误，详情里是完整的报告。栈溢出由 Rust 运行时直接终止进程，不会记录。
 
+## 用户数据位置
+
+安装目录只放程序（`mytools.exe`、插件、语言文件和 `*.example.json` 示例），可以整体覆盖或删除；
+用户的配置、运行状态和插件数据都放在每个用户自己的数据目录：
+
+| 系统 | 数据目录 |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\MyTools` |
+| macOS | `~/Library/Application Support/MyTools` |
+| 其他 | `$XDG_DATA_HOME/MyTools`（默认 `~/.local/share/MyTools`） |
+
+```text
+MyTools/
+├── config.json             MyTools 配置
+├── plugin-settings.json    插件的启用、别名、启动方式和快捷键
+├── window-position.json    窗口大小和位置
+├── plugin-status.json      运行中各插件的状态（退出时删除）
+├── search-history.json     搜索历史，用于排序
+├── logs/                   mytools.log、crash.log
+└── <插件 ID>/              插件自己的配置（如 config.json、mcp.json）和数据
+```
+
+每个插件的配置文件放在以插件 ID 命名的子目录，例如 `ask-ai\config.json`、`ask-ai\mcp.json`、
+`translator\config.json`、`dev-open\config.json`；可参考安装目录 `plugins\<插件 ID>\` 下的 `*.example.json`。
+设置窗口左下角的 **打开数据文件夹**，或在启动器中搜索“打开数据文件夹”（`data`、`配置`），可直接打开这个目录。
+
+环境变量 `MYTOOLS_DATA_DIR` 可以把整个数据目录换到别处，插件进程继承宿主的设置；
+`scripts/debug-run.ps1` 用它让开发版使用 `target/<profile>/data`，与已安装的版本互不影响。
+各文件原有的专用变量（如 `MYTOOLS_CONFIG`、`MYTOOLS_ASK_AI_CONFIG`）仍然优先。
+
 ## 多语言
 
 新增的书签、编码/解码、格式化、进程管理、UUID、翻译、快捷文本及保持唤醒插件，输入和配置方式见
 [实用插件说明](docs/utility-plugins.md)。
 
-支持简体中文和英文，默认跟随操作系统语言。启动脚本首次运行会从 `config.example.json` 创建程序旁的 `config.json`，以后保留已有配置。
+支持简体中文和英文，默认跟随操作系统语言。配置写在数据目录的 `config.json`；没有这个文件时使用默认值，可参考安装目录的 `config.example.json` 创建。开发时的启动脚本首次运行会从示例创建 `target/<profile>/data/config.json`，以后保留已有配置。
 
 ```json
 {
@@ -97,7 +127,7 @@ MyTools 和各插件发生 panic、未处理的原生异常（如访问冲突）
 }
 ```
 
-`language` 可设为 `auto`、`zh-CN` 或 `en`，修改后退出托盘中的 MyTools 并重新启动生效。开发时的配置在 `target/debug/config.json`，发布版在 `target/release/config.json`；也可以通过 `MYTOOLS_CONFIG` 指定配置文件路径。不存在配置时使用 `auto`；配置无法读取或格式错误时使用系统语言，并在状态栏显示错误。
+`language` 可设为 `auto`、`zh-CN` 或 `en`，修改后退出托盘中的 MyTools 并重新启动生效。开发时（`scripts/debug-run.ps1`）的配置在 `target/debug/data/config.json`，发布版在 `target/release/data/config.json`；也可以通过 `MYTOOLS_CONFIG` 指定配置文件路径。不存在配置时使用 `auto`；配置无法读取或格式错误时使用系统语言，并在状态栏显示错误。
 
 也可以在托盘的“语言”子菜单中选择“跟随系统”“简体中文”或“English”：保存成功后提示重启，选择“立即重启”会关闭搜索插件、释放快捷键并重新启动；选择“稍后”、按 Esc 或关闭提示窗口，会保留当前程序，下次启动应用新语言。菜单标记已保存的语言选择，Windows 使用 Lucide `check`，与开机启动菜单一致。保存失败会显示错误；已有配置中的其他字段会保留。
 
@@ -273,7 +303,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 
 在搜索框直接输入一个已存在的绝对路径（或 `ide 路径`）也会列出这三个动作。Rider 依次从 JetBrains Toolbox 脚本、
 `%LOCALAPPDATA%\JetBrains\Installations`、`%LOCALAPPDATA%\Programs`、`%ProgramFiles%\JetBrains` 和 PATH 查找；
-自动检测失败时可在 `plugins/dev-open/config.json` 中填写 `rider`、`vscode`、`visualstudio` 的程序绝对路径。
+自动检测失败时可在数据目录的 `dev-open/config.json` 中填写 `rider`、`vscode`、`visualstudio` 的程序绝对路径。
 
 ### 为其他结果追加动作
 
@@ -325,7 +355,7 @@ HTML/代码 `code-xml`、图片 `image`；单个文件或文件夹显示其系�
   若焦点已被切到其他应用则停止发送。macOS 需用户自行在系统设置中授予 MyTools 辅助功能权限；
   Windows 普通权限进程无法向更高权限窗口模拟输入，此时仍可手动粘贴已恢复的内容。
 
-两个快捷键都可以在设置窗口中修改或清空，保存在 `plugin-settings.json`：
+两个快捷键都可以在设置窗口中修改或清空，保存在数据目录的 `plugin-settings.json`：
 
 ```json
 {
@@ -448,7 +478,7 @@ macOS 的 `~/Library/Application Support/MyTools/clipboard`；可用 `MYTOOLS_CL
 - 启动时限默认 10 秒，可用 `config.json` 的 `plugin_startup_timeout_ms` 修改，插件可用 `startupTimeoutMs` 单独设置。超时的插件被结束进程并暂时停用（不写入设置），右下角弹出提示；之后可在设置窗口重启它，下次启动 MyTools 时照常加载。
 - 就绪之前不发送搜索和心跳。全局搜索跳过未就绪的插件；通过别名搜索时，未就绪的插件显示“正在加载…”，就绪后自动重新搜索；已停止或已停用的插件显示原因。
 - 就绪的插件崩溃、心跳无响应或请求卡住时，宿主自动重启它，状态回到“启动中”。
-- 宿主把各插件的状态写入 MyTools 目录下的 `plugin-status.json`（退出时删除），设置窗口据此显示；设置窗口通过 `plugin-requests.json` 请求重启插件。
+- 宿主把各插件的状态写入数据目录的 `plugin-status.json`（退出时删除），设置窗口据此显示；设置窗口通过 `plugin-requests.json` 请求重启插件。
 
 ### 内置图标
 
@@ -599,7 +629,7 @@ GitHub Actions 目前只有 **Windows** 工作流，在推送和 Pull Request �
 `python3 scripts/package-macos.py` 本地打包。
 
 打开 DMG，把 `MyTools.app` 拖到“应用程序”目录，再双击运行。应用包已包含全部插件和图标。
-macOS 配置保存到 `~/Library/Application Support/MyTools/config.json`，避免写入应用包而破坏签名。
+macOS 的配置和数据保存在 `~/Library/Application Support/MyTools`，不会写入应用包而破坏签名。
 当前使用临时签名（ad-hoc），尚未进行 Developer ID 签名和 Apple 公证，首次打开可能被 Gatekeeper 拦截。
 普通分支推送和 Pull Request 只上传 Actions Artifacts，不创建 Release。
 
