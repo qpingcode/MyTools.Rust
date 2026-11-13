@@ -1,0 +1,4 @@
+# Windows working tree uses CRLF; the repository stores LF.
+* text=auto eol=crlf
+# Shell scripts run on macOS/Linux and need LF.
+*.sh text eol=lf
