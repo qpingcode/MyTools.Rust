@@ -1,4 +1,6 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+#[path = "../../../ui/fonts.rs"]
+mod fonts;
 mod hotkeys;
 mod i18n;
 mod log_page;

@@ -8,6 +8,8 @@ mod commands;
 mod config;
 mod desktop;
 mod elide;
+#[path = "../../../ui/fonts.rs"]
+mod fonts;
 mod highlight;
 mod i18n;
 mod icons;

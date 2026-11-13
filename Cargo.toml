@@ -40,6 +40,8 @@ slint = { version = "=1.18.1", default-features = false, features = [
     "system-tray",
     "compat-1-2",
     "unstable-winit-030",
+    # Lets every window pick the UI font for Chinese text a monospace font lacks.
+    "unstable-fontique-011",
 ] }
 slint-build = "=1.18.1"
 anyhow = "1"

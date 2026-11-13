@@ -26,6 +26,7 @@ struct State {
 
 pub fn run() -> anyhow::Result<()> {
     let ui = SettingsWindow::new()?;
+    crate::fonts::prefer_ui_font_for_chinese();
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
     let paths = Paths::current()?;
     let entries = plugins::list(&paths)?;

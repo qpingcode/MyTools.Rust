@@ -77,11 +77,8 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
         )
         .into(),
     );
-    let font = if cfg!(windows) {
-        "Microsoft YaHei UI"
-    } else {
-        "PingFang SC"
-    };
+    let font = crate::fonts::UI_FONT;
+    crate::fonts::prefer_ui_font_for_chinese();
     ui.set_app_font_family(font.into());
     ui.set_shortcut_label(
         if cfg!(target_os = "macos") {

@@ -15,6 +15,7 @@ pub fn run(id: Option<String>) -> anyhow::Result<()> {
     let store = Store::new()?;
     let scripts = store.load()?;
     let ui = ScriptManager::new()?;
+    crate::fonts::prefer_ui_font_for_chinese();
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
     ui.set_windows(cfg!(windows));
     let state = Rc::new(RefCell::new(State {

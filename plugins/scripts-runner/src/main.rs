@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod background;
 mod dialog;
+#[path = "../../../ui/fonts.rs"]
+mod fonts;
 mod i18n;
 mod manager;
 mod runner;
