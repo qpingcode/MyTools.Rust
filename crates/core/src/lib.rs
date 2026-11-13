@@ -18,4 +18,4 @@ pub use commands::{HotkeyBinding, HotkeyTarget};
 pub use mytools_plugin_api::{ActionId, ActionSpec, Resource};
 pub use platform::{open_application, open_url};
 pub use plugins::{migrate_legacy_hotkeys, startup_timeout};
-pub use status::Notice;
+pub use status::{Notice, StartTiming};

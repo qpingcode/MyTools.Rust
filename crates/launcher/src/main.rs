@@ -15,6 +15,7 @@ mod notices;
 mod screen;
 mod search;
 mod single_instance;
+mod startup;
 mod theme;
 mod toast;
 mod tray;
@@ -24,6 +25,7 @@ slint::include_modules!();
 
 fn main() -> anyhow::Result<()> {
     use mytools_plugin_api::log;
+    startup::begin();
     mytools_plugin_api::crash::install();
     // MyTools writes the log for itself and its plugins; `log_level` in config.json sets
     // the least severe level kept.
@@ -47,6 +49,7 @@ fn main() -> anyhow::Result<()> {
         single_instance::show_running();
         return Ok(());
     };
+    startup::mark("single instance");
     log::info(
         "app.start",
         format!(

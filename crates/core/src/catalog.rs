@@ -300,6 +300,11 @@ impl Catalog {
         self.board.revision()
     }
 
+    /// How each plugin started so far went: (id, timing, state).
+    pub fn start_timings(&self) -> Vec<(String, crate::status::StartTiming, State)> {
+        self.board.timings()
+    }
+
     /// Problems found since the last call, each reported once.
     pub fn take_notices(&self) -> Vec<Notice> {
         self.board.take_notices()

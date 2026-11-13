@@ -621,7 +621,9 @@ fn spawn(mut command: Command, status: Status) -> Result<Running> {
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000); // CREATE_NO_WINDOW: headless plugin.
     }
+    let began = Instant::now();
     let mut child = command.spawn().context(i18n::t("error.process_start"))?;
+    status.board.spawned(&status.id, began);
     let stdin = child.stdin.take().context(i18n::t("error.stdin"))?;
     let stdout = BufReader::new(child.stdout.take().context(i18n::t("error.stdout"))?);
     // What the plugin prints to stderr (its log records and anything else) goes to the log.
@@ -718,6 +720,7 @@ fn read_responses(mut stdout: impl BufRead, shared: &Shared) -> anyhow::Error {
                         format!("ready after {} ms", shared.started.elapsed().as_millis()),
                     );
                     shared.status.set(State::Ready, None);
+                    shared.status.board.started(&shared.status.id);
                 }
             },
             Some(pending) => {

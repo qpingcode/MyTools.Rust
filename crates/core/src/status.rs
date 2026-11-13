@@ -5,12 +5,25 @@ use mytools_plugin_api::{
     plugin_status::{self, PluginStatus, State, StatusFile},
 };
 use std::{
+    collections::BTreeMap,
     path::PathBuf,
     sync::{
         Mutex,
         atomic::{AtomicU64, Ordering},
     },
+    time::{Duration, Instant},
 };
+
+/// How a plugin's first start went, for the startup report.
+#[derive(Clone, Copy, Debug)]
+pub struct StartTiming {
+    /// When MyTools began starting the process.
+    pub began: Instant,
+    /// How long creating the process took.
+    pub spawn: Duration,
+    /// When it answered `init`.
+    pub ready: Option<Instant>,
+}
 
 /// A problem the user should see once, e.g. a plugin that timed out while starting.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +41,8 @@ pub struct Board {
     file: Option<PathBuf>,
     /// Where chat updates from plugins go.
     chat_updates: Option<crate::chat::ChatUpdates>,
+    /// Each plugin's first start; restarts are not timed.
+    timings: Mutex<BTreeMap<String, StartTiming>>,
 }
 
 impl Board {
@@ -41,6 +56,38 @@ impl Board {
     pub fn with_chat_updates(mut self, updates: Option<crate::chat::ChatUpdates>) -> Self {
         self.chat_updates = updates;
         self
+    }
+
+    /// Records that a plugin's process was created; only its first start counts.
+    pub fn spawned(&self, id: &str, began: Instant) {
+        self.timings
+            .lock()
+            .unwrap()
+            .entry(id.to_owned())
+            .or_insert(StartTiming {
+                began,
+                spawn: began.elapsed(),
+                ready: None,
+            });
+    }
+
+    /// Records that a plugin answered `init`, if it was its first start.
+    pub fn started(&self, id: &str) {
+        if let Some(timing) = self.timings.lock().unwrap().get_mut(id) {
+            timing.ready.get_or_insert_with(Instant::now);
+        }
+    }
+
+    /// The plugins started so far with their state, in id order.
+    pub fn timings(&self) -> Vec<(String, StartTiming, State)> {
+        let timings = self.timings.lock().unwrap().clone();
+        timings
+            .into_iter()
+            .map(|(id, timing)| {
+                let state = self.get(&id).map_or(State::Idle, |(state, _)| state);
+                (id, timing, state)
+            })
+            .collect()
     }
 
     /// Hands a plugin's chat update to the UI.

@@ -73,8 +73,10 @@ impl SearchWorker {
         let aliases = Arc::new(RwLock::new(None));
         let worker_aliases = aliases.clone();
         let thread = thread::spawn(move || {
+            let catalog = Catalog::load_with(&options);
+            crate::startup::mark("plugins loaded");
             let mut worker = Worker {
-                catalog: Catalog::load_with(&options),
+                catalog,
                 options,
                 events,
                 latest: worker_latest,
@@ -204,6 +206,9 @@ impl Worker {
 
     /// Background work between searches; `false` once the UI is gone.
     fn tick(&mut self) -> bool {
+        if !crate::startup::done() {
+            crate::startup::check(&self.catalog.start_timings());
+        }
         self.reload_if_changed();
         self.catalog.apply_requests();
         if !self.forward_notices() {

@@ -46,8 +46,10 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
             .unwrap_or_default(),
     );
     desktop::configure_backend()?;
+    crate::startup::mark("config");
     let ui = MainWindow::new()?;
     theme::apply_configured(&ui.global::<Theme>());
+    crate::startup::mark("window");
     let geometry_tracker = crate::window_geometry::Tracker::new(&ui);
     let tray = AppTray::new()?;
     let about = AboutWindow::new()?;
@@ -122,6 +124,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     }
     let state = Rc::new(RefCell::new(initial));
     let icons = icons::Loader::new(&ui)?;
+    crate::startup::mark("icons");
     let (worker, responses) = SearchWorker::start(load_options);
     let desktop: Rc<RefCell<Option<desktop::Desktop>>> = Rc::default();
     wire_search(&ui, &state, &worker);
@@ -209,6 +212,11 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
             desktop::show(&ui);
         }
     }
+    crate::startup::mark("hotkeys");
+    // The window responds once the event loop runs.
+    slint::Timer::single_shot(std::time::Duration::ZERO, || {
+        crate::startup::mark(crate::startup::READY_STEP)
+    });
     let startup_notifier = notifier.clone();
     slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
         startup_notifier.show(startup_notices);
