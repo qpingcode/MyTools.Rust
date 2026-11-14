@@ -39,7 +39,14 @@ const LIMIT: i32 = 16 * 1024;
 const ANCESTORS: usize = 12;
 
 pub fn capture() -> Result<Selection> {
-    let window = unsafe { GetForegroundWindow() };
+    capture_from(unsafe { GetForegroundWindow() }, false)
+}
+
+pub(super) fn capture_from(window: HWND, attachment: bool) -> Result<Selection> {
+    anyhow::ensure!(
+        unsafe { GetForegroundWindow() } == window,
+        crate::i18n::t("selection.no_window")
+    );
     anyhow::ensure!(!window.is_invalid(), crate::i18n::t("selection.no_window"));
     let _com = Com::new();
     let automation: Option<IUIAutomation> =
@@ -59,7 +66,10 @@ pub fn capture() -> Result<Selection> {
         let previous = arboard::Clipboard::new()
             .ok()
             .and_then(|mut clipboard| clipboard.get_text().ok());
-        if let Some(text) = copy()? {
+        // The attachment shortcut must not replace clipboard formats it cannot restore.
+        if (!attachment || (previous.is_some() && plain_text_clipboard()))
+            && let Some(text) = copy(window)?
+        {
             selection.text = text;
             selection.previous_clipboard = Some(previous);
         }
@@ -157,9 +167,38 @@ fn is_terminal(window: HWND) -> bool {
     )
 }
 
+fn plain_text_clipboard() -> bool {
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EnumClipboardFormats, OpenClipboard, RegisterClipboardFormatW,
+    };
+    unsafe {
+        let private_formats = [
+            RegisterClipboardFormatW(windows::core::w!(
+                "ExcludeClipboardContentFromMonitorProcessing"
+            )),
+            RegisterClipboardFormatW(windows::core::w!("CanIncludeInClipboardHistory")),
+        ];
+        if OpenClipboard(None).is_err() {
+            return false;
+        }
+        let mut format = EnumClipboardFormats(0);
+        let mut plain = format != 0;
+        while format != 0 {
+            // CF_TEXT, CF_OEMTEXT, CF_UNICODETEXT and CF_LOCALE.
+            if !matches!(format, 1 | 7 | 13 | 16) && !private_formats.contains(&format) {
+                plain = false;
+                break;
+            }
+            format = EnumClipboardFormats(format);
+        }
+        let _ = CloseClipboard();
+        plain
+    }
+}
+
 /// Copies the selection with Ctrl+C once the shortcut's keys are up, and returns the copied
 /// text; `None` when nothing was copied.
-fn copy() -> Result<Option<String>> {
+fn copy(window: HWND) -> Result<Option<String>> {
     let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN];
     let released = || {
         modifiers
@@ -171,6 +210,10 @@ fn copy() -> Result<Option<String>> {
         std::thread::sleep(Duration::from_millis(20));
     }
     anyhow::ensure!(released(), crate::i18n::t("selection.keys_held"));
+    anyhow::ensure!(
+        unsafe { GetForegroundWindow() } == window,
+        crate::i18n::t("selection.no_window")
+    );
     let before = unsafe { GetClipboardSequenceNumber() };
     let key = |code: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS| INPUT {
         r#type: INPUT_KEYBOARD,

@@ -1,6 +1,7 @@
 export { I18n } from "../../../ui/i18n.slint";
 import { I18n } from "../../../ui/i18n.slint";
 import { Theme } from "../../../ui/theme.slint";
+import { AttachmentBar } from "components/attachment-bar.slint";
 import { SearchBar } from "components/search-bar.slint";
 import { ResultRow } from "components/result-row.slint";
 import { DetailPreview } from "components/detail-preview.slint";
@@ -75,6 +76,11 @@ export component MainWindow inherits Window {
     in property <string> preview-text;
     in property <string> preview-metadata;
     in property <image> preview-image;
+    in property <string> attachment-label;
+    in property <string> attachment-details;
+    callback detach-attachment();
+    callback normal-launch();
+    private property <length> results-top: Theme.search-height + attachment-bar.height;
     callback search(string);
     /// The editor's text changed; searches it after the alias of the search box.
     callback editor-edited(string);
@@ -168,10 +174,16 @@ export component MainWindow inherits Window {
                 }
                 drag-requested => { root.drag-requested(); }
             }
+            attachment-bar := AttachmentBar {
+                x: 8px; y: Theme.search-height; width: parent.width - 16px;
+                label: root.attachment-label;
+                details: root.attachment-details;
+                detach => { root.detach-attachment(); }
+            }
             list := Flickable {
                 visible: !root.editor-view && !root.chat-view;
-                x: 1px; y: Theme.search-height + 1px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px;
-                height: parent.height - Theme.search-height - Theme.status-height - 2px;
+                x: 1px; y: root.results-top + 1px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px;
+                height: parent.height - root.results-top - Theme.status-height - 2px;
                 content-width: self.width;
                 content-height: max(self.height, root.results.length * root.row-pitch + 16px);
                 for result[index] in root.results: ResultRow {
@@ -220,7 +232,7 @@ export component MainWindow inherits Window {
                 open-link(url) => { root.open-link(url); }
             }
             if root.results.length == 0 && !root.searching && !root.editor-view && !root.chat-view: Text {
-                x: 28px; y: Theme.search-height + 20px; text: root.empty-text;
+                x: 28px; y: root.results-top + 20px; text: root.empty-text;
                 color: Theme.muted; font-size: Theme.font-body;
             }
             StatusBar {

@@ -1,4 +1,11 @@
 {
+  "attachment.title": "Open with Selection",
+  "attachment.empty": "No selected text or files were captured.",
+  "attachment.no_commands": "No commands match this attachment.",
+  "attachment.text": "Text: {text}",
+  "attachment.files": "{count} selected items",
+  "attachment.remove": "Remove attachment",
+  "attachment.hotkey_failed": "Could not register the selection shortcut: {error}",
   "explorer_probe.prompt": "Switch to File Explorer and select files or folders within {count} seconds.",
   "explorer_probe.no_window": "No foreground File Explorer view was found.",
   "explorer_probe.ambiguous": "More than one visible view matched the foreground window.",

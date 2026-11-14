@@ -19,6 +19,7 @@ const TICK: Duration = Duration::from_millis(250);
 pub struct Query {
     pub generation: u64,
     pub text: String,
+    pub attachment: Option<Arc<mytools_plugin_api::CommandArgument>>,
     /// 0 for typed input; a retry asks plugins to wait longer.
     pub attempt: u32,
 }
@@ -184,13 +185,17 @@ impl Worker {
         let revision = self.catalog.revision();
         let latest = self.latest.clone();
         let is_stale = || latest.load(Ordering::SeqCst) != generation;
-        let results = self.catalog.search_with(
-            &query.text,
-            &SearchOptions {
-                attempt: query.attempt,
-                cancelled: &is_stale,
-            },
-        );
+        let results = if let Some(attachment) = &query.attachment {
+            self.catalog.search_attachment(&query.text, attachment)
+        } else {
+            self.catalog.search_with(
+                &query.text,
+                &SearchOptions {
+                    attempt: query.attempt,
+                    cancelled: &is_stale,
+                },
+            )
+        };
         if results.cancelled {
             return true; // The newer query is already queued.
         }

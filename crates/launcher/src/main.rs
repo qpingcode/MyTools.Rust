@@ -2,6 +2,7 @@
 
 mod actions;
 mod app;
+mod attachments;
 mod autostart;
 mod chat;
 mod commands;

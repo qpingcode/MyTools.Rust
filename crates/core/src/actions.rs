@@ -1,7 +1,7 @@
 use crate::i18n;
 use crate::platform;
 use anyhow::{Result, bail, ensure};
-use mytools_plugin_api::{ActionId, ActionSpec, Resource};
+use mytools_plugin_api::{ActionId, ActionSpec, CommandArgument, Resource};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -17,6 +17,7 @@ pub struct Action {
     pub(crate) selection: Option<crate::history::Selection>,
     input: Input,
     /// Sent with a command on the selection: whether the selection can be replaced.
+    argument: Option<std::sync::Arc<CommandArgument>>,
     editable: Option<bool>,
 }
 
@@ -109,6 +110,12 @@ impl Action {
         action
     }
 
+    pub(crate) fn with_argument(mut self, argument: std::sync::Arc<CommandArgument>) -> Self {
+        self.input = Input::None;
+        self.argument = Some(argument);
+        self
+    }
+
     /// This command on the selected `text`, saying whether it can be replaced.
     pub fn with_selection(&self, text: String, editable: bool) -> Self {
         let mut action = self.with_item(text);
@@ -139,6 +146,7 @@ impl Action {
                     command,
                     item.as_deref(),
                     self.editable,
+                    self.argument.as_deref(),
                 )?));
             }
             Operation::Launch(path) => {
@@ -165,6 +173,7 @@ impl Action {
             operation: Operation::Retry(attempt),
             selection: None,
             input: Input::None,
+            argument: None,
             editable: None,
         }
     }
@@ -187,6 +196,7 @@ impl Action {
             },
             selection: None,
             input: Input::None,
+            argument: None,
             editable: None,
         }
     }
@@ -219,6 +229,7 @@ impl Action {
                 Some((scope, optional)) => Input::Selection { scope, optional },
                 None => Input::None,
             },
+            argument: None,
             editable: None,
         }
     }
@@ -300,6 +311,7 @@ pub fn resolve_actions(
             operation,
             selection: None,
             input: Input::None,
+            argument: None,
             editable: None,
         });
     }

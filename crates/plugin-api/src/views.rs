@@ -30,6 +30,14 @@ pub struct Preview {
     pub text_file: Option<PathBuf>,
 }
 
+/// A snapshot supplied by the launcher when an attachment command is executed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum CommandArgument {
+    Text { text: String },
+    Files { paths: Vec<PathBuf> },
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PluginActionRequest {
     pub command: String,
@@ -40,6 +48,8 @@ pub struct PluginActionRequest {
     /// in a text field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editable: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub argument: Option<CommandArgument>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

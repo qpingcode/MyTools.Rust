@@ -27,6 +27,67 @@ pub fn capture() -> Result<Selection> {
     anyhow::bail!(crate::i18n::t("selection.unsupported"))
 }
 
+/// A foreground window sampled when the attachment shortcut fired.
+#[derive(Clone, Copy)]
+pub struct Source {
+    #[cfg(windows)]
+    window: isize,
+}
+
+impl Source {
+    pub fn foreground() -> Self {
+        Self {
+            #[cfg(windows)]
+            window: unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0
+                as isize,
+        }
+    }
+
+    pub fn capture(self) -> Result<Option<mytools_plugin_api::CommandArgument>> {
+        #[cfg(windows)]
+        {
+            use mytools_plugin_api::CommandArgument;
+            use windows::Win32::{
+                Foundation::HWND,
+                UI::WindowsAndMessaging::{
+                    GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId,
+                },
+            };
+            let window = HWND(self.window as *mut _);
+            let mut pid = 0;
+            unsafe { GetWindowThreadProcessId(window, Some(&mut pid)) };
+            if pid == 0 || pid == std::process::id() || unsafe { GetForegroundWindow() } != window {
+                return Ok(None);
+            }
+            let mut name = [0; 32];
+            let len = unsafe { GetClassNameW(window, &mut name) }.max(0) as usize;
+            if matches!(
+                String::from_utf16_lossy(&name[..len]).as_str(),
+                "CabinetWClass" | "ExploreWClass"
+            ) {
+                let paths =
+                    explorer::selected_files(window, &crate::i18n::t("explorer_probe.ambiguous"))?;
+                return Ok(paths
+                    .filter(|paths| !paths.is_empty())
+                    .map(|paths| CommandArgument::Files { paths }));
+            }
+            let selection = platform::capture_from(window, true)?;
+            crate::commands::restore(selection.previous_clipboard)?;
+            Ok(
+                (!selection.text.is_empty()).then_some(CommandArgument::Text {
+                    text: selection.text,
+                }),
+            )
+        }
+        #[cfg(not(windows))]
+        anyhow::bail!(crate::i18n::t("selection.unsupported"))
+    }
+}
+
+#[cfg(windows)]
+#[path = "explorer_windows.rs"]
+mod explorer;
+
 /// Keeps the whitespace around the original selection, which some applications include
 /// (e.g. a trailing line break in Outlook), around its replacement.
 pub fn replacement(selected: &str, result: &str) -> String {

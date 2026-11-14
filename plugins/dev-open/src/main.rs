@@ -186,6 +186,7 @@ mod tests {
                 command: "emacs".into(),
                 item: Some("C:\\".into()),
                 editable: None,
+                argument: None,
             },
             &catalog(),
         );
@@ -195,6 +196,7 @@ mod tests {
                 command: "rider".into(),
                 item: Some(r"Z:\missing\App.sln".into()),
                 editable: None,
+                argument: None,
             },
             &catalog(),
         );

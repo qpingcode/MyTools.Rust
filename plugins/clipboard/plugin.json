@@ -36,6 +36,24 @@
       ],
       "icon": "builtin:type",
       "hotkey": "Ctrl+Shift+Alt+V"
+    },
+    {
+      "id": "count-characters",
+      "title": {
+        "key": "command.count_characters",
+        "defaultValue": "Count Characters"
+      },
+      "keywords": ["count", "text", "字数", "字符统计"],
+      "input": ["attachment-text"]
+    },
+    {
+      "id": "copy-paths",
+      "title": {
+        "key": "command.copy_paths",
+        "defaultValue": "Copy All Paths"
+      },
+      "keywords": ["copy", "paths", "复制", "路径"],
+      "input": ["attachment-files"]
     }
   ]
 }

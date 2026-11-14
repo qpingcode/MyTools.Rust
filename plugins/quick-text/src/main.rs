@@ -216,6 +216,7 @@ mod tests {
             command: command.into(),
             item: Some(item.into()),
             editable: None,
+            argument: None,
         }
     }
 

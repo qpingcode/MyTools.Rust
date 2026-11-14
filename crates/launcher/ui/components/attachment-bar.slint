@@ -1,0 +1,53 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { I18n } from "../../../../ui/i18n.slint";
+
+export component AttachmentBar inherits Rectangle {
+    in property <string> label;
+    in property <string> details;
+    callback detach();
+    private property <bool> expanded;
+    changed details => { self.expanded = false; }
+    height: self.label == "" ? 0px : self.expanded ? 128px : 36px;
+    visible: self.label != "";
+    border-radius: Theme.radius;
+    background: Theme.selected;
+    clip: true;
+
+    Rectangle {
+        width: parent.width - 36px; height: 36px;
+        Text {
+            x: 10px; width: parent.width - 16px; height: parent.height;
+            text: root.label; overflow: elide; vertical-alignment: center;
+            font-size: Theme.font-small; color: Theme.foreground;
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.expanded = !root.expanded; }
+        }
+        accessible-role: button;
+        accessible-label: root.label;
+        accessible-action-default => { root.expanded = !root.expanded; }
+    }
+    Rectangle {
+        x: parent.width - 34px; width: 32px; height: 36px;
+        background: remove.has-hover ? Theme.hover : transparent;
+        Text {
+            text: "×"; horizontal-alignment: center; vertical-alignment: center;
+            width: parent.width; height: parent.height; color: Theme.foreground;
+        }
+        remove := TouchArea { mouse-cursor: pointer; clicked => { root.detach(); } }
+        accessible-role: button;
+        accessible-label: I18n.text("attachment.remove");
+        accessible-action-default => { root.detach(); }
+    }
+    if root.expanded: details-scroll := ScrollView {
+        x: 10px; y: 36px; width: parent.width - 20px; height: parent.height - 40px;
+        content-width: self.visible-width;
+        content-height: contents.preferred-height;
+        contents := Text {
+            width: details-scroll.visible-width;
+            text: root.details; wrap: word-wrap; color: Theme.muted; font-size: Theme.font-small;
+        }
+    }
+}

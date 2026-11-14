@@ -5,8 +5,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use mytools_plugin_api::{
-    Icon, Resource,
-    commands::{self, CommandInput, CommandManifest},
+    CommandArgument, Icon, Resource,
+    commands::{self, CommandInput, CommandManifest, InputKind},
     hotkeys::Hotkey,
     matching::rank,
     plugin_settings::Settings,
@@ -53,7 +53,7 @@ pub fn load(
             hotkey: settings
                 .command_hotkey(plugin_id, &manifest.id, manifest.hotkey.as_deref())
                 .map(str::to_owned),
-            input: manifest.input,
+            input: manifest.input.clone(),
         });
     }
     Ok(loaded)
@@ -67,10 +67,12 @@ pub fn label(plugin: &Plugin, command: &Command) -> String {
 /// The action that runs a command; it starts a lazy plugin when needed.
 pub fn action(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> Action {
     let scope = || plugin.aliases.first().map(|alias| format!("{alias} "));
-    let selection = match command.input {
-        CommandInput::None => None,
-        CommandInput::Selection => Some((scope(), false)),
-        CommandInput::OptionalSelection => Some((scope(), true)),
+    let selection = if command.input.contains(InputKind::Selection) {
+        Some((scope(), false))
+    } else if command.input.contains(InputKind::OptionalSelection) {
+        Some((scope(), true))
+    } else {
+        None
     };
     Action::command(
         &command.id,
@@ -81,31 +83,55 @@ pub fn action(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) 
     )
 }
 
-fn matches(plugin: &Plugin, command: &Command, query: &str) -> bool {
-    query.is_empty()
-        || rank(&command.title, query) < 4
-        || command.keywords.iter().any(|word| rank(word, query) < 4)
-        || rank(&plugin.name, query) < 4
+fn match_rank(plugin: &Plugin, command: &Command, query: &str) -> u8 {
+    if query.is_empty() {
+        return 0;
+    }
+    command.keywords.iter().map(|word| rank(word, query)).fold(
+        rank(&command.title, query).min(rank(&plugin.name, query)),
+        u8::min,
+    )
 }
 
 /// Search results for the commands that match `query`; every command when it is empty.
 /// They answer global search only, never a plugin's alias scope.
-pub fn entries(plugins: &[Plugin], query: &str) -> Vec<Entry> {
+pub fn entries(
+    plugins: &[Plugin],
+    query: &str,
+    argument: Option<&Arc<CommandArgument>>,
+) -> Vec<Entry> {
+    let kind = argument.map(|argument| match argument.as_ref() {
+        CommandArgument::Text { .. } => InputKind::AttachmentText,
+        CommandArgument::Files { .. } => InputKind::AttachmentFiles,
+    });
     let mut entries = Vec::new();
     for plugin in plugins {
         let Some(process) = &plugin.process else {
             continue;
         };
         for command in &plugin.commands {
-            if matches(plugin, command, query) {
-                entries.push(entry(plugin, command, process));
+            let compatible = match kind {
+                Some(kind) => command.input.contains(kind),
+                None => command.input.can_run_without_attachment(),
+            };
+            let rank = match_rank(plugin, command, query);
+            if compatible && rank < 4 {
+                entries.push((rank, entry(plugin, command, process, argument)));
             }
         }
     }
-    entries
+    if argument.is_some() {
+        entries.sort_by_key(|(rank, _)| *rank);
+    }
+    entries.into_iter().map(|(_, entry)| entry).collect()
 }
 
-fn entry(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> Entry {
+fn entry(
+    plugin: &Plugin,
+    command: &Command,
+    process: &Arc<SearchProcess>,
+    argument: Option<&Arc<CommandArgument>>,
+) -> Entry {
     let description = match command.hotkey.as_deref().and_then(Hotkey::parse) {
         Some(hotkey) => i18n::format(
             "command.description_hotkey",
@@ -124,7 +150,11 @@ fn entry(plugin: &Plugin, command: &Command, process: &Arc<SearchProcess>) -> En
     )
     .expect("an empty action list fits every resource");
     entry.set_source(&plugin.id);
-    entry.actions.push(action(plugin, command, process));
+    let action = action(plugin, command, process);
+    entry.actions.push(match argument {
+        Some(argument) => action.with_argument(argument.clone()),
+        None => action,
+    });
     entry
 }
 
@@ -161,7 +191,9 @@ pub fn bindings(plugins: &[Plugin]) -> Vec<HotkeyBinding> {
             });
         }
         for command in &plugin.commands {
-            if let Some(hotkey) = &command.hotkey {
+            if command.input.can_run_without_attachment()
+                && let Some(hotkey) = &command.hotkey
+            {
                 bindings.push(HotkeyBinding {
                     owner: label(plugin, command),
                     hotkey: hotkey.clone(),

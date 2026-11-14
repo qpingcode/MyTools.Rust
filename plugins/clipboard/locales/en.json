@@ -1,4 +1,8 @@
 {
+  "command.count_characters": "Count Characters",
+  "command.copy_paths": "Copy All Paths",
+  "attachment.character_count": "{count} characters",
+  "attachment.copied_paths": "Copied {count} paths",
   "name": "Clipboard History",
   "capture_failed": "Could not read clipboard content: {error}",
   "image": "Image {width} × {height}",

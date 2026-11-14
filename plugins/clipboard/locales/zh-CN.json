@@ -1,4 +1,8 @@
 {
+  "command.count_characters": "统计字符数",
+  "command.copy_paths": "复制全部路径",
+  "attachment.character_count": "共 {count} 个字符",
+  "attachment.copied_paths": "已复制 {count} 个路径",
   "name": "剪贴板历史",
   "capture_failed": "无法读取剪贴板内容：{error}",
   "image": "图片 {width} × {height}",

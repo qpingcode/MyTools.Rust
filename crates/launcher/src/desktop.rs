@@ -13,6 +13,8 @@ type Routes = Arc<Mutex<Vec<(u32, HotkeyTarget)>>>;
 /// The manager is owned by the UI thread on both Windows and macOS.
 pub struct Desktop {
     manager: GlobalHotKeyManager,
+    selection_hotkey: Option<HotKey>,
+    pub selection_hotkey_error: Option<String>,
     hotkey: HotKey,
     /// The plugin and command shortcuts registered now, and what each one does.
     bound: Vec<HotKey>,
@@ -54,7 +56,9 @@ impl Desktop {
     /// catalog has loaded. `run_command` receives command shortcuts, on any thread.
     pub fn new(
         ui: &MainWindow,
+        selection_hotkey: Option<&str>,
         run_command: impl Fn(Action) + Send + Sync + 'static,
+        capture_selection: impl Fn(selection::Source) + Send + Sync + 'static,
     ) -> Result<Self> {
         use mytools_plugin_api::log;
         let manager = GlobalHotKeyManager::new()
@@ -76,10 +80,38 @@ impl Desktop {
                 )
             })
             .context(i18n::t("desktop.register_failed"))?;
-        let routes: Routes = Arc::default();
-        let handler_routes = routes.clone();
+        let mut desktop = Self {
+            manager,
+            hotkey,
+            selection_hotkey: None,
+            selection_hotkey_error: None,
+            bound: Vec::new(),
+            routes: Arc::default(),
+        };
+        if let Some(key) = selection_hotkey
+            .map(str::trim)
+            .filter(|key| !key.is_empty())
+        {
+            match desktop.register(key) {
+                Ok(key) => desktop.selection_hotkey = Some(key),
+                Err(error) => {
+                    let error = i18n::format(
+                        "attachment.hotkey_failed",
+                        &[("error", &format!("{error:#}"))],
+                    );
+                    log::warn("hotkey.failed", &error);
+                    desktop.selection_hotkey_error = Some(error);
+                }
+            }
+        }
+        let selection_hotkey = desktop.selection_hotkey;
+        let handler_routes = desktop.routes.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             if event.state != HotKeyState::Pressed {
+                return;
+            }
+            if selection_hotkey.is_some_and(|key| key.id() == event.id) {
+                capture_selection(selection::Source::foreground());
                 return;
             }
             if event.id == hotkey.id() {
@@ -108,12 +140,7 @@ impl Desktop {
                 None => {}
             }
         }));
-        Ok(Self {
-            manager,
-            hotkey,
-            bound: Vec::new(),
-            routes,
-        })
+        Ok(desktop)
     }
 
     /// Replaces the plugin and command shortcuts, e.g. after the settings changed. Returns
@@ -157,7 +184,11 @@ impl Desktop {
             .with_context(|| i18n::format("desktop.hotkey_invalid", &[("hotkey", text)]))?;
         let key: HotKey = parsed.registration().parse()?;
         anyhow::ensure!(
-            key.id() != self.hotkey.id() && !self.bound.iter().any(|bound| bound.id() == key.id()),
+            key.id() != self.hotkey.id()
+                && !self
+                    .selection_hotkey
+                    .is_some_and(|bound| bound.id() == key.id())
+                && !self.bound.iter().any(|bound| bound.id() == key.id()),
             i18n::format("desktop.hotkey_taken", &[("hotkey", &parsed.to_string())])
         );
         self.manager.register(key)?;
@@ -168,6 +199,9 @@ impl Desktop {
 impl Drop for Desktop {
     fn drop(&mut self) {
         let _ = self.manager.unregister(self.hotkey);
+        if let Some(key) = self.selection_hotkey {
+            let _ = self.manager.unregister(key);
+        }
         for hotkey in &self.bound {
             let _ = self.manager.unregister(*hotkey);
         }
@@ -175,6 +209,11 @@ impl Drop for Desktop {
 }
 
 pub fn show(ui: &MainWindow) {
+    ui.invoke_normal_launch();
+    show_window(ui);
+}
+
+pub fn show_window(ui: &MainWindow) {
     paste::remember_target();
     if let Err(error) = ui.show() {
         ui.set_failed(true);

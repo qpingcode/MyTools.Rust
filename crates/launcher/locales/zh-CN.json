@@ -1,4 +1,11 @@
 {
+  "attachment.title": "用当前选区打开",
+  "attachment.empty": "未读取到选中的文字或文件。",
+  "attachment.no_commands": "没有匹配此附件的命令。",
+  "attachment.text": "文本：{text}",
+  "attachment.files": "已选 {count} 项",
+  "attachment.remove": "移除附件",
+  "attachment.hotkey_failed": "无法注册选区快捷键：{error}",
   "explorer_probe.prompt": "请在 {count} 秒内切换到资源管理器，并选中文件或文件夹。",
   "explorer_probe.no_window": "未找到处于前台的资源管理器视图。",
   "explorer_probe.ambiguous": "前台窗口匹配了多个可见视图。",

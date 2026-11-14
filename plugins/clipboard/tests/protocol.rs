@@ -181,6 +181,18 @@ fn searches_previews_and_executes_commands_in_one_resident_session() {
     let invalid =
         fixture.request(serde_json::json!({"action":{"command":"unknown","item":"a".repeat(64)}}));
     assert!(invalid.error.is_some());
+    let paths = ["one.txt", "two.txt"];
+    let response = fixture.request(serde_json::json!({
+        "action": {"command":"copy-paths","argument":{"type":"files","paths":paths}}
+    }));
+    assert_eq!(
+        response.effect.unwrap().copy_text.unwrap(),
+        paths.join("\n")
+    );
+    let response = fixture.request(serde_json::json!({
+        "action":{"command":"count-characters","argument":{"type":"text","text":" 你好\n"}}
+    }));
+    assert!(response.effect.unwrap().message.contains('4'));
     let deleted =
         fixture.request(serde_json::json!({"action":{"command":"delete","item":"a".repeat(64)}}));
     assert!(deleted.effect.unwrap().refresh);

@@ -38,6 +38,7 @@ mod tests {
             command: "delete".into(),
             item: None,
             editable: None,
+            argument: None,
         };
         assert!(execute(unknown).is_err());
     }

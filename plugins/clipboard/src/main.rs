@@ -48,6 +48,35 @@ fn execute(
     store: &Mutex<store::Store>,
     request: PluginActionRequest,
 ) -> anyhow::Result<PluginEffect> {
+    use mytools_plugin_api::CommandArgument;
+    match (request.command.as_str(), request.argument.as_ref()) {
+        ("count-characters", Some(CommandArgument::Text { text })) => {
+            return Ok(PluginEffect {
+                message: i18n::format(
+                    "attachment.character_count",
+                    &[("count", &text.chars().count().to_string())],
+                ),
+                ..Default::default()
+            });
+        }
+        ("copy-paths", Some(CommandArgument::Files { paths })) if !paths.is_empty() => {
+            let text = paths
+                .iter()
+                .map(|path| path.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Ok(PluginEffect {
+                copy_text: Some(text),
+                message: i18n::format(
+                    "attachment.copied_paths",
+                    &[("count", &paths.len().to_string())],
+                ),
+                ..Default::default()
+            });
+        }
+        ("count-characters" | "copy-paths", _) => anyhow::bail!(i18n::text("unsupported")),
+        _ => {}
+    }
     let mut state = store.lock().unwrap_or_else(|error| error.into_inner());
     let item = request.item.as_deref().unwrap_or_default();
     match request.command.as_str() {

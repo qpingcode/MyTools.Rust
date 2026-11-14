@@ -41,6 +41,9 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>, requests: &QuerySender)
         let Some(ui) = weak.upgrade() else {
             return false;
         };
+        if tab_state.borrow().attachment.is_some() {
+            return false;
+        }
         let query = ui.get_query();
         if tab_requests.scope_prefix(&query).is_some() {
             return false;

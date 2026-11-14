@@ -67,6 +67,7 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             if ui.get_actions_open() {
                 close_panel(&ui, &mut dismiss_state.borrow_mut());
             } else if !crate::chat::dismiss(&ui, &dismiss_state.borrow()) {
+                ui.invoke_normal_launch();
                 let _ = ui.hide();
             }
         }
@@ -88,6 +89,7 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
     ui.window().on_close_requested(move || {
         if let Some(ui) = weak.upgrade() {
             close_panel(&ui, &mut close_state.borrow_mut());
+            ui.invoke_normal_launch();
         }
         slint::CloseRequestResponse::HideWindow
     });
@@ -278,6 +280,7 @@ fn start_action(ui: &MainWindow, action: Action) {
     );
     ui.set_action_busy(true);
     let query = ui.get_query();
+    let attachment = ui.get_attachment_details();
     let weak = ui.as_weak();
     std::thread::spawn(move || {
         let result = action.execute();
@@ -288,7 +291,10 @@ fn start_action(ui: &MainWindow, action: Action) {
                     Ok(i18n::format("status.copied", &[("text", &text)]))
                 }
                 ActionEffect::Completed => {
-                    if action.dismiss_on_success() && ui.get_query() == query {
+                    if action.dismiss_on_success()
+                        && ui.get_query() == query
+                        && ui.get_attachment_details() == attachment
+                    {
                         ui.hide()?;
                     }
                     Ok(i18n::format(
@@ -311,7 +317,11 @@ fn start_action(ui: &MainWindow, action: Action) {
                     if effect.refresh {
                         ui.invoke_refresh();
                     }
-                    if effect.dismiss && ui.get_query() == query {
+                    if effect.dismiss
+                        && ui.get_query() == query
+                        && ui.get_attachment_details() == attachment
+                    {
+                        ui.invoke_normal_launch();
                         ui.hide()?;
                     }
                     Ok(effect.message)
@@ -327,7 +337,7 @@ fn start_action(ui: &MainWindow, action: Action) {
             }
             ui.set_action_busy(false);
             // A completed action must not replace the status of a newer search.
-            if ui.get_query() == query {
+            if ui.get_query() == query && ui.get_attachment_details() == attachment {
                 match message {
                     Ok(message) => {
                         ui.set_failed(false);

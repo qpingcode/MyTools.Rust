@@ -5,8 +5,9 @@ use crate::{
     theme, tray,
 };
 use mytools_core::{Action, Entry, Notice, SearchResults};
+use mytools_plugin_api::CommandArgument;
 use slint::{ComponentHandle, VecModel};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -20,6 +21,8 @@ pub(crate) struct State {
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,
+    pub attachment: Option<Arc<CommandArgument>>,
+    pub attachment_open: u64,
     pub chat: crate::chat::ChatState,
 }
 
@@ -102,6 +105,10 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     for error in &theme_errors {
         mytools_plugin_api::log::error("config.invalid", format!("theme setting ignored: {error}"));
     }
+    let selection_hotkey = config
+        .as_ref()
+        .ok()
+        .and_then(|config| config.selection_hotkey.clone());
     if let Err(error) = config {
         initial.desktop_error = Some(i18n::format(
             "config.invalid",
@@ -196,8 +203,22 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let run_command = move |action| {
         let _ = command_sender.send_blocking(action);
     };
-    match desktop::Desktop::new(&ui, run_command) {
-        Ok(created) => *desktop.borrow_mut() = Some(created),
+    let capture_selection = crate::attachments::wire(&ui, &state, notifier.clone())?;
+    match desktop::Desktop::new(
+        &ui,
+        selection_hotkey.as_deref(),
+        run_command,
+        capture_selection,
+    ) {
+        Ok(mut created) => {
+            if let Some(message) = created.selection_hotkey_error.take() {
+                startup_notices.push(Notice {
+                    title: i18n::t("notice.hotkey"),
+                    message,
+                });
+            }
+            *desktop.borrow_mut() = Some(created);
+        }
         Err(error) => {
             // Without Alt+Space the window would be hard to reach, so it opens as well.
             let message = format!("{error:#}");
@@ -296,7 +317,12 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
 fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String) {
     actions::close_panel(ui, state);
     state.generation += 1;
-    let searching = match requests.plugin_for(&text) {
+    let searching = match state
+        .attachment
+        .is_none()
+        .then(|| requests.plugin_for(&text))
+        .flatten()
+    {
         Some(name) => i18n::format("search.loading_plugin", &[("name", &name)]),
         None => i18n::t("search.loading"),
     };
@@ -310,6 +336,7 @@ fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String
     requests.send(Query {
         generation: state.generation,
         text,
+        attachment: state.attachment.clone(),
         attempt: crate::search::take_retry_attempt(),
     });
 }
@@ -325,7 +352,11 @@ fn apply_results(
     crate::chat::apply(ui, state, &mut results);
     ui.set_plugins_starting(results.waiting);
     actions::close_panel(ui, state);
-    let empty_text = empty_text(&results);
+    let empty_text = if state.attachment.is_some() && results.entries.is_empty() {
+        i18n::t("attachment.no_commands")
+    } else {
+        empty_text(&results)
+    };
     let mut errors = results.errors;
     errors.extend(state.desktop_error.clone());
     errors.extend(state.hotkey_error.clone());

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub selection_hotkey: Option<String>,
     pub language: String,
     /// Old home of plugin shortcuts, by plugin id; moved into `plugin-settings.json` at
     /// startup (see [`migrate_plugin_shortcuts`]).
@@ -20,6 +21,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            selection_hotkey: None,
             language: "auto".into(),
             plugin_shortcuts: Default::default(),
             theme: Default::default(),

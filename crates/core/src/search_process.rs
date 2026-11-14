@@ -444,6 +444,7 @@ impl SearchProcess {
         command: &str,
         item: Option<&str>,
         editable: Option<bool>,
+        argument: Option<&mytools_plugin_api::CommandArgument>,
     ) -> Result<PluginEffect> {
         let mut busy = self.action_busy.lock().unwrap();
         if *busy {
@@ -457,6 +458,7 @@ impl SearchProcess {
                     command: command.into(),
                     item: item.map(str::to_owned),
                     editable,
+                    argument: argument.cloned(),
                 }),
                 timeout_ms: None,
                 ping: None,
@@ -816,7 +818,8 @@ mod tests {
             .unwrap()
             .unwrap();
         let worker = process.clone();
-        let action = std::thread::spawn(move || worker.execute("translate", Some("test"), None));
+        let action =
+            std::thread::spawn(move || worker.execute("translate", Some("test"), None, None));
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
         while !*process.action_busy.lock().unwrap() {
             assert!(std::time::Instant::now() < deadline);

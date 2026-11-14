@@ -1,4 +1,5 @@
 {
+  "selection_hotkey": "",
   "language": "auto",
   "plugin_startup_timeout_ms": 10000,
   "log_level": "info",

@@ -13,7 +13,7 @@
 //!
 //! Running one sends the plugin the action `{"command":"<id>"}` without an `item`; with
 //! `"input": "selection"` the host first reads the text selected in the application in front
-//! and sends it as the `item` (see [`CommandInput::Selection`]).
+//! and sends it as the `item` (see [`InputKind::Selection`]).
 use serde::Deserialize;
 use std::path::Path;
 
@@ -54,18 +54,18 @@ pub struct CommandManifest {
     /// The default global shortcut; the user may change it in the settings.
     #[serde(default)]
     pub hotkey: Option<String>,
-    /// What the host passes as the action's `item`; see [`CommandInput`].
+    /// The input modes the command accepts.
     #[serde(default)]
     pub input: CommandInput,
 }
 
 /// What a command works on.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum CommandInput {
-    /// Nothing: the action has no `item`.
-    #[default]
-    None,
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CommandInput(Vec<InputKind>);
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum InputKind {
     /// The text selected in the application in front, as the action's `item`. The plugin
     /// returns the replacement as `effect.copy_text` with `paste: true`: the host replaces
     /// the selection when it is editable, and otherwise opens the plugin's scope with the
@@ -75,6 +75,50 @@ pub enum CommandInput {
     /// Like `Selection`, but runs with an empty `item` when nothing is selected.
     #[serde(rename = "selection-optional")]
     OptionalSelection,
+    AttachmentText,
+    AttachmentFiles,
+}
+
+impl CommandInput {
+    pub fn contains(&self, kind: InputKind) -> bool {
+        self.0.contains(&kind)
+    }
+
+    pub fn can_run_without_attachment(&self) -> bool {
+        self.0.is_empty()
+            || self.contains(InputKind::Selection)
+            || self.contains(InputKind::OptionalSelection)
+    }
+}
+
+impl<'de> Deserialize<'de> for CommandInput {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Value {
+            Single(InputKind),
+            Multiple(Vec<InputKind>),
+            LegacyNone(LegacyNone),
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "lowercase")]
+        enum LegacyNone {
+            None,
+        }
+
+        let values = match Value::deserialize(deserializer)? {
+            Value::Single(kind) => vec![kind],
+            Value::Multiple(kinds) => kinds,
+            Value::LegacyNone(_) => Vec::new(),
+        };
+        let input = Self(values);
+        if input.contains(InputKind::Selection) && input.contains(InputKind::OptionalSelection) {
+            return Err(serde::de::Error::custom(
+                "selection and selection-optional are mutually exclusive",
+            ));
+        }
+        Ok(input)
+    }
 }
 
 /// A command id is one word, so it can name the command in `plugin-settings.json`.
@@ -91,17 +135,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn accepts_legacy_and_array_inputs_and_rejects_conflicting_selection_modes() {
+        for kind in ["selection", "selection-optional"] {
+            let legacy: CommandInput = serde_json::from_value(serde_json::json!(kind)).unwrap();
+            let array: CommandInput = serde_json::from_value(serde_json::json!([kind])).unwrap();
+            assert_eq!(legacy, array);
+        }
+        for invalid in [r#"["selection", "selection-optional"]"#, r#"["unknown"]"#] {
+            assert!(serde_json::from_str::<CommandInput>(invalid).is_err());
+        }
+    }
+
+    #[test]
     fn reads_commands_and_rejects_unknown_fields() {
         let command: CommandManifest = serde_json::from_str(
             r#"{"id":"paste-plain","title":{"defaultValue":"Paste"},"hotkey":"Ctrl+Shift+Alt+V"}"#,
         )
         .unwrap();
         assert_eq!(command.hotkey.as_deref(), Some("Ctrl+Shift+Alt+V"));
-        assert_eq!(command.input, CommandInput::None);
+        assert_eq!(command.input, CommandInput::default());
         let selection: CommandManifest =
             serde_json::from_str(r#"{"id":"t","title":{"defaultValue":"T"},"input":"selection"}"#)
                 .unwrap();
-        assert_eq!(selection.input, CommandInput::Selection);
+        assert!(selection.input.contains(InputKind::Selection));
         assert!(command.keywords.is_empty());
         assert!(
             serde_json::from_str::<CommandManifest>(

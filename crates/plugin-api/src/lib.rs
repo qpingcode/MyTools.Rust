@@ -7,7 +7,7 @@ pub use transport::{cancelled, deadline, on_init, progress};
 mod actions;
 pub use actions::{ActionId, ActionSpec, Resource};
 pub use icons::Icon;
-pub use views::{PluginActionRequest, PluginEffect, Preview, View};
+pub use views::{CommandArgument, PluginActionRequest, PluginEffect, Preview, View};
 pub mod chat;
 pub mod views;
 

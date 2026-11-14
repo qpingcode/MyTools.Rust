@@ -378,6 +378,27 @@ impl Catalog {
         crate::commands::bindings(&self.plugins)
     }
 
+    pub fn search_attachment(
+        &self,
+        input: &str,
+        argument: &std::sync::Arc<mytools_plugin_api::CommandArgument>,
+    ) -> SearchResults {
+        let query = input.trim();
+        SearchResults {
+            entries: crate::commands::entries(&self.plugins, query, Some(argument)),
+            errors: self.errors.clone(),
+            plugin_name: None,
+            view: Default::default(),
+            revision: None,
+            cancelled: false,
+            waiting: false,
+            partial: None,
+            query: query.to_owned(),
+            chat: None,
+            tab: None,
+        }
+    }
+
     pub fn search_with(&self, input: &str, options: &SearchOptions) -> SearchResults {
         let (target, query) = route(&self.plugins, input);
         let mut output = SearchResults {
@@ -509,7 +530,7 @@ impl Catalog {
         if target.is_none() && !query.is_empty() {
             output
                 .entries
-                .extend(crate::commands::entries(&self.plugins, query));
+                .extend(crate::commands::entries(&self.plugins, query, None));
             rank_global(
                 &mut output.entries,
                 query,
@@ -986,6 +1007,52 @@ mod tests {
     }
 
     #[test]
+    fn attachment_commands_use_the_snapshot_and_filter_incompatible_inputs() {
+        use mytools_plugin_api::CommandArgument;
+        use std::sync::Arc;
+
+        let mut plugin = with_command(plugin(), Some("Ctrl+Alt+T"));
+        plugin.commands[0].input =
+            serde_json::from_str(r#"["selection", "attachment-text"]"#).unwrap();
+        let mut files = plugin.commands[0].clone();
+        files.id = "files".into();
+        files.title = "Copy Paths".into();
+        files.input = serde_json::from_str(r#"["attachment-files"]"#).unwrap();
+        plugin.commands.push(files);
+        let catalog = catalog(vec![plugin]);
+
+        let text = Arc::new(CommandArgument::Text {
+            text: " hello\n".into(),
+        });
+        let results = catalog.search_attachment("", &text);
+        assert_eq!(results.entries.len(), 1);
+        assert_eq!(results.entries[0].name, "Paste as Plain Text");
+        assert!(!results.entries[0].actions[0].needs_selection());
+
+        let paths = Arc::new(CommandArgument::Files {
+            paths: vec!["example.txt".into()],
+        });
+        assert_eq!(
+            catalog.search_attachment("", &paths).entries[0].name,
+            "Copy Paths"
+        );
+        assert!(
+            catalog
+                .search_attachment("other", &paths)
+                .entries
+                .is_empty()
+        );
+        assert!(catalog.search("Copy Paths").entries.is_empty());
+
+        let bindings = catalog.hotkeys();
+        assert_eq!(bindings.len(), 1);
+        let crate::commands::HotkeyTarget::Command(action) = &bindings[0].target else {
+            panic!("a selection command shortcut");
+        };
+        assert!(action.needs_selection());
+    }
+
+    #[test]
     fn hotkeys_cover_plugin_scopes_and_commands() {
         let mut scoped = with_command(plugin(), None);
         scoped.hotkey = Some("Alt+C".into());
@@ -1025,7 +1092,7 @@ mod tests {
     #[test]
     fn selection_commands_carry_their_scope_until_given_the_text() {
         let mut plugin = with_command(plugin(), Some("Ctrl+Alt+T"));
-        plugin.commands[0].input = mytools_plugin_api::commands::CommandInput::Selection;
+        plugin.commands[0].input = serde_json::from_str(r#""selection""#).unwrap();
         let bindings = catalog(vec![plugin]).hotkeys();
         let crate::commands::HotkeyTarget::Command(action) = &bindings[0].target else {
             panic!("a command shortcut");

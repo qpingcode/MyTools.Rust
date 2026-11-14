@@ -299,6 +299,7 @@ mod tests {
                 command: "ask-selection".into(),
                 item: Some("Hello".into()),
                 editable: Some(true),
+                argument: None,
             },
             &catalog,
         );
@@ -311,6 +312,7 @@ mod tests {
                 command: "paste".into(),
                 item: Some("Hi".into()),
                 editable: None,
+                argument: None,
             },
             &catalog,
         )
