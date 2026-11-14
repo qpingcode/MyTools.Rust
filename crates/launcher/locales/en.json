@@ -1,4 +1,8 @@
 {
+  "explorer_probe.prompt": "Switch to File Explorer and select files or folders within {count} seconds.",
+  "explorer_probe.no_window": "No foreground File Explorer view was found.",
+  "explorer_probe.ambiguous": "More than one visible view matched the foreground window.",
+  "explorer_probe.result": "Selected filesystem paths: {count}",
   "search.placeholder": "Search applications or plugins…",
   "search.loading": "Searching…",
   "search.loading_plugin": "Searching {name}…",

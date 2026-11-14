@@ -1,4 +1,8 @@
 {
+  "explorer_probe.prompt": "请在 {count} 秒内切换到资源管理器，并选中文件或文件夹。",
+  "explorer_probe.no_window": "未找到处于前台的资源管理器视图。",
+  "explorer_probe.ambiguous": "前台窗口匹配了多个可见视图。",
+  "explorer_probe.result": "已读取 {count} 个选中项的路径。",
   "search.placeholder": "搜索应用或插件…",
   "search.loading": "搜索中…",
   "search.loading_plugin": "正在搜索 {name}…",
