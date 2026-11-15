@@ -75,17 +75,6 @@ fn capture() -> Result<Option<Captured>> {
         sequence == platform::sequence(),
         "Clipboard changed during capture"
     );
-    #[cfg(windows)]
-    if content.is_some() {
-        let mut suppression = mytools_plugin_api::clipboard_history::Suppression::acquire()?;
-        if suppression.excludes(sequence as u32)? {
-            return Ok(None);
-        }
-        anyhow::ensure!(
-            sequence == platform::sequence(),
-            "Clipboard changed during capture"
-        );
-    }
     Ok(content)
 }
 

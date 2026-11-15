@@ -195,10 +195,6 @@ fn is_terminal(window: HWND) -> bool {
 
 /// Copies from a focused Scintilla editor directly, or sends Ctrl+C to other applications.
 fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'static str>> {
-    // The history plugin waits for us to identify the update before recording it.
-    let mut suppression = attachment
-        .then(mytools_plugin_api::clipboard_history::Suppression::acquire)
-        .transpose()?;
     let editor = attachment.then(|| focused_scintilla(window)).flatten();
     let before = if let Some(editor) = editor {
         anyhow::ensure!(
@@ -226,11 +222,7 @@ fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'
         send_copy_keys(window)?
     };
     let deadline = Instant::now() + Duration::from_millis(600);
-    loop {
-        let sequence = unsafe { GetClipboardSequenceNumber() };
-        if sequence != before {
-            break;
-        }
+    while unsafe { GetClipboardSequenceNumber() } == before {
         if Instant::now() >= deadline {
             return Ok(Err(if editor.is_some() {
                 "scintilla_clipboard_did_not_change"
@@ -242,18 +234,13 @@ fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'
     }
     // The owner may still be writing every format; give it a moment.
     std::thread::sleep(Duration::from_millis(30));
-    let mut result = Err("copied_text_unavailable");
     for _ in 0..10 {
         if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-            result = Ok(text);
-            break;
+            return Ok(Ok(text));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    if let Some(suppression) = &mut suppression {
-        suppression.exclude(unsafe { GetClipboardSequenceNumber() })?;
-    }
-    Ok(result)
+    Ok(Err("copied_text_unavailable"))
 }
 
 fn focused_scintilla(window: HWND) -> Option<HWND> {
