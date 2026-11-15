@@ -102,7 +102,8 @@ component Chip inherits Rectangle {
 
 /// Height of one shortcut line below a card's main row.
 global CardMetrics {
-    out property <length> main: 68px;
+    out property <length> main: 56px;
+    out property <length> metadata: 32px;
     out property <length> hotkey: 40px;
     out property <length> bottom: 6px;
 }
@@ -176,8 +177,8 @@ export component PluginCard inherits Rectangle {
     callback status-hovered(bool, length, length);
     private property <bool> expanded;
     private property <length> group-height: 26px;
-    out property <length> full-height: CardMetrics.main + (root.expanded
-        ? 37px + root.plugin.hotkeys.length * CardMetrics.hotkey
+    out property <length> full-height: CardMetrics.main + CardMetrics.metadata + (root.expanded
+        ? 1px + root.plugin.hotkeys.length * CardMetrics.hotkey
             + (root.plugin.hotkeys.length > 0 ? root.group-height : 0px)
             + (root.plugin.hotkeys.length > 1 ? root.group-height : 0px) + CardMetrics.bottom
         : 0px);
@@ -216,7 +217,11 @@ export component PluginCard inherits Rectangle {
                     color: root.plugin.enabled ? Theme.foreground : Theme.muted;
                     overflow: elide; vertical-alignment: center;
                 }
-                TouchArea { mouse-cursor: pointer; clicked => { root.expanded = !root.expanded; } }
+                TouchArea {
+                    enabled: root.plugin.hotkeys.length > 0;
+                    mouse-cursor: pointer;
+                    clicked => { root.expanded = !root.expanded; }
+                }
             }
             VerticalLayout {
                 alignment: center;
@@ -261,6 +266,7 @@ export component PluginCard inherits Rectangle {
             VerticalLayout {
                 alignment: center;
                 Button {
+                    visible: root.plugin.hotkeys.length > 0;
                     icon: root.expanded ? "builtin:chevron-down" : "builtin:chevron-right";
                     kind: "ghost";
                     accessible-label: (root.expanded ? I18n.text("plugins.collapse") : I18n.text("plugins.expand")) + " " + root.plugin.name;
@@ -268,34 +274,34 @@ export component PluginCard inherits Rectangle {
                 }
             }
         }
+        HorizontalLayout {
+            height: CardMetrics.metadata;
+            padding-left: 64px; padding-right: 16px; padding-bottom: 6px; spacing: 8px; alignment: start;
+            StatusDot {
+                state: root.plugin.state;
+                accessible-label: root.plugin.status-text;
+                hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
+            }
+            Text {
+                text: root.plugin.id; color: Theme.muted; font-size: Theme.font-caption;
+                overflow: elide; vertical-alignment: center;
+            }
+            if root.plugin.state == "failed": Chip {
+                text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
+                tint: Theme.danger;
+                clicked => { root.restart(); }
+            }
+            if root.plugin.startup != "": Chip {
+                text: root.plugin.startup == "eager"
+                    ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
+                icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
+                enabled: root.plugin.enabled;
+                clicked => { root.startup-toggled(); }
+                accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
+            }
+        }
         if root.expanded: VerticalLayout {
             Rectangle { height: 1px; background: Theme.border; }
-            HorizontalLayout {
-                height: 36px;
-                padding-left: 16px; padding-right: 16px; spacing: 8px; alignment: start;
-                StatusDot {
-                    state: root.plugin.state;
-                    accessible-label: root.plugin.status-text;
-                    hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
-                }
-                Text {
-                    text: root.plugin.id; color: Theme.muted; font-size: Theme.font-caption;
-                    overflow: elide; vertical-alignment: center;
-                }
-                if root.plugin.state == "failed": Chip {
-                    text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
-                    tint: Theme.danger;
-                    clicked => { root.restart(); }
-                }
-                if root.plugin.startup != "": Chip {
-                    text: root.plugin.startup == "eager"
-                        ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
-                    icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
-                    enabled: root.plugin.enabled;
-                    clicked => { root.startup-toggled(); }
-                    accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
-                }
-            }
             for hotkey[index] in root.plugin.hotkeys: VerticalLayout {
                 if index <= 1: HorizontalLayout {
                     height: root.group-height; padding-left: 16px;
