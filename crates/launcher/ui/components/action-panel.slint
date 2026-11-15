@@ -35,25 +35,27 @@ export component ActionPanel inherits Rectangle {
     }
     public function reset-shortcut() { root.shortcut-index = -1; }
     private property <length> pitch: Theme.action-row-height + 2px;
+    private property <length> extra-header: root.shortcut-error == "" ? 0px : max(0px, heading.preferred-height - 24px);
     width: 392px;
-    height: min(root.available-height, max(1, root.actions.length) * root.pitch + 84px);
+    height: min(root.available-height, max(1, root.actions.length) * root.pitch + 84px + root.extra-header);
     background: Theme.popup;
     border-radius: Theme.radius;
     border-width: 1px;
     border-color: Theme.control-border;
     // This surface consumes clicks so only clicks outside the panel dismiss it.
     TouchArea {}
-    Text {
-        x: 14px; y: 8px; height: 24px; width: parent.width - 28px;
+    heading := Text {
+        x: 14px; y: 8px; height: 24px + root.extra-header; width: parent.width - 28px;
         text: root.shortcut-error != "" ? root.shortcut-error
             : root.editing-shortcut ? root.shortcut-title : root.target-title;
         color: root.shortcut-error != "" ? Theme.warning : Theme.muted;
         font-size: Theme.font-small;
         vertical-alignment: center; overflow: elide;
+        wrap: root.shortcut-error == "" ? no-wrap : word-wrap;
     }
     Rectangle {
         visible: !root.editing-shortcut;
-        x: 10px; y: 36px; width: parent.width - 20px; height: 32px;
+        x: 10px; y: 36px + root.extra-header; width: parent.width - 20px; height: 32px;
         border-width: 1px;
         border-color: filter.has-focus ? Theme.control-border : Theme.border;
         border-radius: 5px;
@@ -85,7 +87,7 @@ export component ActionPanel inherits Rectangle {
     }
     Rectangle {
         visible: root.editing-shortcut;
-        x: 10px; y: 36px; width: parent.width - 20px; height: 32px;
+        x: 10px; y: 36px + root.extra-header; width: parent.width - 20px; height: 32px;
         background: Theme.preview; border-radius: 5px;
         border-width: 1px; border-color: Theme.control-border;
         if shortcut-input.text == "" && shortcut-input.preedit-text == "": Text {
@@ -110,7 +112,8 @@ export component ActionPanel inherits Rectangle {
         font-size: Theme.font-small; vertical-alignment: center;
     }
     list := Flickable {
-        x: 6px; y: 76px; width: parent.width - 12px; height: max(0px, parent.height - 82px);
+        x: 6px; y: 76px + root.extra-header; width: parent.width - 12px;
+        height: max(0px, parent.height - self.y - 6px);
         content-width: self.width;
         content-height: root.actions.length * root.pitch;
         for action[index] in root.actions: Rectangle {

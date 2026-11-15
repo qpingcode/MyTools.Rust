@@ -1,3 +1,4 @@
+use crate::i18n;
 use mytools_core::Action;
 use mytools_plugin_api::{ActionId, dirs, hotkeys::Hotkey};
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,47 @@ impl Target {
 struct Binding {
     target: Target,
     shortcut: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    title: String,
+}
+
+impl Binding {
+    fn owner(&self) -> String {
+        let (group, fallback) = match &self.target {
+            Target::MyTools { action } => (
+                "MyTools",
+                i18n::t(match action {
+                    ActionId::Open => "actions.open",
+                    ActionId::OpenInBrowser => "actions.open_browser",
+                    ActionId::CopyText => "actions.copy",
+                    ActionId::CopyPath => "actions.copy_path",
+                    ActionId::CopyName => "actions.copy_name",
+                    ActionId::Reveal => "actions.reveal",
+                    ActionId::Launch => "actions.launch",
+                    ActionId::RunAsAdmin => "actions.run_as_admin",
+                    ActionId::Plugin => "actions.execute",
+                }),
+            ),
+            Target::Plugin {
+                plugin, command, ..
+            } => (plugin.as_str(), command.clone()),
+        };
+        format!(
+            "{group} · {}",
+            if self.title.is_empty() {
+                &fallback
+            } else {
+                &self.title
+            }
+        )
+    }
+}
+
+fn occupied(hotkey: &Hotkey, owner: &str) -> String {
+    i18n::format(
+        "actions.shortcut_occupied",
+        &[("shortcut", &hotkey.to_string()), ("name", owner)],
+    )
 }
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -75,50 +117,64 @@ impl Shortcuts {
     pub fn assign(
         &mut self,
         target: Target,
+        title: &str,
         text: &str,
-        reserved: &[Hotkey],
-    ) -> Result<(), &'static str> {
+        reserved: &[(Hotkey, String)],
+    ) -> Result<(), String> {
         let text = text.trim();
-        let mut next = Self::load().map_err(|_| "actions.shortcut_read")?;
+        let mut next = Self::load().map_err(|_| i18n::t("actions.shortcut_read"))?;
         if text.is_empty() {
             next.0.retain(|binding| binding.target != target);
         } else {
-            let hotkey = Hotkey::parse(text)
-                .filter(allowed)
-                .ok_or("actions.shortcut_invalid")?;
+            let hotkey = Hotkey::parse(text).ok_or_else(|| i18n::t("actions.shortcut_invalid"))?;
+            if let Some(key) = launcher_owner(&hotkey) {
+                return Err(occupied(&hotkey, &format!("MyTools · {}", i18n::t(key))));
+            }
+            if !allowed(&hotkey) {
+                return Err(i18n::t("actions.shortcut_invalid"));
+            }
             let global = crate::config::load()
                 .map(|config| config.hotkeys)
                 .unwrap_or_default();
-            if reserved.contains(&hotkey)
-                || [Some(global.launcher_hotkey.as_str()), global.selection()]
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Hotkey::parse)
-                    .any(|global| global == hotkey)
-            {
-                return Err("actions.shortcut_global");
+            for (binding, owner) in [
+                (
+                    Some(global.launcher_hotkey.as_str()),
+                    "actions.shortcut_launcher",
+                ),
+                (global.selection(), "actions.shortcut_selection"),
+            ] {
+                if binding.and_then(Hotkey::parse).as_ref() == Some(&hotkey) {
+                    return Err(occupied(&hotkey, &format!("MyTools · {}", i18n::t(owner))));
+                }
+            }
+            if let Some((_, owner)) = reserved.iter().find(|(key, _)| key == &hotkey) {
+                return Err(occupied(&hotkey, owner));
             }
             let shortcut = hotkey.to_string();
-            if next
-                .0
-                .iter()
-                .any(|binding| binding.target != target && binding.shortcut == shortcut)
-            {
-                return Err("actions.shortcut_duplicate");
+            if let Some(binding) = next.0.iter().find(|binding| {
+                binding.target != target
+                    && Hotkey::parse(&binding.shortcut).as_ref() == Some(&hotkey)
+            }) {
+                return Err(occupied(&hotkey, &binding.owner()));
             }
             next.0.retain(|binding| binding.target != target);
-            next.0.push(Binding { target, shortcut });
+            next.0.push(Binding {
+                target,
+                shortcut,
+                title: title.into(),
+            });
         }
 
         let path = path();
-        let bytes = serde_json::to_vec_pretty(&next).map_err(|_| "actions.shortcut_write")?;
+        let bytes =
+            serde_json::to_vec_pretty(&next).map_err(|_| i18n::t("actions.shortcut_write"))?;
         let save = || {
             fs::create_dir_all(path.parent().unwrap())?;
             let temporary = path.with_extension("tmp");
             fs::write(&temporary, bytes)?;
             fs::rename(&temporary, &path)
         };
-        save().map_err(|_: io::Error| "actions.shortcut_write")?;
+        save().map_err(|_: io::Error| i18n::t("actions.shortcut_write"))?;
         *self = next;
         Ok(())
     }
@@ -139,16 +195,25 @@ impl Shortcuts {
     }
 }
 
+fn launcher_owner(hotkey: &Hotkey) -> Option<&'static str> {
+    let plain = !hotkey.ctrl && !hotkey.alt && !hotkey.meta && !hotkey.shift;
+    let ctrl_only = hotkey.ctrl && !hotkey.alt && !hotkey.meta && !hotkey.shift;
+    match (hotkey.key.as_str(), plain, ctrl_only) {
+        ("F1", true, _) => Some("actions.shortcut_license"),
+        ("K", _, true) => Some("actions.title"),
+        ("Enter", _, _) if hotkey.ctrl || hotkey.meta => Some("actions.execute"),
+        ("Tab", _, _) => Some("actions.shortcut_tab"),
+        ("Escape", _, _) => Some("actions.shortcut_dismiss"),
+        ("Backspace" | "Delete", _, _) | ("A" | "C" | "V" | "X" | "Y" | "Z", _, true) => {
+            Some("actions.shortcut_text")
+        }
+        _ => None,
+    }
+}
+
 fn allowed(hotkey: &Hotkey) -> bool {
     let key = hotkey.key.as_str();
-    if key == "F1"
-        || matches!(key, "Escape" | "Enter" | "Tab" | "Backspace" | "Delete")
-        || (hotkey.ctrl
-            && !hotkey.alt
-            && !hotkey.meta
-            && !hotkey.shift
-            && matches!(key, "A" | "C" | "K" | "V" | "X" | "Y" | "Z"))
-    {
+    if launcher_owner(hotkey).is_some() || matches!(key, "F1" | "Enter") {
         return false;
     }
     // A shift-only printable shortcut would intercept ordinary capitalized input.
@@ -187,10 +252,12 @@ mod tests {
             Binding {
                 target: builtin.clone(),
                 shortcut: "Ctrl+Shift+P".into(),
+                title: String::new(),
             },
             Binding {
                 target: plugin.clone(),
                 shortcut: "F8".into(),
+                title: "Pin".into(),
             },
         ]);
         let restored: Shortcuts =
@@ -202,5 +269,7 @@ mod tests {
         assert!(restored.matches(&plugin, &f8, (false, false, false, false)));
         assert!(!allowed(&Hotkey::parse("Ctrl+K").unwrap()));
         assert!(!allowed(&Hotkey::parse("Shift+P").unwrap()));
+        assert!(restored.0[0].owner().starts_with("MyTools · "));
+        assert_eq!(restored.0[1].owner(), "clipboard · Pin");
     }
 }

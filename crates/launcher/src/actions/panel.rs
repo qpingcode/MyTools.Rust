@@ -162,14 +162,19 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         let Some(panel) = panel.as_mut() else {
             return false;
         };
-        let Some(target) = panel
-            .action(index)
-            .and_then(|action| Target::for_action(action, &panel.actions))
-        else {
+        let Some(action) = panel.action(index) else {
             return false;
         };
-        if let Err(key) = action_shortcuts.assign(target, &text, global_command_shortcuts) {
-            ui.set_action_shortcut_error(i18n::t(key).into());
+        let Some(target) = Target::for_action(action, &panel.actions) else {
+            return false;
+        };
+        if let Err(message) = action_shortcuts.assign(
+            target,
+            &i18n::action_title(action),
+            &text,
+            global_command_shortcuts,
+        ) {
+            ui.set_action_shortcut_error(message.into());
             return false;
         }
         panel.refresh_shortcuts(action_shortcuts);

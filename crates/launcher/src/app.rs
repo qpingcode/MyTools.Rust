@@ -21,7 +21,7 @@ pub(crate) struct State {
     pub entries: Vec<Entry>,
     pub panel: Option<crate::actions::Panel>,
     pub action_shortcuts: crate::action_shortcuts::Shortcuts,
-    pub global_command_shortcuts: Vec<mytools_plugin_api::hotkeys::Hotkey>,
+    pub global_command_shortcuts: Vec<(mytools_plugin_api::hotkeys::Hotkey, String)>,
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,
@@ -198,6 +198,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
                         .iter()
                         .filter_map(|binding| {
                             mytools_plugin_api::hotkeys::Hotkey::parse(&binding.hotkey)
+                                .map(|hotkey| (hotkey, binding.owner.clone()))
                         })
                         .collect();
                     let mut desktop = response_desktop.borrow_mut();
