@@ -91,7 +91,6 @@
   "toast.replace": "完成后将替换选中的文字",
   "toast.show": "选中的文字不可编辑，完成后在 MyTools 中显示结果",
   "toast.copy": "完成后将结果复制到剪贴板",
-  "search.tab_action": "打开{name}（Tab）",
   "chat.thinking": "正在思考…",
   "chat.empty": "有什么可以帮你？Enter 发送，Shift+Enter 换行。",
   "chat.placeholder": "输入问题…",

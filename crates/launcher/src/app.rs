@@ -450,14 +450,7 @@ fn apply_results(
             &[("count", &results.entries.len().to_string())],
         )
     };
-    ui.set_tab_target(
-        results
-            .tab
-            .as_deref()
-            .map(|name| i18n::format("search.tab_action", &[("name", name)]))
-            .unwrap_or_default()
-            .into(),
-    );
+    ui.set_tab_target(results.tab.unwrap_or_default().into());
     let rows: Vec<_> = results
         .entries
         .iter()

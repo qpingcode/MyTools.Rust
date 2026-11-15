@@ -57,7 +57,7 @@ export component SearchBar inherits Rectangle {
     }
     input := TextInput {
         x: 22px + Theme.font-search + 16px; y: (parent.height - self.height) / 2;
-        width: parent.width - self.x - 22px - (root.tab-target == "" ? 0px : tab-key.width + 10px);
+        width: parent.width - self.x - 22px - (root.tab-target == "" ? 0px : tab-action.width + 12px);
         height: Theme.font-search * 1.6;
         text <=> root.query;
         color: Theme.foreground; font-size: Theme.font-search;
@@ -73,27 +73,41 @@ export component SearchBar inherits Rectangle {
             reject
         }
     }
-    tab-key := Rectangle {
+    tab-action := Rectangle {
         visible: root.tab-target != "";
-        width: 40px; height: 24px;
+        width: min(parent.width * 0.35, 40px + 8px + tab-name.preferred-width);
+        height: 24px;
         x: parent.width - self.width - 22px;
         y: (parent.height - self.height) / 2;
-        border-width: 1px;
-        border-color: Theme.control-border;
-        border-radius: 5px;
-        background: tab-touch.has-hover && !root.composing ? Theme.hover : transparent;
-        Text {
-            text: "Tab";
-            color: Theme.muted; font-size: Theme.font-caption;
-            horizontal-alignment: center; vertical-alignment: center;
+        tab-key := Rectangle {
+            x: 0px; y: 0px;
+            width: 40px; height: parent.height;
+            border-width: 1px;
+            border-color: Theme.control-border;
+            border-radius: 5px;
+            background: tab-touch.has-hover && tab-touch.enabled ? Theme.hover : transparent;
+            Text {
+                width: parent.width; height: parent.height;
+                text: "Tab";
+                color: Theme.muted; font-size: Theme.font-caption;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+        }
+        tab-name := Text {
+            x: tab-key.x + tab-key.width + 8px; y: 0px;
+            width: parent.width - self.x; height: parent.height;
+            text: root.tab-target;
+            color: tab-touch.has-hover && tab-touch.enabled ? Theme.foreground : Theme.muted;
+            font-size: Theme.font-small;
+            vertical-alignment: center; overflow: elide;
         }
         tab-touch := TouchArea {
-            enabled: tab-key.visible && !root.composing;
+            enabled: tab-action.visible && !root.composing;
             mouse-cursor: pointer;
             clicked => { root.tab-clicked(); }
         }
         accessible-role: button;
-        accessible-label: root.tab-target;
+        accessible-label: "Tab · " + root.tab-target;
         accessible-enabled: tab-touch.enabled;
         accessible-action-default => { if (tab-touch.enabled) { root.tab-clicked(); } }
     }
