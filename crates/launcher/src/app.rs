@@ -20,6 +20,8 @@ pub(crate) struct State {
     command_scope: Option<(String, String)>,
     pub entries: Vec<Entry>,
     pub panel: Option<crate::actions::Panel>,
+    pub action_shortcuts: crate::action_shortcuts::Shortcuts,
+    pub global_command_shortcuts: Vec<mytools_plugin_api::hotkeys::Hotkey>,
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,
@@ -192,6 +194,12 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
                 }
                 Event::Notices(notices) => response_notifier.show(notices),
                 Event::Hotkeys(bindings) => {
+                    state.global_command_shortcuts = bindings
+                        .iter()
+                        .filter_map(|binding| {
+                            mytools_plugin_api::hotkeys::Hotkey::parse(&binding.hotkey)
+                        })
+                        .collect();
                     let mut desktop = response_desktop.borrow_mut();
                     // Without the manager there is nothing to register.
                     let Some(desktop) = desktop.as_mut() else {

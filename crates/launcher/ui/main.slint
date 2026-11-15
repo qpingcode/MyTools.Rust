@@ -115,6 +115,9 @@ export component MainWindow inherits Window {
     callback navigate-action(int);
     callback execute-action(int);
     callback filter-actions(string);
+    callback assign-action-shortcut(int, string) -> bool;
+    callback run-action-shortcut(string, bool, bool, bool, bool) -> bool;
+    in-out property <string> action-shortcut-error;
     private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
     changed searching => { if (!self.searching && !self.action-busy) { self.show-loading = false; } }
@@ -137,7 +140,16 @@ export component MainWindow inherits Window {
         KeyBinding { keys: @keys(Control + K); activated => { root.toggle-actions(); } }
         KeyBinding { keys: @keys(F1); activated => { root.show-license(); } }
         capture-key-pressed(event) => {
-            if (event.text == Key.Escape) { root.dismiss(); return accept; }
+            if (event.text == Key.Escape) {
+                if (!root.actions-open || !action-panel.cancel-shortcut()) { root.dismiss(); }
+                return accept;
+            }
+            if (!action-panel.editing-shortcut && !search-bar.composing
+                    && !(root.actions-open && action-panel.composing)
+                    && !(root.chat-view && chat.composing) && !(root.editor-view && editor.composing)) {
+                if (root.run-action-shortcut(event.text, event.modifiers.control, event.modifiers.shift,
+                        event.modifiers.alt, event.modifiers.meta)) { return accept; }
+            }
             // In the editor Enter starts a new line, so Ctrl+Enter (Cmd+Enter) runs the result.
             if (root.editor-view && !root.actions-open && event.text == Key.Return
                     && (event.modifiers.control || event.modifiers.meta)) {
@@ -269,10 +281,13 @@ export component MainWindow inherits Window {
                 actions: root.actions;
                 selected: root.selected-action;
                 target-title: root.action-target;
+                shortcut-error: root.action-shortcut-error;
                 execute(index) => { root.execute-action(index); }
                 activate => { root.execute-action(root.selected-action); }
                 navigate(delta) => { root.navigate-action(delta); }
                 filter-edited(text) => { root.filter-actions(text); }
+                assign-shortcut(index, text) => { root.assign-action-shortcut(index, text) }
+                clear-shortcut-error => { root.action-shortcut-error = ""; }
             }
         }
         WindowResizeHandles {
@@ -280,7 +295,10 @@ export component MainWindow inherits Window {
             resize-requested(direction) => { root.resize-requested(direction); }
         }
     }
-    changed actions-open => { if (root.actions-open) { action-panel.focus-filter(); } }
+    changed actions-open => {
+        if (root.actions-open) { action-panel.focus-filter(); }
+        else { action-panel.reset-shortcut(); }
+    }
     changed selected => {
         if (root.selected * root.row-pitch + 8px < -list.content-y) {
             list.content-y = -root.selected * root.row-pitch;

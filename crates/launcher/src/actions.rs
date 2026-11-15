@@ -1,51 +1,15 @@
-use crate::{ActionData, MainWindow, app::State, desktop, i18n};
+mod panel;
+pub(crate) use panel::Panel;
+
+use crate::{MainWindow, action_shortcuts::Shortcuts, app::State, desktop, i18n};
 use mytools_core::{Action, ActionEffect};
-use slint::{ComponentHandle, ModelRc, VecModel};
+use slint::{ComponentHandle, ModelRc};
 use std::{cell::RefCell, rc::Rc};
-
-pub(crate) struct Panel {
-    actions: Vec<Action>,
-    rows: Vec<ActionData>,
-    visible: Vec<usize>,
-}
-
-impl Panel {
-    fn filter(&mut self, query: &str) -> Vec<ActionData> {
-        let query = query.to_lowercase();
-        self.visible = self
-            .rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, row)| {
-                let title = row.title.to_lowercase();
-                query
-                    .split_whitespace()
-                    .all(|word| title.contains(word))
-                    .then_some(index)
-            })
-            .collect();
-        self.visible
-            .iter()
-            .map(|&index| self.rows[index].clone())
-            .collect()
-    }
-
-    fn show(&mut self, ui: &MainWindow, query: &str) {
-        let rows = self.filter(query);
-        ui.set_selected_action(0);
-        ui.set_actions(Rc::new(VecModel::from(rows)).into());
-    }
-
-    fn action(&self, index: i32) -> Option<&Action> {
-        self.visible
-            .get(usize::try_from(index).ok()?)
-            .and_then(|&index| self.actions.get(index))
-    }
-}
-
 pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
+    state.borrow_mut().action_shortcuts = Shortcuts::load().unwrap_or_default();
     wire_execution(ui, state);
-    wire_panel(ui, state);
+    panel::wire_panel(ui, state);
+    panel::wire_shortcuts(ui, state);
     let weak = ui.as_weak();
     let selection_state = state.clone();
     ui.on_select_result(move |index| {
@@ -181,77 +145,6 @@ fn wire_execution(ui: &MainWindow, state: &Rc<RefCell<State>>) {
     });
 }
 
-fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
-    let weak = ui.as_weak();
-    let toggle_state = state.clone();
-    ui.on_toggle_actions(move || {
-        let Some(ui) = weak.upgrade() else { return };
-        let mut state = toggle_state.borrow_mut();
-        if ui.get_actions_open() {
-            close_panel(&ui, &mut state);
-            return;
-        }
-        if ui.get_action_busy() || ui.get_searching() {
-            return;
-        }
-        let Some(entry) = usize::try_from(ui.get_selected())
-            .ok()
-            .and_then(|index| state.entries.get(index))
-        else {
-            return;
-        };
-        // Enter runs the first action, except in the chat view, where it sends.
-        let first = usize::from(!ui.get_chat_view());
-        if entry.actions.len() <= first {
-            return;
-        }
-        let snapshot = entry.actions[first..].to_vec();
-        let rows: Vec<_> = snapshot
-            .iter()
-            .map(|action| ActionData {
-                title: i18n::action_title(action).into(),
-                icon: action.icon.clone().into(),
-            })
-            .collect();
-        ui.set_action_target(entry.name.clone().into());
-        let mut panel = Panel {
-            actions: snapshot,
-            rows,
-            visible: Vec::new(),
-        };
-        panel.show(&ui, "");
-        state.panel = Some(panel);
-        ui.set_actions_open(true);
-    });
-    let weak = ui.as_weak();
-    let filter_state = state.clone();
-    ui.on_filter_actions(move |query| {
-        if let Some(ui) = weak.upgrade()
-            && let Some(panel) = filter_state.borrow_mut().panel.as_mut()
-        {
-            panel.show(&ui, &query);
-        }
-    });
-    let weak = ui.as_weak();
-    let close_state = state.clone();
-    ui.on_close_actions(move || {
-        if let Some(ui) = weak.upgrade() {
-            close_panel(&ui, &mut close_state.borrow_mut());
-        }
-    });
-    let weak = ui.as_weak();
-    let navigate_state = state.clone();
-    ui.on_navigate_action(move |delta| {
-        if let Some(ui) = weak.upgrade() {
-            let state = navigate_state.borrow();
-            if let Some(panel) = &state.panel {
-                let last = panel.visible.len().saturating_sub(1) as i32;
-                ui.set_selected_action((ui.get_selected_action() + delta).clamp(0, last));
-            }
-        }
-    });
-}
-
 pub fn close_panel(ui: &MainWindow, state: &mut State) {
     let was_open = ui.get_actions_open();
     state.panel = None;
@@ -312,7 +205,7 @@ pub fn sync_selection(ui: &MainWindow, state: &State) {
         .unwrap_or_default();
     let primary = actions.first();
     ui.set_primary_available(primary.is_some());
-    ui.set_actions_available(actions.len() > usize::from(!ui.get_chat_view()));
+    ui.set_actions_available(!actions.is_empty());
     ui.set_primary_title(
         primary
             .map(i18n::action_title)
@@ -425,42 +318,4 @@ fn start_action(ui: &MainWindow, action: Action) {
             }
         });
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mytools_plugin_api::{ActionId, Resource};
-
-    #[test]
-    fn filtered_rows_execute_the_matching_action() {
-        let actions = mytools_core::resolve_actions(
-            &Resource::Url {
-                url: "https://example.com".into(),
-            },
-            None,
-        )
-        .unwrap();
-        let mut panel = Panel {
-            actions,
-            rows: vec![
-                ActionData {
-                    title: "Open in browser".into(),
-                    icon: "".into(),
-                },
-                ActionData {
-                    title: "复制 URL".into(),
-                    icon: "".into(),
-                },
-            ],
-            visible: Vec::new(),
-        };
-        assert_eq!(panel.filter("url 复制").len(), 1);
-        assert_eq!(panel.action(0).unwrap().id, ActionId::CopyText);
-        assert!(panel.action(1).is_none());
-        assert!(panel.filter("missing").is_empty());
-        assert!(panel.action(0).is_none());
-        assert_eq!(panel.filter("").len(), 2);
-        assert_eq!(panel.action(0).unwrap().id, ActionId::OpenInBrowser);
-    }
 }

@@ -67,6 +67,18 @@ pub enum ActionEffect {
 }
 
 impl Action {
+    /// The owning plugin, command and payload of a result action.
+    pub fn plugin_command(&self) -> Option<(&str, &str, Option<&str>)> {
+        match &self.operation {
+            Operation::Plugin {
+                command,
+                item,
+                process: Some(process),
+            } => Some((process.plugin_id(), command, item.as_deref())),
+            _ => None,
+        }
+    }
+
     /// Call only after all effects (including clipboard/paste) have succeeded.
     /// Only primary actions of nonempty global searches carry a selection.
     pub fn record_success(&self) -> Result<()> {

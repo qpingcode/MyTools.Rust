@@ -375,6 +375,7 @@ component MessageView inherits VerticalLayout {
 /// The `chat` view: the conversation, newest at the bottom, and an input for the next
 /// question. Enter sends; Shift+Enter starts a new line.
 export component ChatPane inherits Rectangle {
+    out property <bool> composing: input.preedit-text != "";
     in property <[ChatMessageData]> messages;
     in-out property <string> text;
     in property <bool> busy;

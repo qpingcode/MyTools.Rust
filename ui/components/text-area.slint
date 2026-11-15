@@ -4,6 +4,7 @@ import { Theme } from "../theme.slint";
 /// A themed multi-line text field that scrolls to keep the cursor visible. Read-only text
 /// can still be selected and copied with Ctrl+C.
 export component TextArea inherits Rectangle {
+    out property <bool> composing: input.preedit-text != "";
     in-out property <string> text;
     in property <bool> read-only;
     in property <string> placeholder;

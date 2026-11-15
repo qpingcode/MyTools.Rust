@@ -12,7 +12,7 @@ export struct ResultData {
     description-highlighted: bool,
 }
 
-export struct ActionData { title: string, icon: string }
+export struct ActionData { title: string, icon: string, shortcut: string, bindable: bool, query: string, highlighted: bool }
 
 /// A block of a chat message: text (0), a heading (1), code (2), a quote (3), a table (4)
 /// or a list (5).

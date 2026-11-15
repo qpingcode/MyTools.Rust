@@ -5,6 +5,7 @@ import { TextArea } from "../../../../ui/components/text-area.slint";
 /// The `editor` view: the text to work on at the left, the plugin's first result at the
 /// right, where it can be selected and copied.
 export component EditorPane inherits Rectangle {
+    out property <bool> composing: input.composing;
     in-out property <string> text;
     in property <string> result-title;
     in property <string> result-description;

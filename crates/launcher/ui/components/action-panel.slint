@@ -2,22 +2,40 @@ import { Theme } from "../../../../ui/theme.slint";
 import { I18n } from "../../../../ui/i18n.slint";
 import { Icon } from "../../../../ui/components/icon.slint";
 import { ActionData } from "../types.slint";
+import { TextFit } from "../text-fit.slint";
 
 export component ActionPanel inherits Rectangle {
     in property <[ActionData]> actions;
     in property <int> selected;
     in property <string> target-title;
     in property <length> available-height;
+    in property <string> shortcut-error;
+    out property <bool> composing: filter.preedit-text != "";
+    out property <bool> editing-shortcut: root.shortcut-index >= 0;
+    private property <int> shortcut-index: -1;
+    private property <string> shortcut-title;
     callback execute(int);
     callback activate();
     callback navigate(int);
     callback filter-edited(string);
+    callback assign-shortcut(int, string) -> bool;
+    callback clear-shortcut-error();
     public function focus-filter() {
+        root.shortcut-index = -1;
+        root.clear-shortcut-error();
         filter.text = "";
         filter.focus();
     }
+    public function cancel-shortcut() -> bool {
+        if (!root.editing-shortcut) { return false; }
+        root.shortcut-index = -1;
+        root.clear-shortcut-error();
+        filter.focus();
+        return true;
+    }
+    public function reset-shortcut() { root.shortcut-index = -1; }
     private property <length> pitch: Theme.action-row-height + 2px;
-    width: 320px;
+    width: 392px;
     height: min(root.available-height, max(1, root.actions.length) * root.pitch + 84px);
     background: Theme.popup;
     border-radius: Theme.radius;
@@ -27,10 +45,14 @@ export component ActionPanel inherits Rectangle {
     TouchArea {}
     Text {
         x: 14px; y: 8px; height: 24px; width: parent.width - 28px;
-        text: root.target-title; color: Theme.muted; font-size: Theme.font-small;
+        text: root.shortcut-error != "" ? root.shortcut-error
+            : root.editing-shortcut ? root.shortcut-title : root.target-title;
+        color: root.shortcut-error != "" ? Theme.warning : Theme.muted;
+        font-size: Theme.font-small;
         vertical-alignment: center; overflow: elide;
     }
     Rectangle {
+        visible: !root.editing-shortcut;
         x: 10px; y: 36px; width: parent.width - 20px; height: 32px;
         border-width: 1px;
         border-color: filter.has-focus ? Theme.control-border : Theme.border;
@@ -61,6 +83,27 @@ export component ActionPanel inherits Rectangle {
             }
         }
     }
+    Rectangle {
+        visible: root.editing-shortcut;
+        x: 10px; y: 36px; width: parent.width - 20px; height: 32px;
+        background: Theme.preview; border-radius: 5px;
+        border-width: 1px; border-color: Theme.control-border;
+        if shortcut-input.text == "" && shortcut-input.preedit-text == "": Text {
+            x: 8px; width: parent.width - 16px; height: parent.height;
+            text: I18n.text("actions.shortcut_hint"); color: Theme.placeholder;
+            font-size: Theme.font-small; vertical-alignment: center; overflow: elide;
+        }
+        shortcut-input := TextInput {
+            x: 8px; width: parent.width - 16px; height: parent.height;
+            single-line: true; font-size: Theme.font-small;
+            color: Theme.foreground; vertical-alignment: center;
+            accessible-label: I18n.text("actions.shortcut_hint");
+            edited => { root.clear-shortcut-error(); }
+            accepted => {
+                if (root.assign-shortcut(root.shortcut-index, self.text)) { root.cancel-shortcut(); }
+            }
+        }
+    }
     if root.actions.length == 0: Text {
         x: 14px; y: 76px; width: parent.width - 28px; height: root.pitch;
         text: I18n.text("actions.no_matches"); color: Theme.muted;
@@ -78,15 +121,54 @@ export component ActionPanel inherits Rectangle {
                 x: 12px; y: (parent.height - self.height) / 2; width: 16px; height: 16px;
                 name: action.icon;
             }
-            Text {
-                x: 40px; width: parent.width - 52px; height: parent.height;
+            property <length> title-width: max(0px, shortcut-label.x - 48px);
+            if !action.highlighted: Text {
+                x: 40px; width: parent.title-width; height: parent.height;
                 text: action.title; color: Theme.foreground; font-size: Theme.font-body;
                 vertical-alignment: center; overflow: elide;
             }
-            touch := TouchArea { mouse-cursor: pointer; clicked => { root.execute(index); } }
+            if action.highlighted: StyledText {
+                x: 40px; width: parent.title-width; height: parent.height;
+                text: TextFit.highlight(action.title, action.query, Theme.accent, self.width, Theme.font-body);
+                default-color: Theme.foreground; default-font-size: Theme.font-body;
+                vertical-alignment: center; max-lines: 1;
+            }
+            shortcut-label := Text {
+                x: edit-shortcut.x - self.width - 8px; y: 0px;
+                width: self.preferred-width; height: parent.height;
+                text: action.shortcut; color: Theme.muted; font-size: Theme.font-caption;
+                vertical-alignment: center;
+            }
+            touch := TouchArea {
+                x: 0px; y: 0px; width: edit-shortcut.x; height: parent.height; enabled: !root.editing-shortcut;
+                mouse-cursor: pointer; clicked => { root.execute(index); }
+            }
+            edit-shortcut := Rectangle {
+                x: parent.width - self.width - 6px; y: (parent.height - self.height) / 2;
+                width: 26px; height: 24px;
+                visible: action.bindable;
+                border-radius: 5px;
+                background: edit-touch.has-hover ? Theme.hover : transparent;
+                Icon {
+                    x: 6px; y: 5px; width: 14px; height: 14px;
+                    name: "builtin:keyboard"; tint: Theme.muted;
+                }
+                function edit() {
+                    root.clear-shortcut-error();
+                    root.shortcut-index = index;
+                    root.shortcut-title = action.title;
+                    shortcut-input.text = action.shortcut;
+                    shortcut-input.focus();
+                    shortcut-input.select-all();
+                }
+                edit-touch := TouchArea { mouse-cursor: pointer; clicked => { edit-shortcut.edit(); } }
+                accessible-role: button;
+                accessible-label: I18n.text("actions.shortcut_edit") + " · " + action.title;
+                accessible-action-default => { edit-shortcut.edit(); }
+            }
             accessible-role: button;
-            accessible-label: action.title;
-            accessible-action-default => { root.execute(index); }
+            accessible-label: action.title + (action.shortcut == "" ? "" : " · " + action.shortcut);
+            accessible-action-default => { if (!root.editing-shortcut) { root.execute(index); } }
         }
     }
     changed actions => { list.content-y = 0px; }
