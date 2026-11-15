@@ -89,18 +89,37 @@ try {
         if ($changed) { $restartPlugins += Join-Path $directory $entry }
     }
 
+    # Remove the retired bundled plugin from upgrades of existing installations.
+    $removedPlugin = $false
+    $installRoot = (Resolve-Path -LiteralPath $Target).ProviderPath
+    $pluginsDirectory = Join-Path $installRoot 'plugins'
+    $retiredDirectory = Join-Path $pluginsDirectory 'batch-rename'
+    if (Test-Path -LiteralPath $retiredDirectory -PathType Container) {
+        $retired = Get-Item -LiteralPath $retiredDirectory -Force
+        foreach ($directory in @((Get-Item -LiteralPath $pluginsDirectory -Force), $retired)) {
+            if ($directory.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                throw "Cannot remove a retired plugin through a reparse point: $($directory.FullName)"
+            }
+        }
+        Stop-Executable (Join-Path $retired.FullName 'mytools-batch-rename.exe')
+        Remove-Item -LiteralPath $retired.FullName -Recurse -Force
+        $removedPlugin = $true
+        $script:updated++
+        Write-Host '  removed plugins/batch-rename'
+    }
+
     $mytools = Join-Path $Target 'mytools.exe'
     $running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $mytools }
     if ($NoRestart) {
         Write-Host 'Skipping restarts (-NoRestart); changes apply after MyTools restarts.'
-    } elseif ($hostChanged) {
-        # A new host needs a fresh start; its plugins restart with it.
+    } elseif ($hostChanged -or $removedPlugin) {
+        # Restart to load the new host or refresh the installed plugin list.
         if ($running) {
             $running | Stop-Process -Force -ErrorAction SilentlyContinue
             Get-ChildItem -Path (Join-Path $Target 'plugins/*/*.exe') |
                 ForEach-Object { Stop-Executable $_.FullName }
             # --restart waits for the stopped MyTools to release its single-instance lock.
-            Start-Process -FilePath $mytools -WorkingDirectory $Target -ArgumentList '--restart'
+            Start-Process -FilePath $mytools -WorkingDirectory $Target -ArgumentList '--restart' -WindowStyle Hidden
             Write-Host 'Restarted MyTools'
         }
     } else {

@@ -3401,16 +3401,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mytools-batch-rename"
-version = "0.0.1"
-dependencies = [
- "libc",
- "mytools-plugin-api",
- "tempfile",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "mytools-calculator"
 version = "0.0.1"
 dependencies = [
