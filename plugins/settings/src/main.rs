@@ -8,6 +8,8 @@ mod logs;
 mod manager;
 mod plugins;
 mod search;
+#[path = "../../../ui/shortcut_capture.rs"]
+mod shortcut_capture;
 slint::include_modules!();
 /// Shows a folder in the file manager, creating it first.
 pub fn open_folder(directory: &std::path::Path) {

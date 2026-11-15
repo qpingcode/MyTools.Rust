@@ -130,9 +130,6 @@ impl Shortcuts {
             if let Some(key) = launcher_owner(&hotkey) {
                 return Err(occupied(&hotkey, &format!("MyTools · {}", i18n::t(key))));
             }
-            if !allowed(&hotkey) {
-                return Err(i18n::t("actions.shortcut_invalid"));
-            }
             let global = crate::config::load()
                 .map(|config| config.hotkeys)
                 .unwrap_or_default();
@@ -149,6 +146,15 @@ impl Shortcuts {
             }
             if let Some((_, owner)) = reserved.iter().find(|(key, _)| key == &hotkey) {
                 return Err(occupied(&hotkey, owner));
+            }
+            if hotkey.is_system_reserved() {
+                return Err(i18n::format(
+                    "shortcut.reserved",
+                    &[("shortcut", &hotkey.to_string())],
+                ));
+            }
+            if !allowed(&hotkey) {
+                return Err(i18n::t("actions.shortcut_invalid"));
             }
             let shortcut = hotkey.to_string();
             if let Some(binding) = next.0.iter().find(|binding| {
@@ -190,7 +196,16 @@ impl Shortcuts {
             .filter(allowed)
             .is_some_and(|hotkey| {
                 (hotkey.ctrl, hotkey.shift, hotkey.alt, hotkey.meta) == modifiers
-                    && keys(&hotkey).is_some_and(|keys| keys.to_parts().last() == Some(text))
+                    && (keys(&hotkey).is_some_and(|keys| keys.to_parts().last() == Some(text))
+                        || Hotkey::parse(&crate::shortcut_capture::capture(
+                            text.into(),
+                            modifiers.0,
+                            modifiers.1,
+                            modifiers.2,
+                            modifiers.3,
+                        ))
+                        .as_ref()
+                            == Some(&hotkey))
             })
     }
 }

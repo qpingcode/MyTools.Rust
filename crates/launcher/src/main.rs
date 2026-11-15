@@ -18,6 +18,8 @@ mod icons;
 mod notices;
 mod screen;
 mod search;
+#[path = "../../../ui/shortcut_capture.rs"]
+mod shortcut_capture;
 mod single_instance;
 mod startup;
 mod theme;

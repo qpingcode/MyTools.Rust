@@ -4,7 +4,7 @@ use crate::i18n;
 use anyhow::{Result, ensure};
 use mytools_plugin_api::{
     commands::CommandManifest,
-    hotkeys::{LauncherHotkeys, launcher_config_path, normalize},
+    hotkeys::{Hotkey as Chord, LauncherHotkeys, launcher_config_path, normalize},
     plugin_settings::{CommandOverride, Override, Settings},
 };
 use std::collections::BTreeMap;
@@ -75,14 +75,104 @@ pub fn apply(hotkeys: &[Hotkey], item: &mut Override) {
     }
 }
 
+/// Validates only the edited key, so it is always possible to clear an existing binding.
+pub fn validate_capture(
+    entries: &[crate::plugins::Entry],
+    index: usize,
+    row: usize,
+    text: &str,
+) -> Result<String, String> {
+    let current = entries
+        .get(index)
+        .and_then(|entry| entry.hotkeys.get(row))
+        .ok_or_else(|| i18n::t("shortcut.invalid"))?;
+    if text.is_empty() || text == current.hotkey {
+        return Ok(text.into());
+    }
+    let chord = Chord::parse(text).ok_or_else(|| i18n::t("shortcut.invalid"))?;
+    if !(chord.ctrl
+        || chord.alt
+        || chord.meta
+        || (chord.key.starts_with('F') && chord.key.len() > 1))
+    {
+        return Err(i18n::t("shortcut.invalid"));
+    }
+    let normalized = chord.to_string();
+    let config = launcher_hotkeys();
+    let conflict = |owner: &str| {
+        i18n::format(
+            "shortcut.occupied",
+            &[("shortcut", &normalized), ("name", owner)],
+        )
+    };
+    for (global, label) in [
+        (Some(config.launcher_hotkey.as_str()), "shortcut.launcher"),
+        (config.selection(), "shortcut.selection"),
+    ] {
+        if global.and_then(Chord::parse).as_ref() == Some(&chord) {
+            return Err(conflict(&i18n::t(label)));
+        }
+    }
+    if chord.is_system_reserved() {
+        return Err(i18n::format(
+            "shortcut.reserved",
+            &[("shortcut", &normalized)],
+        ));
+    }
+    if normalized == "Ctrl+K" || normalized == "F1" {
+        return Err(conflict(&i18n::t(if normalized == "Ctrl+K" {
+            "shortcut.actions"
+        } else {
+            "shortcut.license"
+        })));
+    }
+    for (other_index, entry) in entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| entry.enabled || entry.locked())
+    {
+        for (other_row, hotkey) in entry.hotkeys.iter().enumerate() {
+            if (other_index, other_row) != (index, row)
+                && Chord::parse(&hotkey.hotkey).as_ref() == Some(&chord)
+            {
+                return Err(conflict(&format!("{} · {}", entry.name, hotkey.label)));
+            }
+        }
+    }
+    if let Some(owner) = action_owner(&chord) {
+        return Err(conflict(&owner));
+    }
+    Ok(normalized)
+}
+
+fn action_owner(chord: &Chord) -> Option<String> {
+    let data =
+        std::fs::read(mytools_plugin_api::dirs::root().join("action-shortcuts.json")).ok()?;
+    let bindings: Vec<serde_json::Value> = serde_json::from_slice(&data).ok()?;
+    let binding = bindings
+        .iter()
+        .find(|value| value["shortcut"].as_str().and_then(Chord::parse).as_ref() == Some(chord))?;
+    let target = &binding["target"];
+    let owner = target["plugin"].as_str().unwrap_or("MyTools");
+    let action = binding["title"]
+        .as_str()
+        .filter(|title| !title.is_empty())
+        .or_else(|| target["command"].as_str())
+        .or_else(|| target["action"].as_str());
+    Some(action.map_or_else(|| owner.to_owned(), |action| format!("{owner} · {action}")))
+}
+
 /// Every shortcut must be valid, and those of enabled plugins must differ from each other
 /// and from the launcher's.
 pub fn validate<'a>(plugins: impl Iterator<Item = (&'a str, bool, &'a [Hotkey])>) -> Result<()> {
-    let hotkeys = std::fs::read(launcher_config_path())
+    validate_with(plugins, &launcher_hotkeys())
+}
+
+fn launcher_hotkeys() -> LauncherHotkeys {
+    std::fs::read(launcher_config_path())
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .unwrap_or_default();
-    validate_with(plugins, &hotkeys)
+        .unwrap_or_default()
 }
 
 fn validate_with<'a>(

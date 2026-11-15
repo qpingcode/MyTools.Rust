@@ -81,6 +81,68 @@ const NAMED: &[(&[&str], &str)] = &[
 ];
 
 impl Hotkey {
+    /// Standard text editing and system shortcuts that custom bindings must leave alone.
+    pub fn is_system_reserved(&self) -> bool {
+        let key = self.key.as_str();
+        if self.alt && !self.ctrl && !self.meta && matches!(key, "Tab" | "F4" | "Escape" | "Space")
+        {
+            return true;
+        }
+        if self.ctrl && self.alt && key == "Delete" {
+            return true;
+        }
+        if self.meta
+            && cfg!(windows)
+            && !self.ctrl
+            && !self.alt
+            && matches!(
+                key,
+                "D" | "E"
+                    | "I"
+                    | "L"
+                    | "R"
+                    | "S"
+                    | "Tab"
+                    | "Space"
+                    | "Left"
+                    | "Right"
+                    | "Up"
+                    | "Down"
+            )
+        {
+            return true;
+        }
+        let editing_modifier = if cfg!(target_os = "macos") {
+            self.meta || self.ctrl
+        } else {
+            self.ctrl
+        };
+        editing_modifier
+            && !self.alt
+            && (!self.meta || cfg!(target_os = "macos"))
+            && (matches!(key, "Tab" | "Backspace" | "Delete")
+                || (!self.shift
+                    && matches!(
+                        key,
+                        "A" | "C"
+                            | "V"
+                            | "X"
+                            | "Y"
+                            | "Z"
+                            | "S"
+                            | "F"
+                            | "N"
+                            | "O"
+                            | "P"
+                            | "W"
+                            | "T"
+                            | "R"
+                            | "Q"
+                            | "L"
+                    ))
+                || (self.shift && key == "Z"))
+    }
+
     /// Reads `Modifier+…+Key`, ignoring case and spaces around `+`. A shortcut needs a
     /// modifier unless its key is a function key, so plain typing is never captured.
     pub fn parse(text: &str) -> Option<Self> {

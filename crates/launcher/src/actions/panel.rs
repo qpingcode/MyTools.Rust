@@ -148,11 +148,12 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
 }
 
 pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
+    ui.on_capture_shortcut(crate::shortcut_capture::capture);
     let weak = ui.as_weak();
     let edit_state = state.clone();
     ui.on_assign_action_shortcut(move |index, text| {
         let Some(ui) = weak.upgrade() else {
-            return false;
+            return i18n::t("actions.shortcut_invalid").into();
         };
         let mut state = edit_state.borrow_mut();
         let State {
@@ -162,13 +163,13 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             ..
         } = &mut *state;
         let Some(panel) = panel.as_mut() else {
-            return false;
+            return i18n::t("actions.shortcut_invalid").into();
         };
         let Some(action) = panel.action(index) else {
-            return false;
+            return i18n::t("actions.shortcut_invalid").into();
         };
         let Some(target) = Target::for_action(action, &panel.actions) else {
-            return false;
+            return i18n::t("actions.shortcut_invalid").into();
         };
         if let Err(message) = action_shortcuts.assign(
             target,
@@ -176,14 +177,13 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             &text,
             global_command_shortcuts,
         ) {
-            ui.set_action_shortcut_error(message.into());
-            return false;
+            return message.into();
         }
         panel.refresh_shortcuts(action_shortcuts);
         let query = panel.query.clone();
         panel.show(&ui, &query);
         ui.set_selected_action(index);
-        true
+        slint::SharedString::default()
     });
     let weak = ui.as_weak();
     let state = state.clone();

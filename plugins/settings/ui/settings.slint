@@ -1,6 +1,7 @@
 import { LineEdit, ScrollView, Palette } from "std-widgets.slint";
 import { Theme } from "../../../ui/theme.slint";
 import { I18n } from "../../../ui/i18n.slint";
+import { ShortcutDialog } from "../../../ui/components/shortcut-dialog.slint";
 import { Icon } from "../../../ui/components/icon.slint";
 import { Button } from "controls.slint";
 import { PluginCard, PluginRow } from "plugin-row.slint";
@@ -66,7 +67,13 @@ export component SettingsWindow inherits Window {
     callback restart(int);
     callback startup-toggled(int);
     /// Plugin index, shortcut index, text.
-    callback hotkey-edited(int, int, string);
+    callback hotkey-edited(int, int, string) -> string;
+    callback capture-shortcut(string, bool, bool, bool, bool) -> string;
+    private property <int> shortcut-plugin: -1;
+    private property <int> shortcut-row: -1;
+    private property <string> shortcut-title;
+    private property <string> shortcut-current;
+    private property <string> shortcut-reset-error;
     callback filter-edited(string);
     callback save();
     callback discard();
@@ -99,6 +106,7 @@ export component SettingsWindow inherits Window {
 
     FocusScope {
         capture-key-pressed(event) => {
+            if (root.shortcut-plugin >= 0) { return reject; }
             if (event.modifiers.control && (event.text == "s" || event.text == "S")) {
                 if (root.dirty) { root.save(); }
                 return accept;
@@ -213,7 +221,14 @@ export component SettingsWindow inherits Window {
                                 toggled(value) => { root.toggled(index, value); }
                                 restart => { root.restart(index); }
                                 startup-toggled => { root.startup-toggled(index); }
-                                hotkey-edited(row, text) => { root.hotkey-edited(index, row, text); }
+                                hotkey-edited(row, text) => { root.shortcut-reset-error = root.hotkey-edited(index, row, text); }
+                                hotkey-capture(row, label, current) => {
+                                    root.shortcut-title = plugin.name + " · " + label;
+                                    root.shortcut-current = current;
+                                    root.shortcut-row = row;
+                                    root.shortcut-plugin = index;
+                                    root.shortcut-reset-error = "";
+                                }
                                 status-hovered(inside, x, y) => {
                                     root.tip = inside ? plugin.status-text : "";
                                     root.tip-x = x;
@@ -239,8 +254,9 @@ export component SettingsWindow inherits Window {
                                 Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: Theme.warning; }
                             }
                             Text {
-                                text: root.status != "" ? root.status : root.dirty ? I18n.text("status.unsaved") : "";
-                                color: root.failed || root.dirty ? Theme.warning : Theme.muted;
+                                text: root.shortcut-reset-error != "" ? root.shortcut-reset-error
+                                    : root.status != "" ? root.status : root.dirty ? I18n.text("status.unsaved") : "";
+                                color: root.failed || root.dirty || root.shortcut-reset-error != "" ? Theme.warning : Theme.muted;
                                 font-size: Theme.font-small; wrap: word-wrap;
                             }
                         }
@@ -258,7 +274,19 @@ export component SettingsWindow inherits Window {
             }
         }
     }
-    if root.tip != "": Rectangle {
+    ShortcutDialog {
+        x: 0px; y: 0px; width: root.width; height: root.height;
+        opened: root.shortcut-plugin >= 0;
+        title: root.shortcut-title; current: root.shortcut-current;
+        normalize(text, ctrl, shift, alt, meta) => { root.capture-shortcut(text, ctrl, shift, alt, meta) }
+        submit(text) => {
+            let error = root.hotkey-edited(root.shortcut-plugin, root.shortcut-row, text);
+            if (error == "") { root.shortcut-plugin = -1; }
+            error
+        }
+        cancelled => { root.shortcut-plugin = -1; }
+    }
+    if root.tip != "" && root.shortcut-plugin < 0: Rectangle {
         x: min(root.tip-x, root.width - self.width - 12px);
         y: root.tip-y;
         width: min(tip-layout.preferred-width, 360px);

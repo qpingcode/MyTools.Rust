@@ -9,6 +9,7 @@ import { EditorPane } from "components/editor-pane.slint";
 import { ChatPane } from "components/chat-pane.slint";
 import { StatusBar } from "components/status-bar.slint";
 import { ActionPanel } from "components/action-panel.slint";
+import { ShortcutDialog } from "../../../ui/components/shortcut-dialog.slint";
 import { WindowResizeHandles } from "../../../ui/components/window-resize-handles.slint";
 import { AboutSlint } from "std-widgets.slint";
 import { ResultData, ActionData, ChatMessageData } from "types.slint";
@@ -115,9 +116,16 @@ export component MainWindow inherits Window {
     callback navigate-action(int);
     callback execute-action(int);
     callback filter-actions(string);
-    callback assign-action-shortcut(int, string) -> bool;
+    callback assign-action-shortcut(int, string) -> string;
     callback run-action-shortcut(string, bool, bool, bool, bool) -> bool;
-    in-out property <string> action-shortcut-error;
+    callback capture-shortcut(string, bool, bool, bool, bool) -> string;
+    private property <int> shortcut-index: -1;
+    private property <string> shortcut-title;
+    private property <string> shortcut-current;
+    function close-shortcut-dialog() {
+        root.shortcut-index = -1;
+        if (root.actions-open) { action-panel.restore-filter-focus(); }
+    }
     private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
     changed searching => { if (!self.searching && !self.action-busy) { self.show-loading = false; } }
@@ -137,14 +145,12 @@ export component MainWindow inherits Window {
 
     keyboard := FocusScope {
         forward-focus: search-bar;
-        KeyBinding { keys: @keys(Control + K); activated => { root.toggle-actions(); } }
-        KeyBinding { keys: @keys(F1); activated => { root.show-license(); } }
+        KeyBinding { keys: @keys(Control + K); enabled: root.shortcut-index < 0; activated => { root.toggle-actions(); } }
+        KeyBinding { keys: @keys(F1); enabled: root.shortcut-index < 0; activated => { root.show-license(); } }
         capture-key-pressed(event) => {
-            if (event.text == Key.Escape) {
-                if (!root.actions-open || !action-panel.cancel-shortcut()) { root.dismiss(); }
-                return accept;
-            }
-            if (!action-panel.editing-shortcut && !search-bar.composing
+            if (root.shortcut-index >= 0) { return reject; }
+            if (event.text == Key.Escape) { root.dismiss(); return accept; }
+            if (!search-bar.composing
                     && !(root.actions-open && action-panel.composing)
                     && !(root.chat-view && chat.composing) && !(root.editor-view && editor.composing)) {
                 if (root.run-action-shortcut(event.text, event.modifiers.control, event.modifiers.shift,
@@ -281,23 +287,37 @@ export component MainWindow inherits Window {
                 actions: root.actions;
                 selected: root.selected-action;
                 target-title: root.action-target;
-                shortcut-error: root.action-shortcut-error;
                 execute(index) => { root.execute-action(index); }
                 activate => { root.execute-action(root.selected-action); }
                 navigate(delta) => { root.navigate-action(delta); }
                 filter-edited(text) => { root.filter-actions(text); }
-                assign-shortcut(index, text) => { root.assign-action-shortcut(index, text) }
-                clear-shortcut-error => { root.action-shortcut-error = ""; }
+                edit-shortcut(index, title, current) => {
+                    root.shortcut-title = title;
+                    root.shortcut-current = current;
+                    root.shortcut-index = index;
+                }
             }
         }
         WindowResizeHandles {
             width: parent.width; height: parent.height;
             resize-requested(direction) => { root.resize-requested(direction); }
         }
+        ShortcutDialog {
+            x: 0px; y: 0px; width: parent.width; height: parent.height;
+            opened: root.shortcut-index >= 0;
+            title: root.shortcut-title; current: root.shortcut-current;
+            normalize(text, ctrl, shift, alt, meta) => { root.capture-shortcut(text, ctrl, shift, alt, meta) }
+            submit(text) => {
+                let error = root.assign-action-shortcut(root.shortcut-index, text);
+                if (error == "") { root.close-shortcut-dialog(); }
+                error
+            }
+            cancelled => { root.close-shortcut-dialog(); }
+        }
     }
     changed actions-open => {
         if (root.actions-open) { action-panel.focus-filter(); }
-        else { action-panel.reset-shortcut(); }
+        else { root.shortcut-index = -1; }
     }
     changed selected => {
         if (root.selected * root.row-pitch + 8px < -list.content-y) {

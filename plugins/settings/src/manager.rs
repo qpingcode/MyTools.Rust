@@ -93,15 +93,27 @@ pub fn run() -> anyhow::Result<()> {
         });
     });
     let (weak, copy) = (ui.as_weak(), state.clone());
+    ui.on_capture_shortcut(crate::shortcut_capture::capture);
     ui.on_hotkey_edited(move |index, row, text| {
+        let Ok(index_value) = usize::try_from(index) else {
+            return i18n::t("shortcut.invalid").into();
+        };
+        let Ok(row_value) = usize::try_from(row) else {
+            return i18n::t("shortcut.invalid").into();
+        };
+        let text = match crate::hotkeys::validate_capture(
+            &copy.borrow().edited,
+            index_value,
+            row_value,
+            &text,
+        ) {
+            Ok(text) => text,
+            Err(error) => return error.into(),
+        };
         edit(&weak, &copy, index, |entry| {
-            if let Some(hotkey) = usize::try_from(row)
-                .ok()
-                .and_then(|row| entry.hotkeys.get_mut(row))
-            {
-                hotkey.hotkey = text.trim().to_owned();
-            }
+            entry.hotkeys[row_value].hotkey = text;
         });
+        slint::SharedString::default()
     });
     let (weak, copy) = (ui.as_weak(), state.clone());
     ui.on_toggled(move |index, enabled| {

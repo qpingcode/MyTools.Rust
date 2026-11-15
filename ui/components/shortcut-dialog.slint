@@ -1,0 +1,103 @@
+import { Button } from "std-widgets.slint";
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme.slint";
+
+export component ShortcutDialog inherits Rectangle {
+    in property <bool> opened;
+    in property <string> title;
+    in property <string> current;
+    private property <string> shortcut;
+    private property <string> error;
+    callback normalize(string, bool, bool, bool, bool) -> string;
+    callback submit(string) -> string;
+    callback cancelled();
+
+    visible: root.opened;
+    background: #00000080;
+    TouchArea {}
+    changed opened => {
+        if (root.opened) {
+            root.shortcut = root.current;
+            root.error = "";
+            capture.focus();
+        }
+    }
+
+    capture := FocusScope {
+        width: parent.width; height: parent.height;
+        key-pressed(event) => {
+            let plain = !event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt && !event.modifiers.meta;
+            if (plain && event.text == Key.Escape) { root.cancelled(); return accept; }
+            if (plain && event.text == Key.Delete) {
+                root.shortcut = "";
+                root.error = "";
+                return accept;
+            }
+            if (plain && event.text == Key.Return) {
+                root.error = root.submit(root.shortcut);
+                return accept;
+            }
+            let next = root.normalize(event.text, event.modifiers.control, event.modifiers.shift,
+                event.modifiers.alt, event.modifiers.meta);
+            if (next != "") {
+                root.shortcut = next;
+                root.error = "";
+            }
+            return accept;
+        }
+    }
+
+    Rectangle {
+        width: min(420px, parent.width - 32px);
+        height: content.preferred-height;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.popup;
+        border-width: 1px; border-color: Theme.control-border;
+        border-radius: Theme.radius;
+        content := VerticalLayout {
+            padding: 18px; spacing: 12px;
+            Text {
+                text: root.title;
+                color: Theme.foreground; font-size: Theme.font-title;
+                font-weight: 600; wrap: word-wrap;
+            }
+            Text {
+                text: I18n.text("shortcut.capture");
+                color: Theme.muted; font-size: Theme.font-small; wrap: word-wrap;
+            }
+            Rectangle {
+                height: 38px; border-radius: 5px;
+                background: Theme.preview; border-width: 1px; border-color: Theme.border;
+                Text {
+                    width: parent.width; height: parent.height;
+                    text: root.shortcut == "" ? I18n.text("shortcut.none") : root.shortcut;
+                    color: root.shortcut == "" ? Theme.muted : Theme.foreground;
+                    horizontal-alignment: center; vertical-alignment: center;
+                    font-size: Theme.font-body;
+                }
+            }
+            if root.error != "": Text {
+                text: root.error; color: Theme.warning; font-size: Theme.font-small;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: I18n.text("shortcut.clear");
+                    enabled: root.shortcut != "";
+                    clicked => { root.shortcut = ""; root.error = ""; capture.focus(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: I18n.text("shortcut.cancel");
+                    clicked => { root.cancelled(); }
+                }
+                Button {
+                    text: I18n.text("shortcut.save");
+                    clicked => { root.error = root.submit(root.shortcut); if (root.opened) { capture.focus(); } }
+                }
+            }
+        }
+    }
+}

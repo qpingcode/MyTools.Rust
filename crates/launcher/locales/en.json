@@ -1,4 +1,10 @@
 {
+  "shortcut.capture": "Press the keys you want to assign.",
+  "shortcut.none": "No shortcut",
+  "shortcut.clear": "Clear",
+  "shortcut.cancel": "Cancel",
+  "shortcut.save": "Confirm",
+  "shortcut.reserved": "{shortcut} is reserved for system or text editing.",
   "attachment.title": "Open with Selection",
   "attachment.empty": "No selected text or files were captured.",
   "attachment.no_commands": "No commands match this attachment.",
@@ -26,7 +32,6 @@
   "actions.filter": "Filter actions…",
   "actions.no_matches": "No matching actions",
   "actions.shortcut_edit": "Edit action shortcut",
-  "actions.shortcut_hint": "Enter a shortcut, or leave blank to remove · Enter to save",
   "actions.shortcut_invalid": "Invalid or reserved shortcut. Try Ctrl+Shift+P.",
   "actions.shortcut_occupied": "{shortcut} is already used by {name}.",
   "actions.shortcut_launcher": "Open launcher",

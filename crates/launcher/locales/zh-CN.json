@@ -1,4 +1,10 @@
 {
+  "shortcut.capture": "请按下要绑定的快捷键组合。",
+  "shortcut.none": "未设置快捷键",
+  "shortcut.clear": "清除",
+  "shortcut.cancel": "取消",
+  "shortcut.save": "确认",
+  "shortcut.reserved": "{shortcut} 是系统或文本编辑保留快捷键。",
   "attachment.title": "用当前选区打开",
   "attachment.empty": "未读取到选中的文字或文件。",
   "attachment.no_commands": "没有匹配此附件的命令。",
@@ -26,7 +32,6 @@
   "actions.filter": "筛选操作…",
   "actions.no_matches": "没有匹配的操作",
   "actions.shortcut_edit": "修改操作快捷键",
-  "actions.shortcut_hint": "输入快捷键，留空可清除 · 按 Enter 保存",
   "actions.shortcut_invalid": "快捷键无效或已保留。可试用 Ctrl+Shift+P。",
   "actions.shortcut_occupied": "{shortcut} 已被「{name}」占用。",
   "actions.shortcut_launcher": "打开启动器",

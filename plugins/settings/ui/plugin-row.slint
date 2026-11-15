@@ -116,8 +116,7 @@ component HotkeyField inherits HorizontalLayout {
     in property <bool> enabled;
     in property <string> plugin-name;
     callback edited(string);
-    // Typing replaces this binding, like the alias field's.
-    private property <string> text: root.shortcut.hotkey;
+    callback capture();
     height: CardMetrics.hotkey;
     // Icon (36) and spacing (14) after the card padding; the switch (38) and its spacing.
     padding-left: 16px + 36px + 14px;
@@ -142,12 +141,11 @@ component HotkeyField inherits HorizontalLayout {
         width: 210px;
         VerticalLayout {
             alignment: center;
-            LineEdit {
-                text <=> root.text;
-                // An empty field means no shortcut, so it never shows the default here.
-                placeholder-text: I18n.text("hotkeys.none");
+            Button {
+                width: parent.width;
+                text: root.shortcut.hotkey == "" ? I18n.text("hotkeys.none") : root.shortcut.hotkey;
                 enabled: root.enabled;
-                edited(text) => { root.edited(text); }
+                clicked => { root.capture(); }
                 accessible-label: I18n.text("hotkeys.label") + " " + root.plugin-name + " · "
                     + root.shortcut.label;
             }
@@ -155,12 +153,11 @@ component HotkeyField inherits HorizontalLayout {
     }
     Rectangle {
         width: 32px;
-        if root.text != root.shortcut.default-hotkey: Button {
+        if root.shortcut.hotkey != root.shortcut.default-hotkey: Button {
             icon: "builtin:refresh-cw"; kind: "ghost"; enabled: root.enabled;
             accessible-label: I18n.text("hotkeys.reset");
             clicked => {
-                root.text = root.shortcut.default-hotkey;
-                root.edited(root.text);
+                root.edited(root.shortcut.default-hotkey);
             }
         }
     }
@@ -175,6 +172,7 @@ export component PluginCard inherits Rectangle {
     callback startup-toggled();
     /// The shortcut at this index of `plugin.hotkeys` was edited.
     callback hotkey-edited(int, string);
+    callback hotkey-capture(int, string, string);
     /// The pointer entered or left the status dot at this window position.
     callback status-hovered(bool, length, length);
     private property <bool> expanded;
@@ -328,6 +326,7 @@ export component PluginCard inherits Rectangle {
                     enabled: root.plugin.enabled;
                     plugin-name: root.plugin.name;
                     edited(text) => { root.hotkey-edited(index, text); }
+                    capture => { root.hotkey-capture(index, hotkey.label, hotkey.hotkey); }
                 }
             }
             Rectangle { height: CardMetrics.bottom; }
