@@ -56,7 +56,17 @@ impl Source {
             let window = HWND(self.window as *mut _);
             let mut pid = 0;
             unsafe { GetWindowThreadProcessId(window, Some(&mut pid)) };
-            if pid == 0 || pid == std::process::id() || unsafe { GetForegroundWindow() } != window {
+            let unavailable = if pid == 0 {
+                Some("no_source_window")
+            } else if pid == std::process::id() {
+                Some("source_is_launcher")
+            } else if unsafe { GetForegroundWindow() } != window {
+                Some("foreground_changed")
+            } else {
+                None
+            };
+            if let Some(reason) = unavailable {
+                mytools_plugin_api::log::info("selection.no_source", reason);
                 return Ok(None);
             }
             let mut name = [0; 32];

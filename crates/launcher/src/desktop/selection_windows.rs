@@ -62,22 +62,54 @@ pub(super) fn capture_from(window: HWND, attachment: bool) -> Result<Selection> 
         selection.text = text;
         read_only = range_read_only;
     }
-    if selection.text.trim().is_empty() && !is_terminal(window) {
-        let previous = arboard::Clipboard::new()
-            .ok()
-            .and_then(|mut clipboard| clipboard.get_text().ok());
-        // The attachment shortcut must not replace clipboard formats it cannot restore.
-        if (!attachment || (previous.is_some() && plain_text_clipboard()))
-            && let Some(text) = copy(window)?
-        {
-            selection.text = text;
-            selection.previous_clipboard = Some(previous);
+    if selection.text.trim().is_empty() {
+        let uia = match (&automation, &focused) {
+            (None, _) => "automation_unavailable",
+            (Some(_), None) => "no_focused_element",
+            (Some(_), Some(_)) => "no_selected_text",
+        };
+        if is_terminal(window) {
+            log_copy_miss(attachment, uia, "skipped_terminal");
+        } else {
+            let previous = arboard::Clipboard::new()
+                .ok()
+                .and_then(|mut clipboard| clipboard.get_text().ok());
+            // The attachment shortcut must not replace clipboard formats it cannot restore.
+            let clipboard = if attachment {
+                plain_text_clipboard().and_then(|()| {
+                    previous
+                        .as_ref()
+                        .ok_or("clipboard_text_unavailable")
+                        .map(|_| ())
+                })
+            } else {
+                Ok(())
+            };
+            match clipboard {
+                Err(reason) => log_copy_miss(attachment, uia, reason),
+                Ok(()) => match copy(window)? {
+                    Ok(text) => {
+                        if text.is_empty() {
+                            log_copy_miss(attachment, uia, "copied_empty_text");
+                        }
+                        selection.text = text;
+                        selection.previous_clipboard = Some(previous);
+                    }
+                    Err(reason) => log_copy_miss(attachment, uia, reason),
+                },
+            }
         }
     }
     selection.editable = read_only == Some(false)
         || focused.as_ref().is_some_and(editable_field)
         || has_caret(window);
     Ok(selection)
+}
+
+fn log_copy_miss(attachment: bool, uia: &str, copy: &str) {
+    if attachment {
+        mytools_plugin_api::log::info("selection.no_text", format!("uia={uia} copy={copy}"));
+    }
 }
 
 struct Com(bool);
@@ -167,7 +199,7 @@ fn is_terminal(window: HWND) -> bool {
     )
 }
 
-fn plain_text_clipboard() -> bool {
+fn plain_text_clipboard() -> std::result::Result<(), &'static str> {
     use windows::Win32::System::DataExchange::{
         CloseClipboard, EnumClipboardFormats, OpenClipboard, RegisterClipboardFormatW,
     };
@@ -179,26 +211,30 @@ fn plain_text_clipboard() -> bool {
             RegisterClipboardFormatW(windows::core::w!("CanIncludeInClipboardHistory")),
         ];
         if OpenClipboard(None).is_err() {
-            return false;
+            return Err("clipboard_busy");
         }
         let mut format = EnumClipboardFormats(0);
-        let mut plain = format != 0;
+        let mut result = if format == 0 {
+            Err("clipboard_empty")
+        } else {
+            Ok(())
+        };
         while format != 0 {
             // CF_TEXT, CF_OEMTEXT, CF_UNICODETEXT and CF_LOCALE.
             if !matches!(format, 1 | 7 | 13 | 16) && !private_formats.contains(&format) {
-                plain = false;
+                result = Err("clipboard_has_other_formats");
                 break;
             }
             format = EnumClipboardFormats(format);
         }
         let _ = CloseClipboard();
-        plain
+        result
     }
 }
 
 /// Copies the selection with Ctrl+C once the shortcut's keys are up, and returns the copied
-/// text; `None` when nothing was copied.
-fn copy(window: HWND) -> Result<Option<String>> {
+/// text, or a diagnostic reason when the clipboard did not yield text.
+fn copy(window: HWND) -> Result<std::result::Result<String, &'static str>> {
     let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN];
     let released = || {
         modifiers
@@ -240,7 +276,7 @@ fn copy(window: HWND) -> Result<Option<String>> {
     let deadline = Instant::now() + Duration::from_millis(600);
     while unsafe { GetClipboardSequenceNumber() } == before {
         if Instant::now() >= deadline {
-            return Ok(None);
+            return Ok(Err("clipboard_did_not_change"));
         }
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -248,9 +284,9 @@ fn copy(window: HWND) -> Result<Option<String>> {
     std::thread::sleep(Duration::from_millis(30));
     for _ in 0..10 {
         if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-            return Ok(Some(text));
+            return Ok(Ok(text));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    Ok(None)
+    Ok(Err("copied_text_unavailable"))
 }
