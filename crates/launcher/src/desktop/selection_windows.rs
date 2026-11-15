@@ -71,8 +71,14 @@ pub(super) fn capture_from(window: HWND, attachment: bool) -> Result<Selection> 
         if is_terminal(window) {
             log_copy_miss(attachment, uia, "skipped_terminal");
         } else {
-            match copy_selection(window, attachment)? {
-                Ok((text, previous)) => {
+            // Direct selection commands still restore the text they temporarily copied over.
+            let previous = (!attachment).then(|| {
+                arboard::Clipboard::new()
+                    .ok()
+                    .and_then(|mut clipboard| clipboard.get_text().ok())
+            });
+            match copy(window, attachment)? {
+                Ok(text) => {
                     if text.is_empty() {
                         log_copy_miss(attachment, uia, "copied_empty_text");
                     }
@@ -187,41 +193,16 @@ fn is_terminal(window: HWND) -> bool {
     )
 }
 
-#[path = "selection_clipboard_windows.rs"]
-mod clipboard;
-
-type CopiedSelection = (String, Option<Option<String>>);
-
-fn copy_selection(
-    window: HWND,
-    attachment: bool,
-) -> Result<std::result::Result<CopiedSelection, &'static str>> {
-    if attachment {
-        let snapshot = match clipboard::Snapshot::capture() {
-            Ok(snapshot) => snapshot,
-            Err(reason) => return Ok(Err(reason)),
-        };
-        return Ok(copy(window, Some(snapshot))?.map(|text| (text, None)));
-    }
-    let previous = arboard::Clipboard::new()
-        .ok()
-        .and_then(|mut clipboard| clipboard.get_text().ok());
-    Ok(copy(window, None)?.map(|text| (text, Some(previous))))
-}
-
 /// Copies from a focused Scintilla editor directly, or sends Ctrl+C to other applications.
-fn copy(
-    window: HWND,
-    snapshot: Option<clipboard::Snapshot>,
-) -> Result<std::result::Result<String, &'static str>> {
-    let editor = snapshot.as_ref().and_then(|_| focused_scintilla(window));
+fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'static str>> {
+    let editor = attachment.then(|| focused_scintilla(window)).flatten();
     let before = if let Some(editor) = editor {
         anyhow::ensure!(
             unsafe { GetForegroundWindow() } == window && focused_scintilla(window) == Some(editor),
             crate::i18n::t("selection.no_window")
         );
         const SCI_COPY: u32 = 2178;
-        let before = copy_sequence(snapshot.as_ref())?;
+        let before = unsafe { GetClipboardSequenceNumber() };
         let dispatched = unsafe {
             SendMessageTimeoutW(
                 editor,
@@ -238,7 +219,7 @@ fn copy(
         }
         before
     } else {
-        send_copy_keys(window, snapshot.as_ref())?
+        send_copy_keys(window)?
     };
     let deadline = Instant::now() + Duration::from_millis(600);
     while unsafe { GetClipboardSequenceNumber() } == before {
@@ -253,19 +234,13 @@ fn copy(
     }
     // The owner may still be writing every format; give it a moment.
     std::thread::sleep(Duration::from_millis(30));
-    let copied_sequence = unsafe { GetClipboardSequenceNumber() };
-    let mut result = Err("copied_text_unavailable");
     for _ in 0..10 {
         if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-            result = Ok(text);
-            break;
+            return Ok(Ok(text));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    if let Some(snapshot) = snapshot {
-        snapshot.restore(copied_sequence)?;
-    }
-    Ok(result)
+    Ok(Err("copied_text_unavailable"))
 }
 
 fn focused_scintilla(window: HWND) -> Option<HWND> {
@@ -278,16 +253,7 @@ fn focused_scintilla(window: HWND) -> Option<HWND> {
     (String::from_utf16_lossy(&name[..len]) == "Scintilla").then_some(focus)
 }
 
-fn copy_sequence(snapshot: Option<&clipboard::Snapshot>) -> Result<u32> {
-    let sequence = unsafe { GetClipboardSequenceNumber() };
-    anyhow::ensure!(
-        snapshot.is_none_or(|snapshot| snapshot.sequence == sequence),
-        "clipboard_changed_before_copy"
-    );
-    Ok(sequence)
-}
-
-fn send_copy_keys(window: HWND, snapshot: Option<&clipboard::Snapshot>) -> Result<u32> {
+fn send_copy_keys(window: HWND) -> Result<u32> {
     let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN];
     let released = || {
         modifiers
@@ -303,7 +269,7 @@ fn send_copy_keys(window: HWND, snapshot: Option<&clipboard::Snapshot>) -> Resul
         unsafe { GetForegroundWindow() } == window,
         crate::i18n::t("selection.no_window")
     );
-    let before = copy_sequence(snapshot)?;
+    let before = unsafe { GetClipboardSequenceNumber() };
     let key = |code: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS| INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {

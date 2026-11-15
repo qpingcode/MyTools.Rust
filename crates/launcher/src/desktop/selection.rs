@@ -82,7 +82,6 @@ impl Source {
                     .map(|paths| CommandArgument::Files { paths }));
             }
             let selection = platform::capture_from(window, true)?;
-            crate::commands::restore(selection.previous_clipboard)?;
             Ok(
                 (!selection.text.is_empty()).then_some(CommandArgument::Text {
                     text: selection.text,

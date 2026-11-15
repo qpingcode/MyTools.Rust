@@ -244,7 +244,7 @@ fn set_private(text: String) -> Result<()> {
 }
 
 /// Puts back the clipboard text from before the selection was read, if it was changed.
-pub(crate) fn restore(previous: Option<Option<String>>) -> Result<()> {
+fn restore(previous: Option<Option<String>>) -> Result<()> {
     match previous {
         Some(Some(text)) => set_private(text),
         // It held no text (e.g. an image); leave what is there.
