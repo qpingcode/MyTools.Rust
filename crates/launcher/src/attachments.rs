@@ -56,17 +56,15 @@ pub fn wire(
                     None
                 }
             };
-            if attachment.is_none() {
+            let Some(attachment) = attachment else {
                 notifier.show(vec![Notice {
                     title: i18n::t("attachment.title"),
                     message: i18n::t("attachment.empty"),
                 }]);
-            }
-            let (label, details) = attachment
-                .as_ref()
-                .map(attachment_display)
-                .unwrap_or_default();
-            state.borrow_mut().attachment = attachment.map(Arc::new);
+                continue;
+            };
+            let (label, details) = attachment_display(&attachment);
+            state.borrow_mut().attachment = Some(Arc::new(attachment));
             ui.set_attachment_label(label.into());
             ui.set_attachment_details(details.into());
             ui.set_detail_view(false);
