@@ -74,7 +74,8 @@ impl Source {
             if matches!(
                 String::from_utf16_lossy(&name[..len]).as_str(),
                 "CabinetWClass" | "ExploreWClass"
-            ) {
+            ) || explorer::is_desktop_window(window)
+            {
                 let paths =
                     explorer::selected_files(window, &crate::i18n::t("explorer_probe.ambiguous"))?;
                 return Ok(paths
