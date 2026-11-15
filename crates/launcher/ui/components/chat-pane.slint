@@ -492,7 +492,7 @@ export component ChatPane inherits Rectangle {
                 reject
             }
         }
-        if root.text == "": Text {
+        if root.text == "" && input.preedit-text == "": Text {
             x: input.x; y: input.y; width: input.width;
             text: root.busy ? I18n.text("chat.placeholder_busy")
                 : root.attachment != "" ? I18n.text("chat.placeholder_attached")

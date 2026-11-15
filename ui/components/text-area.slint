@@ -44,7 +44,7 @@ export component TextArea inherits Rectangle {
             }
         }
     }
-    if root.text == "" && root.placeholder != "": Text {
+    if root.text == "" && input.preedit-text == "" && root.placeholder != "": Text {
         x: scroll.x; y: scroll.y; width: scroll.width;
         text: root.placeholder; color: Theme.placeholder; font-size: Theme.font-body;
         wrap: word-wrap;

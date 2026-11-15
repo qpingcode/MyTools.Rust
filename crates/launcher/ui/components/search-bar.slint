@@ -50,7 +50,7 @@ export component SearchBar inherits Rectangle {
         x: input.x; y: input.y; width: input.width; height: input.height;
         text: I18n.text("search.placeholder"); color: Theme.placeholder; font-size: Theme.font-search;
         vertical-alignment: center;
-        visible: root.query == "";
+        visible: root.query == "" && input.preedit-text == "";
     }
     input := TextInput {
         x: 22px + Theme.font-search + 16px; y: (parent.height - self.height) / 2;
