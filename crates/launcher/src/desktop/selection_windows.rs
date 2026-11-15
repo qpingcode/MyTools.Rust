@@ -71,32 +71,15 @@ pub(super) fn capture_from(window: HWND, attachment: bool) -> Result<Selection> 
         if is_terminal(window) {
             log_copy_miss(attachment, uia, "skipped_terminal");
         } else {
-            let previous = arboard::Clipboard::new()
-                .ok()
-                .and_then(|mut clipboard| clipboard.get_text().ok());
-            // The attachment shortcut must not replace clipboard formats it cannot restore.
-            let clipboard = if attachment {
-                plain_text_clipboard().and_then(|()| {
-                    previous
-                        .as_ref()
-                        .ok_or("clipboard_text_unavailable")
-                        .map(|_| ())
-                })
-            } else {
-                Ok(())
-            };
-            match clipboard {
-                Err(reason) => log_copy_miss(attachment, uia, reason),
-                Ok(()) => match copy(window, attachment)? {
-                    Ok(text) => {
-                        if text.is_empty() {
-                            log_copy_miss(attachment, uia, "copied_empty_text");
-                        }
-                        selection.text = text;
-                        selection.previous_clipboard = Some(previous);
+            match copy_selection(window, attachment)? {
+                Ok((text, previous)) => {
+                    if text.is_empty() {
+                        log_copy_miss(attachment, uia, "copied_empty_text");
                     }
-                    Err(reason) => log_copy_miss(attachment, uia, reason),
-                },
+                    selection.text = text;
+                    selection.previous_clipboard = previous;
+                }
+                Err(reason) => log_copy_miss(attachment, uia, reason),
             }
         }
     }
@@ -204,49 +187,41 @@ fn is_terminal(window: HWND) -> bool {
     )
 }
 
-fn plain_text_clipboard() -> std::result::Result<(), &'static str> {
-    use windows::Win32::System::DataExchange::{
-        CloseClipboard, EnumClipboardFormats, OpenClipboard, RegisterClipboardFormatW,
-    };
-    unsafe {
-        let private_formats = [
-            RegisterClipboardFormatW(windows::core::w!(
-                "ExcludeClipboardContentFromMonitorProcessing"
-            )),
-            RegisterClipboardFormatW(windows::core::w!("CanIncludeInClipboardHistory")),
-        ];
-        if OpenClipboard(None).is_err() {
-            return Err("clipboard_busy");
-        }
-        let mut format = EnumClipboardFormats(0);
-        let mut result = if format == 0 {
-            Err("clipboard_empty")
-        } else {
-            Ok(())
+#[path = "selection_clipboard_windows.rs"]
+mod clipboard;
+
+type CopiedSelection = (String, Option<Option<String>>);
+
+fn copy_selection(
+    window: HWND,
+    attachment: bool,
+) -> Result<std::result::Result<CopiedSelection, &'static str>> {
+    if attachment {
+        let snapshot = match clipboard::Snapshot::capture() {
+            Ok(snapshot) => snapshot,
+            Err(reason) => return Ok(Err(reason)),
         };
-        while format != 0 {
-            // CF_TEXT, CF_OEMTEXT, CF_UNICODETEXT and CF_LOCALE.
-            if !matches!(format, 1 | 7 | 13 | 16) && !private_formats.contains(&format) {
-                result = Err("clipboard_has_other_formats");
-                break;
-            }
-            format = EnumClipboardFormats(format);
-        }
-        let _ = CloseClipboard();
-        result
+        return Ok(copy(window, Some(snapshot))?.map(|text| (text, None)));
     }
+    let previous = arboard::Clipboard::new()
+        .ok()
+        .and_then(|mut clipboard| clipboard.get_text().ok());
+    Ok(copy(window, None)?.map(|text| (text, Some(previous))))
 }
 
 /// Copies from a focused Scintilla editor directly, or sends Ctrl+C to other applications.
-fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'static str>> {
-    let editor = attachment.then(|| focused_scintilla(window)).flatten();
+fn copy(
+    window: HWND,
+    snapshot: Option<clipboard::Snapshot>,
+) -> Result<std::result::Result<String, &'static str>> {
+    let editor = snapshot.as_ref().and_then(|_| focused_scintilla(window));
     let before = if let Some(editor) = editor {
         anyhow::ensure!(
             unsafe { GetForegroundWindow() } == window && focused_scintilla(window) == Some(editor),
             crate::i18n::t("selection.no_window")
         );
         const SCI_COPY: u32 = 2178;
-        let before = unsafe { GetClipboardSequenceNumber() };
+        let before = copy_sequence(snapshot.as_ref())?;
         let dispatched = unsafe {
             SendMessageTimeoutW(
                 editor,
@@ -263,7 +238,7 @@ fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'
         }
         before
     } else {
-        send_copy_keys(window)?
+        send_copy_keys(window, snapshot.as_ref())?
     };
     let deadline = Instant::now() + Duration::from_millis(600);
     while unsafe { GetClipboardSequenceNumber() } == before {
@@ -278,13 +253,19 @@ fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'
     }
     // The owner may still be writing every format; give it a moment.
     std::thread::sleep(Duration::from_millis(30));
+    let copied_sequence = unsafe { GetClipboardSequenceNumber() };
+    let mut result = Err("copied_text_unavailable");
     for _ in 0..10 {
         if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-            return Ok(Ok(text));
+            result = Ok(text);
+            break;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    Ok(Err("copied_text_unavailable"))
+    if let Some(snapshot) = snapshot {
+        snapshot.restore(copied_sequence)?;
+    }
+    Ok(result)
 }
 
 fn focused_scintilla(window: HWND) -> Option<HWND> {
@@ -297,7 +278,16 @@ fn focused_scintilla(window: HWND) -> Option<HWND> {
     (String::from_utf16_lossy(&name[..len]) == "Scintilla").then_some(focus)
 }
 
-fn send_copy_keys(window: HWND) -> Result<u32> {
+fn copy_sequence(snapshot: Option<&clipboard::Snapshot>) -> Result<u32> {
+    let sequence = unsafe { GetClipboardSequenceNumber() };
+    anyhow::ensure!(
+        snapshot.is_none_or(|snapshot| snapshot.sequence == sequence),
+        "clipboard_changed_before_copy"
+    );
+    Ok(sequence)
+}
+
+fn send_copy_keys(window: HWND, snapshot: Option<&clipboard::Snapshot>) -> Result<u32> {
     let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN];
     let released = || {
         modifiers
@@ -313,7 +303,7 @@ fn send_copy_keys(window: HWND) -> Result<u32> {
         unsafe { GetForegroundWindow() } == window,
         crate::i18n::t("selection.no_window")
     );
-    let before = unsafe { GetClipboardSequenceNumber() };
+    let before = copy_sequence(snapshot)?;
     let key = |code: VIRTUAL_KEY, flags: KEYBD_EVENT_FLAGS| INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {

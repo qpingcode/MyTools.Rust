@@ -3343,6 +3343,7 @@ dependencies = [
  "anyhow",
  "arboard",
  "async-channel",
+ "clipboard-win",
  "drag",
  "global-hotkey",
  "image",
