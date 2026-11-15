@@ -114,6 +114,7 @@ export component MainWindow inherits Window {
     callback close-actions();
     callback navigate-action(int);
     callback execute-action(int);
+    callback filter-actions(string);
     private property <length> row-pitch: Theme.row-height + Theme.row-spacing;
     forward-focus: keyboard;
     changed searching => { if (!self.searching && !self.action-busy) { self.show-loading = false; } }
@@ -146,11 +147,6 @@ export component MainWindow inherits Window {
             if (event.text == Key.Tab && !event.modifiers.shift && !event.modifiers.control
                     && !root.editor-view && !root.chat-view && !root.actions-open && !search-bar.composing) {
                 if (root.tab-pressed()) { return accept; }
-            }
-            if (root.actions-open) {
-                if (event.text == Key.UpArrow) { root.navigate-action(-1); return accept; }
-                if (event.text == Key.DownArrow) { root.navigate-action(1); return accept; }
-                if (event.text == Key.Return) { root.execute-action(root.selected-action); return accept; }
             }
             reject
         }
@@ -261,10 +257,12 @@ export component MainWindow inherits Window {
                 drag-requested => { root.drag-requested(); }
             }
         }
-        if root.actions-open: Rectangle {
+        Rectangle {
+            visible: root.actions-open;
+            width: parent.width; height: parent.height;
             background: transparent;
             TouchArea { clicked => { root.close-actions(); } }
-            ActionPanel {
+            action-panel := ActionPanel {
                 x: parent.width - self.width - 16px;
                 y: parent.height - Theme.status-height - 8px - self.height;
                 available-height: parent.height - Theme.status-height - Theme.search-height - 16px;
@@ -272,6 +270,9 @@ export component MainWindow inherits Window {
                 selected: root.selected-action;
                 target-title: root.action-target;
                 execute(index) => { root.execute-action(index); }
+                activate => { root.execute-action(root.selected-action); }
+                navigate(delta) => { root.navigate-action(delta); }
+                filter-edited(text) => { root.filter-actions(text); }
             }
         }
         WindowResizeHandles {
@@ -279,6 +280,7 @@ export component MainWindow inherits Window {
             resize-requested(direction) => { root.resize-requested(direction); }
         }
     }
+    changed actions-open => { if (root.actions-open) { action-panel.focus-filter(); } }
     changed selected => {
         if (root.selected * root.row-pitch + 8px < -list.content-y) {
             list.content-y = -root.selected * root.row-pitch;

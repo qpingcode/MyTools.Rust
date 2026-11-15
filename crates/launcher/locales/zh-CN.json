@@ -23,6 +23,8 @@
   "app.loading": "正在加载…",
   "app.description": "Rust 桌面快捷启动器",
   "actions.title": "操作",
+  "actions.filter": "筛选操作…",
+  "actions.no_matches": "没有匹配的操作",
   "preview.empty": "选择一条记录以预览",
   "desktop.plugin_hotkey_failed": "无法注册 {plugin} 的快捷键：{error}",
   "paste.target_missing": "之前的应用已不可用",

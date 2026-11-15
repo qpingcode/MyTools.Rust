@@ -3,6 +3,46 @@ use mytools_core::{Action, ActionEffect};
 use slint::{ComponentHandle, ModelRc, VecModel};
 use std::{cell::RefCell, rc::Rc};
 
+pub(crate) struct Panel {
+    actions: Vec<Action>,
+    rows: Vec<ActionData>,
+    visible: Vec<usize>,
+}
+
+impl Panel {
+    fn filter(&mut self, query: &str) -> Vec<ActionData> {
+        let query = query.to_lowercase();
+        self.visible = self
+            .rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, row)| {
+                let title = row.title.to_lowercase();
+                query
+                    .split_whitespace()
+                    .all(|word| title.contains(word))
+                    .then_some(index)
+            })
+            .collect();
+        self.visible
+            .iter()
+            .map(|&index| self.rows[index].clone())
+            .collect()
+    }
+
+    fn show(&mut self, ui: &MainWindow, query: &str) {
+        let rows = self.filter(query);
+        ui.set_selected_action(0);
+        ui.set_actions(Rc::new(VecModel::from(rows)).into());
+    }
+
+    fn action(&self, index: i32) -> Option<&Action> {
+        self.visible
+            .get(usize::try_from(index).ok()?)
+            .and_then(|&index| self.actions.get(index))
+    }
+}
+
 pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>) {
     wire_execution(ui, state);
     wire_panel(ui, state);
@@ -131,7 +171,7 @@ fn wire_execution(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         let action = state
             .panel
             .as_ref()
-            .and_then(|actions| usize::try_from(index).ok().and_then(|i| actions.get(i)))
+            .and_then(|panel| panel.action(index))
             .cloned();
         if let Some(action) = action {
             close_panel(&ui, &mut state);
@@ -174,10 +214,23 @@ fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             })
             .collect();
         ui.set_action_target(entry.name.clone().into());
-        state.panel = Some(snapshot);
-        ui.set_actions(Rc::new(VecModel::from(rows)).into());
-        ui.set_selected_action(0);
+        let mut panel = Panel {
+            actions: snapshot,
+            rows,
+            visible: Vec::new(),
+        };
+        panel.show(&ui, "");
+        state.panel = Some(panel);
         ui.set_actions_open(true);
+    });
+    let weak = ui.as_weak();
+    let filter_state = state.clone();
+    ui.on_filter_actions(move |query| {
+        if let Some(ui) = weak.upgrade()
+            && let Some(panel) = filter_state.borrow_mut().panel.as_mut()
+        {
+            panel.show(&ui, &query);
+        }
     });
     let weak = ui.as_weak();
     let close_state = state.clone();
@@ -191,8 +244,8 @@ fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
     ui.on_navigate_action(move |delta| {
         if let Some(ui) = weak.upgrade() {
             let state = navigate_state.borrow();
-            if let Some(actions) = &state.panel {
-                let last = actions.len().saturating_sub(1) as i32;
+            if let Some(panel) = &state.panel {
+                let last = panel.visible.len().saturating_sub(1) as i32;
                 ui.set_selected_action((ui.get_selected_action() + delta).clamp(0, last));
             }
         }
@@ -206,7 +259,9 @@ pub fn close_panel(ui: &MainWindow, state: &mut State) {
     ui.set_actions(ModelRc::default());
     ui.set_selected_action(0);
     // Searches close the panel too: typing in the editor must keep its focus there.
-    if !ui.get_editor_view() {
+    if was_open && ui.get_chat_view() {
+        ui.invoke_focus_chat();
+    } else if !ui.get_editor_view() {
         ui.invoke_focus_search();
     } else if was_open {
         ui.invoke_focus_editor();
@@ -370,4 +425,42 @@ fn start_action(ui: &MainWindow, action: Action) {
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mytools_plugin_api::{ActionId, Resource};
+
+    #[test]
+    fn filtered_rows_execute_the_matching_action() {
+        let actions = mytools_core::resolve_actions(
+            &Resource::Url {
+                url: "https://example.com".into(),
+            },
+            None,
+        )
+        .unwrap();
+        let mut panel = Panel {
+            actions,
+            rows: vec![
+                ActionData {
+                    title: "Open in browser".into(),
+                    icon: "".into(),
+                },
+                ActionData {
+                    title: "复制 URL".into(),
+                    icon: "".into(),
+                },
+            ],
+            visible: Vec::new(),
+        };
+        assert_eq!(panel.filter("url 复制").len(), 1);
+        assert_eq!(panel.action(0).unwrap().id, ActionId::CopyText);
+        assert!(panel.action(1).is_none());
+        assert!(panel.filter("missing").is_empty());
+        assert!(panel.action(0).is_none());
+        assert_eq!(panel.filter("").len(), 2);
+        assert_eq!(panel.action(0).unwrap().id, ActionId::OpenInBrowser);
+    }
 }

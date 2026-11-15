@@ -4,7 +4,7 @@ use crate::{
     search::{Event, Query, QuerySender, SearchWorker},
     theme, tray,
 };
-use mytools_core::{Action, Entry, Notice, SearchResults};
+use mytools_core::{Entry, Notice, SearchResults};
 use mytools_plugin_api::CommandArgument;
 use slint::{ComponentHandle, VecModel};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -19,7 +19,7 @@ pub(crate) struct State {
     /// Plugin ID and its visible prefix for a view opened by an attachment command.
     command_scope: Option<(String, String)>,
     pub entries: Vec<Entry>,
-    pub panel: Option<Vec<Action>>,
+    pub panel: Option<crate::actions::Panel>,
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,

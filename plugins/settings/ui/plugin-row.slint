@@ -163,8 +163,7 @@ component HotkeyField inherits HorizontalLayout {
     }
 }
 
-/// A card with the plugin's identity and state, an alias field and an enable switch, and
-/// below them the plugin's shortcuts.
+/// A compact plugin card with expandable settings.
 export component PluginCard inherits Rectangle {
     in property <PluginRow> plugin;
     callback aliases-edited(string);
@@ -175,8 +174,13 @@ export component PluginCard inherits Rectangle {
     callback hotkey-edited(int, string);
     /// The pointer entered or left the status dot at this window position.
     callback status-hovered(bool, length, length);
-    out property <length> full-height: CardMetrics.main + (root.plugin.hotkeys.length > 0
-        ? root.plugin.hotkeys.length * CardMetrics.hotkey + CardMetrics.bottom : 0px);
+    private property <bool> expanded;
+    private property <length> group-height: 26px;
+    out property <length> full-height: CardMetrics.main + (root.expanded
+        ? 37px + root.plugin.hotkeys.length * CardMetrics.hotkey
+            + (root.plugin.hotkeys.length > 0 ? root.group-height : 0px)
+            + (root.plugin.hotkeys.length > 1 ? root.group-height : 0px) + CardMetrics.bottom
+        : 0px);
     // Typing replaces this binding, so "Reset" writes the field directly; a reloaded list
     // builds new cards that start from the saved value again.
     private property <string> alias-text: root.plugin.aliases;
@@ -190,7 +194,7 @@ export component PluginCard inherits Rectangle {
     VerticalLayout {
         HorizontalLayout {
             height: CardMetrics.main;
-            padding-left: 16px; padding-right: 16px; spacing: 14px;
+            padding-left: 16px; padding-right: 16px; spacing: 12px;
             VerticalLayout {
                 alignment: center;
                 Rectangle {
@@ -203,59 +207,23 @@ export component PluginCard inherits Rectangle {
                     }
                 }
             }
-            VerticalLayout {
-                alignment: center; spacing: 3px; horizontal-stretch: 1;
-                min-width: 120px;
-                HorizontalLayout {
-                    spacing: 4px; alignment: start;
-                    Text {
-                        text: root.plugin.name; font-size: Theme.font-title; font-weight: 600;
-                        color: root.plugin.enabled ? Theme.foreground : Theme.muted;
-                        overflow: elide; vertical-alignment: center;
-                    }
-                    StatusDot {
-                        state: root.plugin.state;
-                        accessible-label: root.plugin.status-text;
-                        hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
-                    }
-                    if !root.plugin.enabled: Rectangle {
-                        height: 18px; width: off.preferred-width + 12px; border-radius: 9px;
-                        background: Theme.selected;
-                        off := Text {
-                            text: I18n.text("plugins.off"); color: Theme.muted;
-                            font-size: Theme.font-caption;
-                            horizontal-alignment: center; vertical-alignment: center;
-                        }
-                    }
-                    if root.plugin.state == "failed": Chip {
-                        text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
-                        tint: Theme.danger;
-                        clicked => { root.restart(); }
-                    }
+            Rectangle {
+                horizontal-stretch: 1;
+                min-width: 96px;
+                Text {
+                    width: parent.width; height: parent.height;
+                    text: root.plugin.name; font-size: Theme.font-title; font-weight: 600;
+                    color: root.plugin.enabled ? Theme.foreground : Theme.muted;
+                    overflow: elide; vertical-alignment: center;
                 }
-                HorizontalLayout {
-                    spacing: 8px; alignment: start;
-                    Text {
-                        text: root.plugin.id; color: Theme.placeholder; font-size: Theme.font-caption;
-                        font-family: "Cascadia Mono"; overflow: elide; vertical-alignment: center;
-                    }
-                    // Switches between starting with MyTools and starting on first use.
-                    if root.plugin.startup != "": Chip {
-                        text: root.plugin.startup == "eager"
-                            ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
-                        icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
-                        enabled: root.plugin.enabled;
-                        clicked => { root.startup-toggled(); }
-                        accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
-                    }
-                }
+                TouchArea { mouse-cursor: pointer; clicked => { root.expanded = !root.expanded; } }
             }
             VerticalLayout {
                 alignment: center;
                 HorizontalLayout {
                     spacing: 6px;
                     Rectangle {
-                        width: 210px;
+                        width: clamp(root.width * 0.32, 110px, 210px);
                         VerticalLayout {
                             alignment: center;
                             LineEdit {
@@ -290,13 +258,61 @@ export component PluginCard inherits Rectangle {
                     toggled(value) => { root.toggled(value); }
                 }
             }
+            VerticalLayout {
+                alignment: center;
+                Button {
+                    icon: root.expanded ? "builtin:chevron-down" : "builtin:chevron-right";
+                    kind: "ghost";
+                    accessible-label: (root.expanded ? I18n.text("plugins.collapse") : I18n.text("plugins.expand")) + " " + root.plugin.name;
+                    clicked => { root.expanded = !root.expanded; }
+                }
+            }
         }
-        for hotkey[index] in root.plugin.hotkeys: HotkeyField {
-            shortcut: hotkey;
-            enabled: root.plugin.enabled;
-            plugin-name: root.plugin.name;
-            edited(text) => { root.hotkey-edited(index, text); }
+        if root.expanded: VerticalLayout {
+            Rectangle { height: 1px; background: Theme.border; }
+            HorizontalLayout {
+                height: 36px;
+                padding-left: 16px; padding-right: 16px; spacing: 8px; alignment: start;
+                StatusDot {
+                    state: root.plugin.state;
+                    accessible-label: root.plugin.status-text;
+                    hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
+                }
+                Text {
+                    text: root.plugin.id; color: Theme.muted; font-size: Theme.font-caption;
+                    overflow: elide; vertical-alignment: center;
+                }
+                if root.plugin.state == "failed": Chip {
+                    text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
+                    tint: Theme.danger;
+                    clicked => { root.restart(); }
+                }
+                if root.plugin.startup != "": Chip {
+                    text: root.plugin.startup == "eager"
+                        ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
+                    icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
+                    enabled: root.plugin.enabled;
+                    clicked => { root.startup-toggled(); }
+                    accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
+                }
+            }
+            for hotkey[index] in root.plugin.hotkeys: VerticalLayout {
+                if index <= 1: HorizontalLayout {
+                    height: root.group-height; padding-left: 16px;
+                    Text {
+                        text: I18n.text(index == 0 ? "hotkeys.open_group" : "hotkeys.command_group");
+                        color: Theme.muted; font-size: Theme.font-caption; font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+                HotkeyField {
+                    shortcut: hotkey;
+                    enabled: root.plugin.enabled;
+                    plugin-name: root.plugin.name;
+                    edited(text) => { root.hotkey-edited(index, text); }
+                }
+            }
+            Rectangle { height: CardMetrics.bottom; }
         }
-        if root.plugin.hotkeys.length > 0: Rectangle { height: CardMetrics.bottom; }
     }
 }
