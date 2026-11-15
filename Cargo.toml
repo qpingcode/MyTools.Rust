@@ -19,6 +19,7 @@ members = [
     "plugins/settings",
     "plugins/everything",
     "plugins/dev-open",
+    "plugins/batch-rename",
     "plugins/crash-test",
     "plugins/awake",
     "plugins/ask-ai",

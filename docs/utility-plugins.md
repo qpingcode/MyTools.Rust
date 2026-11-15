@@ -14,6 +14,7 @@
 | Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，可联网搜索并标注来源；`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答、新对话、历史对话；可就选中文字提问 |
 | translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，`Ctrl+Enter` 发起翻译，完成后右侧显示译文，再按 `Ctrl+Enter` 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
+| 批量重命名 | 在 Windows 资源管理器或桌面多选后按 `Alt+X` | 左侧编辑规则，右侧核对新旧名称，`Ctrl+Enter` 确认 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
 
 encode 按 `base64`、`md5`、`url`、`sha1`、`sha256`、`sha512` 的顺序展示结果。
@@ -25,6 +26,20 @@ formatter 仅支持 JSON 和 XML，按内容的第一个字符识别：`{` 或 `
 XML 保留文本内容；含混合文本或 `xml:space="preserve"` 的文档保留原格式，避免改变空白语义。
 文本输入上限为 16 KiB，格式化结果上限为 128 KiB。文本工具支持 `@文件路径` 读取多行 UTF-8 输入；
 quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同短语再次执行 add 即可。
+
+## 批量重命名
+
+在附件命令中打开「批量重命名」，修改左侧模板的等号后面的值。可以用 `find` 和 `replace` 替换文件主名中的文字，用 `prefix`、`suffix` 加前后缀，或者用 `name` 设置新的主名。文件扩展名会保留。
+
+例如下面的规则会生成 `截图 001.png`、`截图 002.png`，编号顺序以右侧预览为准。
+
+```text
+name=截图
+number=1
+width=3
+```
+
+核对结果后按 `Ctrl+Enter`。目标已存在、重名或无效时，插件会提示冲突并阻止执行。
 
 ## Chrome 数据
 
