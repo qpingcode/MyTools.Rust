@@ -6,7 +6,7 @@ use super::Selection;
 use anyhow::Result;
 use std::time::{Duration, Instant};
 use windows::Win32::{
-    Foundation::HWND,
+    Foundation::{HWND, LPARAM, WPARAM},
     System::{
         Com::{
             CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
@@ -28,7 +28,7 @@ use windows::Win32::{
         },
         WindowsAndMessaging::{
             GUITHREADINFO, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo,
-            GetWindowThreadProcessId,
+            GetWindowThreadProcessId, IsChild, SMTO_ABORTIFHUNG, SendMessageTimeoutW,
         },
     },
 };
@@ -87,7 +87,7 @@ pub(super) fn capture_from(window: HWND, attachment: bool) -> Result<Selection> 
             };
             match clipboard {
                 Err(reason) => log_copy_miss(attachment, uia, reason),
-                Ok(()) => match copy(window)? {
+                Ok(()) => match copy(window, attachment)? {
                     Ok(text) => {
                         if text.is_empty() {
                             log_copy_miss(attachment, uia, "copied_empty_text");
@@ -180,12 +180,17 @@ fn editable_field(element: &IUIAutomationElement) -> bool {
 
 /// Classic Win32 editors (Notepad++, Notepad) show a system caret while editing.
 fn has_caret(window: HWND) -> bool {
+    gui_thread_info(window).is_some_and(|info| !info.hwndCaret.is_invalid())
+}
+
+fn gui_thread_info(window: HWND) -> Option<GUITHREADINFO> {
     let thread = unsafe { GetWindowThreadProcessId(window, None) };
     let mut info = GUITHREADINFO {
         cbSize: size_of::<GUITHREADINFO>() as u32,
         ..Default::default()
     };
-    unsafe { GetGUIThreadInfo(thread, &mut info) }.is_ok() && !info.hwndCaret.is_invalid()
+    unsafe { GetGUIThreadInfo(thread, &mut info) }.ok()?;
+    Some(info)
 }
 
 /// In a console, Ctrl+C without a selection stops the running program.
@@ -232,9 +237,67 @@ fn plain_text_clipboard() -> std::result::Result<(), &'static str> {
     }
 }
 
-/// Copies the selection with Ctrl+C once the shortcut's keys are up, and returns the copied
-/// text, or a diagnostic reason when the clipboard did not yield text.
-fn copy(window: HWND) -> Result<std::result::Result<String, &'static str>> {
+/// Copies from a focused Scintilla editor directly, or sends Ctrl+C to other applications.
+fn copy(window: HWND, attachment: bool) -> Result<std::result::Result<String, &'static str>> {
+    let editor = attachment.then(|| focused_scintilla(window)).flatten();
+    let before = if let Some(editor) = editor {
+        anyhow::ensure!(
+            unsafe { GetForegroundWindow() } == window && focused_scintilla(window) == Some(editor),
+            crate::i18n::t("selection.no_window")
+        );
+        const SCI_COPY: u32 = 2178;
+        let before = unsafe { GetClipboardSequenceNumber() };
+        let dispatched = unsafe {
+            SendMessageTimeoutW(
+                editor,
+                SCI_COPY,
+                WPARAM(0),
+                LPARAM(0),
+                SMTO_ABORTIFHUNG,
+                500,
+                None,
+            )
+        };
+        if dispatched.0 == 0 {
+            return Ok(Err("scintilla_copy_failed"));
+        }
+        before
+    } else {
+        send_copy_keys(window)?
+    };
+    let deadline = Instant::now() + Duration::from_millis(600);
+    while unsafe { GetClipboardSequenceNumber() } == before {
+        if Instant::now() >= deadline {
+            return Ok(Err(if editor.is_some() {
+                "scintilla_clipboard_did_not_change"
+            } else {
+                "clipboard_did_not_change"
+            }));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The owner may still be writing every format; give it a moment.
+    std::thread::sleep(Duration::from_millis(30));
+    for _ in 0..10 {
+        if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+            return Ok(Ok(text));
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    Ok(Err("copied_text_unavailable"))
+}
+
+fn focused_scintilla(window: HWND) -> Option<HWND> {
+    let focus = gui_thread_info(window)?.hwndFocus;
+    if !unsafe { IsChild(window, focus) }.as_bool() {
+        return None;
+    }
+    let mut name = [0; 32];
+    let len = unsafe { GetClassNameW(focus, &mut name) }.max(0) as usize;
+    (String::from_utf16_lossy(&name[..len]) == "Scintilla").then_some(focus)
+}
+
+fn send_copy_keys(window: HWND) -> Result<u32> {
     let modifiers = [VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN];
     let released = || {
         modifiers
@@ -273,20 +336,5 @@ fn copy(window: HWND) -> Result<std::result::Result<String, &'static str>> {
         sent as usize == inputs.len(),
         crate::i18n::t("selection.failed")
     );
-    let deadline = Instant::now() + Duration::from_millis(600);
-    while unsafe { GetClipboardSequenceNumber() } == before {
-        if Instant::now() >= deadline {
-            return Ok(Err("clipboard_did_not_change"));
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    // The owner may still be writing every format; give it a moment.
-    std::thread::sleep(Duration::from_millis(30));
-    for _ in 0..10 {
-        if let Ok(text) = arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
-            return Ok(Ok(text));
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    Ok(Err("copied_text_unavailable"))
+    Ok(before)
 }
