@@ -25,7 +25,7 @@ mkdir -p "$MYTOOLS_DATA_DIR"
 if [[ ! -e "$MYTOOLS_DATA_DIR/config.json" ]]; then
     cp config.example.json "$MYTOOLS_DATA_DIR/config.json"
 fi
-for plugin in calculator applications clipboard chrome-bookmark encode decode formatter process-killer uuid-generator translator quick-text scripts-runner ask-ai; do
+for plugin in calculator applications clipboard chrome-bookmark encode decode formatter process-killer uuid-generator translator quick-text scripts-runner ask-ai lan-transfer; do
     directory="target/$profile/plugins/$plugin"
     mkdir -p "$directory"
     cp "plugins/$plugin/plugin.json" "$directory/"

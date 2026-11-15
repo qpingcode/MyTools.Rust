@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><h1 data-label="name"></h1></header>
+    <div class="workspace" id="workspace" hidden>
+      <section class="card connect">
+        <h2 data-label="web.connect"></h2>
+        <p data-label="web.scan"></p>
+        <div id="connection" hidden>
+          <img id="qr" width="200" height="200" alt="">
+          <label for="network" data-label="web.network"></label>
+          <select id="network"></select>
+          <div class="link-row">
+            <a id="address"></a>
+            <button id="copy-link" type="button" data-label="web.copy_link"></button>
+          </div>
+        </div>
+        <p id="no-network" hidden data-label="web.no_network"></p>
+      </section>
+      <section class="card send">
+        <h2 data-label="web.send"></h2>
+        <form id="text-form">
+          <label for="message" data-label="web.text"></label>
+          <textarea id="message" rows="5" maxlength="65536" required></textarea>
+          <button class="primary" data-label="web.send_text"></button>
+        </form>
+        <form id="file-form">
+          <label for="files" data-label="web.choose_files"></label>
+          <input id="files" type="file" multiple required>
+          <button class="primary" data-label="web.upload_files"></button>
+        </form>
+        <p class="limits" data-label="web.limits"></p>
+      </section>
+      <section class="card shared">
+        <h2 data-label="web.received"></h2>
+        <p id="connection-status" role="status" hidden></p>
+        <p id="empty" data-label="web.empty"></p>
+        <ul id="items"></ul>
+      </section>
+    </div>
+    <p id="status" role="status" hidden></p>
+  </main>
+</body>
+</html>

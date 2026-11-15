@@ -22,6 +22,7 @@ members = [
     "plugins/crash-test",
     "plugins/awake",
     "plugins/ask-ai",
+    "plugins/lan-transfer",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"

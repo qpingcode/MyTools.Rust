@@ -1,0 +1,12 @@
+{
+  "id": "lan-transfer",
+  "name": { "key": "name", "defaultValue": "LAN Transfer" },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-lan-transfer",
+  "icon": "builtin:send",
+  "alias": ["lan", "互传"],
+  "search": { "global": false },
+  "startup": "lazy",
+  "view": "list"
+}
