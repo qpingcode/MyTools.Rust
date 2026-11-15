@@ -326,7 +326,7 @@ fn start_action(ui: &MainWindow, action: Action) {
                         && current()
                     {
                         ui.set_command_session(true);
-                        ui.set_command_result(text.into());
+                        ui.invoke_show_command_result(text.into());
                         showed_result = true;
                     }
                     if effect.dismiss && current() {
@@ -348,6 +348,7 @@ fn start_action(ui: &MainWindow, action: Action) {
             // A completed action must not replace the status of a newer search.
             if current() || showed_result {
                 match message {
+                    Ok(message) if showed_result && message.is_empty() => {}
                     Ok(message) => {
                         ui.set_failed(false);
                         ui.set_status(message.into());

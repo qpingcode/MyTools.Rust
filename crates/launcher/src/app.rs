@@ -116,7 +116,37 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
         });
     }
     let state = Rc::new(RefCell::new(initial));
-    let icons = icons::Loader::new(&ui)?;
+    let icons = Rc::new(icons::Loader::new(&ui)?);
+    let output_ui = ui.as_weak();
+    let output_state = state.clone();
+    let output_icons = icons.clone();
+    ui.on_show_command_result(move |text| {
+        let Some(ui) = output_ui.upgrade() else {
+            return;
+        };
+        let entry = Entry::new(
+            text.to_string(),
+            String::new(),
+            "builtin:file-text".into(),
+            mytools_plugin_api::Resource::Text {
+                text: text.to_string(),
+            },
+            None,
+        )
+        .expect("text results support the default copy action");
+        let mut state = output_state.borrow_mut();
+        state.generation += 1;
+        ui.invoke_reset_scroll();
+        apply_results(
+            &ui,
+            &mut state,
+            SearchResults {
+                entries: vec![entry],
+                ..Default::default()
+            },
+            &output_icons,
+        );
+    });
     crate::startup::mark("icons");
     let (worker, responses) = SearchWorker::start(load_options);
     let desktop: Rc<RefCell<Option<desktop::Desktop>>> = Rc::default();
@@ -301,7 +331,6 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
 fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String) {
     actions::close_panel(ui, state);
     ui.set_command_session(false);
-    ui.set_command_result("".into());
     state.generation += 1;
     let searching = match state
         .attachment

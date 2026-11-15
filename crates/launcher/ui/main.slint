@@ -2,7 +2,6 @@ export { I18n } from "../../../ui/i18n.slint";
 import { I18n } from "../../../ui/i18n.slint";
 import { Theme } from "../../../ui/theme.slint";
 import { AttachmentBar } from "components/attachment-bar.slint";
-import { CommandResult } from "components/command-result.slint";
 import { SearchBar } from "components/search-bar.slint";
 import { ResultRow } from "components/result-row.slint";
 import { DetailPreview } from "components/detail-preview.slint";
@@ -80,7 +79,7 @@ export component MainWindow inherits Window {
     in property <string> attachment-label;
     in property <string> attachment-details;
     in property <bool> command-session;
-    in property <string> command-result;
+    callback show-command-result(string);
     callback detach-attachment();
     callback normal-launch();
     private property <length> results-top: Theme.search-height + attachment-bar.height;
@@ -184,7 +183,7 @@ export component MainWindow inherits Window {
                 detach => { root.detach-attachment(); }
             }
             list := Flickable {
-                visible: !root.editor-view && !root.chat-view && !root.command-session;
+                visible: !root.editor-view && !root.chat-view;
                 x: 1px; y: root.results-top + 1px; width: root.detail-view ? parent.width * 0.44 : parent.width - 2px;
                 height: parent.height - root.results-top - Theme.status-height - 2px;
                 content-width: self.width;
@@ -234,13 +233,7 @@ export component MainWindow inherits Window {
                 copy-text(text) => { root.copy-text(text); }
                 open-link(url) => { root.open-link(url); }
             }
-            if root.command-session && root.command-result != "": CommandResult {
-                x: 8px; y: root.results-top + 8px; width: parent.width - 16px;
-                height: parent.height - self.y - Theme.status-height - 8px;
-                text: root.command-result;
-                copy => { root.copy-text(root.command-result); }
-            }
-            if root.results.length == 0 && !root.searching && !root.editor-view && !root.chat-view && !root.command-session: Text {
+            if root.results.length == 0 && !root.searching && !root.editor-view && !root.chat-view: Text {
                 x: 28px; y: root.results-top + 20px; text: root.empty-text;
                 color: Theme.muted; font-size: Theme.font-body;
             }

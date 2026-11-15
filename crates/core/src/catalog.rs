@@ -95,6 +95,7 @@ fn settings_stamp() -> Option<std::time::SystemTime> {
         .ok()
 }
 
+#[derive(Default)]
 pub struct SearchResults {
     pub entries: Vec<Entry>,
     pub errors: Vec<String>,
