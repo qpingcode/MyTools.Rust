@@ -1,4 +1,5 @@
 {
+  "command.encode_text": "Encode Text",
   "name": "Encode",
   "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
   "invalid": "Invalid input for this format",

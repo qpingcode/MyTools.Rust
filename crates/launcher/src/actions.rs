@@ -312,6 +312,12 @@ fn start_action(ui: &MainWindow, action: Action) {
                     ui.invoke_refresh();
                     Ok(i18n::t("status.retrying"))
                 }
+                ActionEffect::SearchPlugin { id, text } => {
+                    if current() {
+                        ui.invoke_open_plugin_search(id.into(), text.into());
+                    }
+                    Ok(String::new())
+                }
                 ActionEffect::Plugin(effect) => {
                     if let Some(text) = effect.copy_text {
                         arboard::Clipboard::new()?.set_text(text)?;

@@ -33,12 +33,12 @@ impl State {
     }
 }
 
-fn request(query: &str) -> Result<Translation, String> {
+fn request(query: &str, literal: bool) -> Result<Translation, String> {
     let (language, value) = query
         .split_once(char::is_whitespace)
-        .filter(|(language, _)| matches!(*language, "en" | "zh" | "auto"))
+        .filter(|(language, _)| !literal && matches!(*language, "en" | "zh" | "auto"))
         .unwrap_or(("auto", query));
-    let input = text::input(value)?;
+    let input = text::read_input(value, literal)?;
     let target = match language {
         "en" => "English",
         "zh" => "Simplified Chinese",
@@ -125,7 +125,7 @@ fn id(target: &str, input: &str) -> String {
     format!("{target}:{input}")
 }
 
-fn search(state: &Mutex<State>, query: &str, catalog: &Catalog) -> SearchResponse {
+fn search(state: &Mutex<State>, query: &str, literal: bool, catalog: &Catalog) -> SearchResponse {
     let mut state = state.lock().unwrap();
     if query.trim().is_empty() {
         return SearchResponse {
@@ -137,7 +137,7 @@ fn search(state: &Mutex<State>, query: &str, catalog: &Catalog) -> SearchRespons
             ..Default::default()
         };
     }
-    let request = match request(query) {
+    let request = match request(query, literal) {
         Ok(request) if !request.input.trim().is_empty() => request,
         _ => {
             return SearchResponse {
@@ -198,6 +198,33 @@ fn start(
         }
         "translate" => translate(state, &config, &item, catalog),
         "translate-selection" => translate_selection(state, &config, &item, catalog),
+        "translate-attachment" => {
+            let Some(mytools_plugin_api::CommandArgument::Text { text }) = action.argument else {
+                return Err(catalog.get("input.error").into());
+            };
+            let request =
+                request(&text, true).map_err(|_| catalog.get("input.error").to_owned())?;
+            let key = id(request.target, &request.input);
+            let error = if config.api_key.trim().is_empty() {
+                Some(catalog.get("key.missing").to_owned())
+            } else {
+                fetch(state, &config, request).err()
+            };
+            let mut state = state.lock().unwrap();
+            if state.errors.len() >= 32 {
+                state.errors.clear();
+            }
+            if let Some(error) = error {
+                state.errors.insert(key, error);
+            } else {
+                state.errors.remove(&key);
+            }
+            state.revision += 1;
+            Ok(PluginEffect {
+                search_query: Some(text),
+                ..Default::default()
+            })
+        }
         _ => Err(catalog.get("missing").into()),
     }
 }
@@ -316,8 +343,8 @@ fn main() -> std::io::Result<()> {
         .map(|config| config.cache_size)
         .unwrap_or_else(|_| client::Config::default().cache_size);
     let state = Mutex::new(State::new(Cache::open(cache_size)));
-    mytools_plugin_api::serve_interactive(
-        |query| search(&state, query, &catalog),
+    mytools_plugin_api::serve_requests(
+        |query| search(&state, &query.query, query.literal, &catalog),
         |action| match start(&state, action, &catalog) {
             Ok(effect) => SearchResponse {
                 effect: Some(effect),
@@ -348,7 +375,7 @@ mod tests {
     }
 
     fn cached(state: &Mutex<State>, input: &str, translation: &str, phonetic: Option<&str>) {
-        let target = request(input).unwrap().target;
+        let target = request(input, false).unwrap().target;
         state.lock().unwrap().cache.put(Entry {
             input: input.into(),
             target: target.into(),
@@ -361,10 +388,13 @@ mod tests {
 
     #[test]
     fn detects_direction_and_keeps_requests_explicit() {
-        assert_eq!(request("你好").unwrap().target, "English");
-        assert_eq!(request("Hello").unwrap().target, "Simplified Chinese");
-        assert_eq!(request("en Hello").unwrap().target, "English");
-        let response = search(&state(), "hello", &catalog());
+        assert_eq!(request("你好", false).unwrap().target, "English");
+        assert_eq!(
+            request("Hello", false).unwrap().target,
+            "Simplified Chinese"
+        );
+        assert_eq!(request("en Hello", false).unwrap().target, "English");
+        let response = search(&state(), "hello", false, &catalog());
         assert_eq!(response.items.len(), 1);
         assert_eq!(
             response.items[0].actions.as_ref().unwrap()[0]
@@ -391,7 +421,7 @@ mod tests {
     fn cached_word_is_one_result_that_copies_and_speaks() {
         let state = state();
         cached(&state, "hello", "你好", Some("/həˈləʊ/"));
-        let items = search(&state, "hello", &catalog()).items;
+        let items = search(&state, "hello", false, &catalog()).items;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].title, "Translation");
         assert_eq!(details_of(&items[0]), "你好\n\n/həˈləʊ/");
@@ -422,7 +452,7 @@ mod tests {
             }],
             ..base
         });
-        let items = search(&state, "apple", &catalog()).items;
+        let items = search(&state, "apple", false, &catalog()).items;
         assert_eq!(items.len(), 1);
         assert_eq!(
             details_of(&items[0]),
@@ -435,12 +465,12 @@ mod tests {
         let state = state();
         cached(&state, "苹果", "apple", Some("/ˈæpl/"));
         cached(&state, "good morning", "早上好", None);
-        let items = search(&state, "苹果", &catalog()).items;
+        let items = search(&state, "苹果", false, &catalog()).items;
         assert_eq!(
             items[0].actions.as_ref().unwrap()[1].item.as_deref(),
             Some("apple")
         );
-        let sentence = search(&state, "good morning", &catalog()).items;
+        let sentence = search(&state, "good morning", false, &catalog()).items;
         assert_eq!(details_of(&sentence[0]), "早上好");
         assert_eq!(sentence[0].actions.as_ref().unwrap().len(), 2);
     }
@@ -450,7 +480,7 @@ mod tests {
         let state = state();
         cached(&state, "hello", "你好", Some("/həˈləʊ/"));
         for query in ["", " "] {
-            let items = search(&state, query, &catalog()).items;
+            let items = search(&state, query, false, &catalog()).items;
             assert_eq!(items.len(), 1);
             assert_eq!(items[0].title, "tr [en|zh|auto] <text or @file>");
         }
@@ -475,7 +505,7 @@ mod tests {
     #[test]
     fn failure_is_a_single_retry_item() {
         let state = state();
-        let id = search(&state, "hello", &catalog()).items[0]
+        let id = search(&state, "hello", false, &catalog()).items[0]
             .actions
             .as_ref()
             .unwrap()[0]
@@ -483,7 +513,7 @@ mod tests {
             .clone()
             .unwrap();
         state.lock().unwrap().errors.insert(id, "HTTP 401".into());
-        let items = search(&state, "hello", &catalog()).items;
+        let items = search(&state, "hello", false, &catalog()).items;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].description, "HTTP 401");
         assert_eq!(

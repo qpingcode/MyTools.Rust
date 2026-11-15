@@ -1,4 +1,6 @@
 {
+  "selection.missing": "The first selected file or folder is unavailable.",
+  "command.open_selection": "Open Selected Project in IDE",
   "name": "Open in IDE",
   "action.rider": "Open in Rider",
   "action.vscode": "Open in VS Code",

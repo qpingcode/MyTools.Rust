@@ -31,7 +31,7 @@
         "划词",
         "提问"
       ],
-      "input": "selection-optional"
+      "input": ["selection-optional", "attachment-text"]
     }
   ]
 }

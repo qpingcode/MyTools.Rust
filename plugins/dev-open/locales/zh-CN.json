@@ -1,4 +1,6 @@
 {
+  "selection.missing": "选中的第一项文件或文件夹不可用。",
+  "command.open_selection": "用 IDE 打开选中的项目",
   "name": "IDE 打开",
   "action.rider": "用 Rider 打开",
   "action.vscode": "用 VS Code 打开",

@@ -1,4 +1,5 @@
 {
+  "command.format_text": "格式化文本",
   "name": "文本格式化",
   "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
   "result.json": "JSON 格式化结果",

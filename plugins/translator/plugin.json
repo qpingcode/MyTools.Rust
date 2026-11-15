@@ -19,6 +19,16 @@
   "hotkey": "Alt+V",
   "commands": [
     {
+      "id": "translate-attachment",
+      "title": {
+        "key": "command.translate_attachment",
+        "defaultValue": "Translate Text"
+      },
+      "input": [
+        "attachment-text"
+      ]
+    },
+    {
       "id": "translate-selection",
       "title": {
         "key": "command.selection",

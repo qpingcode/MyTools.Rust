@@ -137,6 +137,16 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
             ..Default::default()
         }),
         "ask-selection" => {
+            if let Some(mytools_plugin_api::CommandArgument::Text { text }) = action.argument {
+                session.start_on(&text, false);
+                return SearchResponse {
+                    effect: Some(PluginEffect {
+                        search_query: Some(String::new()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                };
+            }
             session.start_on(&item, action.editable == Some(true));
             Ok(PluginEffect {
                 open: true,
@@ -287,6 +297,28 @@ mod tests {
                 Some("model".into())
             ]
         );
+    }
+
+    #[test]
+    fn an_attachment_opens_chat_without_sending_or_enabling_replacement() {
+        let catalog = catalog();
+        let session = session();
+        let response = run(
+            &session,
+            PluginActionRequest {
+                command: "ask-selection".into(),
+                item: None,
+                editable: None,
+                argument: Some(mytools_plugin_api::CommandArgument::Text {
+                    text: "Hello".into(),
+                }),
+            },
+            &catalog,
+        );
+        assert_eq!(response.effect.unwrap().search_query.as_deref(), Some(""));
+        assert_eq!(session.chat().attachment.as_deref(), Some("Hello"));
+        assert!(session.chat().messages.is_empty());
+        assert!(!session.replaceable());
     }
 
     #[test]

@@ -1,4 +1,5 @@
 {
+  "command.format_text": "Format Text",
   "name": "Formatter",
   "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
   "result.json": "Formatted JSON",

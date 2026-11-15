@@ -2,7 +2,7 @@ mod codec;
 
 use mytools_plugin_api::{Resource, SearchItem, i18n::Catalog, text};
 
-fn search(query: &str, decode: bool, catalog: &Catalog) -> Vec<SearchItem> {
+fn search(query: &str, decode: bool, literal: bool, catalog: &Catalog) -> Vec<SearchItem> {
     if query.is_empty() {
         return vec![text::hint(catalog.get("usage"), catalog.get("formats"))];
     }
@@ -14,10 +14,10 @@ fn search(query: &str, decode: bool, catalog: &Catalog) -> Vec<SearchItem> {
     // A leading format selects one result; otherwise show every applicable format.
     let (selected, raw) = query
         .split_once(char::is_whitespace)
-        .filter(|(name, _)| algorithms.contains(name))
+        .filter(|(name, _)| !literal && algorithms.contains(name))
         .map(|(name, input)| (Some(name), input))
         .unwrap_or((None, query));
-    let input = match text::input(raw) {
+    let input = match text::read_input(raw, literal) {
         Ok(input) => input,
         Err(error) => return vec![text::hint(catalog.get("input.error"), error)],
     };
@@ -41,16 +41,37 @@ fn search(query: &str, decode: bool, catalog: &Catalog) -> Vec<SearchItem> {
 
 pub fn run(decode: bool, english: &str, chinese: &str) -> std::io::Result<()> {
     let catalog = Catalog::for_language(english, chinese).expect("bundled codec locales");
-    mytools_plugin_api::serve(|query| search(query, decode, &catalog))
+    mytools_plugin_api::serve_requests(
+        |request| mytools_plugin_api::SearchResponse {
+            items: search(&request.query, decode, request.literal, &catalog),
+            ..Default::default()
+        },
+        |_| Default::default(),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
+    fn a_literal_selection_keeps_the_algorithm_name_in_the_text() {
+        let catalog = Catalog::from_json("{}", "{}").unwrap();
+        let selection = "base64 a";
+        let items = search(selection, false, true, &catalog);
+        assert!(items.len() > 1);
+        assert!(items.iter().any(|item| {
+            item.description == "base64"
+                && item.resource
+                    == Resource::Text {
+                        text: "YmFzZTY0IGE=".into(),
+                    }
+        }));
+    }
+
+    #[test]
     fn explicit_format_preserves_input_and_results_copy_the_output() {
         let catalog = Catalog::from_json("{}", "{}").unwrap();
-        let items = search("base64  a ", false, &catalog);
+        let items = search("base64  a ", false, false, &catalog);
         assert_eq!(items.len(), 1);
         assert_eq!(
             items[0].resource,
@@ -59,7 +80,7 @@ mod tests {
             }
         );
         assert!(
-            search("base64 !!!", true, &catalog)[0]
+            search("base64 !!!", true, false, &catalog)[0]
                 .actions
                 .as_ref()
                 .unwrap()

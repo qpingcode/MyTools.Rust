@@ -1,4 +1,5 @@
 {
+  "command.decode_text": "Decode Text",
   "name": "Decode",
   "input.error": "Cannot read input (UTF-8, up to 16 KiB)",
   "invalid": "Invalid encoding or decoded bytes are not UTF-8 text",

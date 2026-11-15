@@ -1,4 +1,5 @@
 {
+  "command.search_text": "Search with Everything",
   "name": "Everything",
   "usage": "Type a file or folder name; Everything search syntax is supported",
   "usage_detail": "file <keywords>, e.g. file *.sln, file report ext:pdf",

@@ -1,4 +1,5 @@
 {
+  "command.encode_text": "编码文本",
   "name": "编码",
   "input.error": "无法读取输入（UTF-8，最大 16 KiB）",
   "invalid": "该格式的输入无效",

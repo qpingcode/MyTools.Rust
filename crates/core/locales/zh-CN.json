@@ -1,4 +1,6 @@
 {
+  "error.command_search_input": "命令 {id} 只有在仅接受文本附件时才能运行搜索。",
+  "error.plugin_unavailable": "插件 {id} 不可用。",
   "error.action_in_progress": "插件操作尚未完成，完成后将更新结果",
   "error.plugin_directory": "插件目录不存在",
   "error.process_start": "无法启动搜索插件进程",

@@ -1,4 +1,5 @@
 {
+  "command.translate_attachment": "Translate Text",
   "name": "Translator",
   "missing": "Translation request expired; search again",
   "config.error": "Cannot load translator configuration: {error}",

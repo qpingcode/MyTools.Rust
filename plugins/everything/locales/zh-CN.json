@@ -1,4 +1,5 @@
 {
+  "command.search_text": "用 Everything 搜索",
   "name": "Everything",
   "usage": "输入文件或文件夹名称，支持 Everything 搜索语法",
   "usage_detail": "file <关键字>，例如 file *.sln、file 报告 ext:pdf",

@@ -7,7 +7,12 @@ pub const INPUT_LIMIT: usize = 16 * 1024;
 /// `@path` loads UTF-8 text, allowing multiline input without a custom editor.
 /// Read at most one byte beyond the limit, including for files that grow.
 pub fn input(value: &str) -> Result<String, String> {
-    let value = if let Some(path) = value.strip_prefix('@') {
+    read_input(value, false)
+}
+
+/// A literal selection can contain characters that normally invoke a query shortcut.
+pub fn read_input(value: &str, literal: bool) -> Result<String, String> {
+    let value = if let Some(path) = value.strip_prefix('@').filter(|_| !literal) {
         let file = std::fs::File::open(Path::new(path.trim().trim_matches('"')))
             .map_err(|error| error.to_string())?;
         let mut bytes = Vec::new();

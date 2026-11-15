@@ -30,6 +30,9 @@ pub struct SearchRequest {
     /// global search, where a plugin should answer only what it recognizes.
     #[serde(default, skip_serializing_if = "is_false")]
     pub scoped: bool,
+    /// Input came from a command and should be treated as text, without input shortcuts.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub literal: bool,
 }
 
 /// Sent once as `{"init":{}}` before any search or action.
@@ -45,6 +48,7 @@ impl SearchRequest {
             ping: None,
             init: Some(InitRequest {}),
             scoped: false,
+            literal: false,
         }
     }
 }

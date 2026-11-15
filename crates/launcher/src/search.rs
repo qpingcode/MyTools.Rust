@@ -20,6 +20,7 @@ pub struct Query {
     pub generation: u64,
     pub text: String,
     pub attachment: Option<Arc<mytools_plugin_api::CommandArgument>>,
+    pub scope: Option<(String, String)>,
     /// 0 for typed input; a retry asks plugins to wait longer.
     pub attempt: u32,
 }
@@ -185,16 +186,16 @@ impl Worker {
         let revision = self.catalog.revision();
         let latest = self.latest.clone();
         let is_stale = || latest.load(Ordering::SeqCst) != generation;
+        let options = SearchOptions {
+            attempt: query.attempt,
+            cancelled: &is_stale,
+        };
         let results = if let Some(attachment) = &query.attachment {
             self.catalog.search_attachment(&query.text, attachment)
+        } else if let Some((id, input)) = &query.scope {
+            self.catalog.search_plugin(id, input, &options)
         } else {
-            self.catalog.search_with(
-                &query.text,
-                &SearchOptions {
-                    attempt: query.attempt,
-                    cancelled: &is_stale,
-                },
-            )
+            self.catalog.search_with(&query.text, &options)
         };
         if results.cancelled {
             return true; // The newer query is already queued.
@@ -245,6 +246,15 @@ pub struct QuerySender {
 }
 
 impl QuerySender {
+    pub fn scope_for(&self, id: &str) -> Option<(String, mytools_plugin_api::View)> {
+        let aliases = self
+            .aliases
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+        let (alias, view) = aliases.as_ref()?.scope_for(id)?;
+        Some((format!("{alias} "), view))
+    }
+
     /// The plugin an alias query will search; `None` for global search or while the
     /// catalog is still loading.
     pub fn plugin_for(&self, text: &str) -> Option<String> {

@@ -143,6 +143,7 @@ impl Shared {
             ping: Some(heartbeat.sequence),
             init: None,
             scoped: false,
+            literal: false,
         };
         drop(heartbeat);
         let _ = self.write(&ping);
@@ -232,6 +233,10 @@ impl std::fmt::Debug for SearchProcess {
 }
 
 impl SearchProcess {
+    pub(crate) fn plugin_id(&self) -> &str {
+        &self.status.id
+    }
+
     /// An eager plugin starts now; a lazy one waits for [`Self::activate`].
     pub fn new(path: &Path, options: ProcessOptions, eager: bool) -> Result<Self> {
         let directory = path
@@ -320,7 +325,18 @@ impl SearchProcess {
     /// Starts a search; `timeout` tells the plugin how long the host will wait for it, and
     /// `scoped` that the user chose this plugin by its alias. A search the host stops
     /// waiting for is not killed: the plugin skips or finishes it.
-    pub fn begin(&self, query: &str, timeout: Duration, scoped: bool) -> Result<Reply> {
+    #[cfg(test)]
+    fn begin(&self, query: &str, timeout: Duration, scoped: bool) -> Result<Reply> {
+        self.begin_search(query, timeout, scoped, false)
+    }
+
+    pub(crate) fn begin_search(
+        &self,
+        query: &str,
+        timeout: Duration,
+        scoped: bool,
+        literal: bool,
+    ) -> Result<Reply> {
         // Do not queue a search behind a long-running action on the same ordered
         // transport. The action's completion may request a fresh search.
         let busy = self.action_busy.lock().unwrap();
@@ -335,6 +351,7 @@ impl SearchProcess {
                 ping: None,
                 init: None,
                 scoped,
+                literal,
             },
             Kind::Search,
         )
@@ -464,6 +481,7 @@ impl SearchProcess {
                 ping: None,
                 init: None,
                 scoped: false,
+                literal: false,
             },
             Kind::Action,
         );

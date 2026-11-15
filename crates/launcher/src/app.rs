@@ -16,6 +16,8 @@ pub(crate) struct State {
     /// followed by the editor's text.
     sent: String,
     displayed_query: String,
+    /// Plugin ID and its visible prefix for a view opened by an attachment command.
+    command_scope: Option<(String, String)>,
     pub entries: Vec<Entry>,
     pub panel: Option<Vec<Action>>,
     desktop_error: Option<String>,
@@ -289,30 +291,60 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
     let requests = worker.sender();
     let weak = ui.as_weak();
     let search_state = state.clone();
+    let scope_requests = requests.clone();
+    let scope_state = state.clone();
+    let scope_ui = ui.as_weak();
+    ui.on_open_plugin_search(move |id, input| {
+        let Some(ui) = scope_ui.upgrade() else { return };
+        let (prefix, view) = scope_requests
+            .scope_for(&id)
+            .unwrap_or_else(|| (format!("{id} "), Default::default()));
+        let text = format!("{prefix}{input}");
+        let mut state = scope_state.borrow_mut();
+        state.command_scope = Some((id.into(), prefix.clone()));
+        ui.set_editor_text(input.into());
+        ui.set_query(if view == mytools_plugin_api::View::Editor {
+            prefix.into()
+        } else {
+            text.clone().into()
+        });
+        send(&ui, &mut state, &scope_requests, text);
+        ui.invoke_focus_search_at_end();
+    });
     let search_requests = requests.clone();
     ui.on_search(move |text| {
         let Some(ui) = weak.upgrade() else { return };
         // The search box fills the editor with what follows the alias; never the reverse.
-        let prefix = search_requests.scope_prefix(&text).unwrap_or_default();
+        let mut state = search_state.borrow_mut();
+        let explicit = state
+            .command_scope
+            .as_ref()
+            .filter(|(_, prefix)| text.starts_with(prefix.as_str()))
+            .map(|(_, prefix)| prefix.clone());
+        if explicit.is_none() || state.attachment.is_some() {
+            state.command_scope = None;
+        }
+        let prefix = explicit
+            .or_else(|| search_requests.scope_prefix(&text))
+            .unwrap_or_default();
         ui.set_editor_text(text.get(prefix.len()..).unwrap_or_default().into());
-        send(
-            &ui,
-            &mut search_state.borrow_mut(),
-            &search_requests,
-            text.into(),
-        );
+        send(&ui, &mut state, &search_requests, text.into());
     });
     let weak = ui.as_weak();
     let editor_state = state.clone();
     let editor_requests = requests.clone();
     ui.on_editor_edited(move |content| {
         let Some(ui) = weak.upgrade() else { return };
-        let prefix = editor_requests
-            .scope_prefix(&ui.get_query())
+        let mut state = editor_state.borrow_mut();
+        let prefix = state
+            .command_scope
+            .as_ref()
+            .map(|(_, prefix)| prefix.clone())
+            .or_else(|| editor_requests.scope_prefix(&ui.get_query()))
             .unwrap_or_default();
         send(
             &ui,
-            &mut editor_state.borrow_mut(),
+            &mut state,
             &editor_requests,
             format!("{prefix}{content}"),
         );
@@ -347,8 +379,13 @@ fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String
     if !ui.get_show_loading() {
         ui.set_search_running(false);
     }
+    let scope = state.command_scope.as_ref().and_then(|(id, prefix)| {
+        text.strip_prefix(prefix)
+            .map(|input| (id.clone(), input.to_owned()))
+    });
     state.sent = text.clone();
     requests.send(Query {
+        scope,
         generation: state.generation,
         text,
         attachment: state.attachment.clone(),

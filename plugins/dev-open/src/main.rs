@@ -117,6 +117,25 @@ fn open(ide: Ide, path: &Path, catalog: &Catalog) -> Result<String, String> {
 }
 
 fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
+    if request.command == "open-selection" {
+        let path = match request.argument {
+            Some(mytools_plugin_api::CommandArgument::Files { paths }) => paths.into_iter().next(),
+            _ => None,
+        };
+        return match path.filter(|path| path.is_absolute() && path.exists()) {
+            Some(path) => SearchResponse {
+                effect: Some(PluginEffect {
+                    search_query: Some(paths::display(&path)),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            None => SearchResponse {
+                error: Some(catalog.get("selection.missing").to_owned()),
+                ..Default::default()
+            },
+        };
+    }
     let result = Ide::from_command(&request.command)
         .ok_or_else(|| format!("unknown command {}", request.command))
         .and_then(|ide| {
@@ -177,6 +196,31 @@ mod tests {
         let items = search(&format!("\"{}\"", temp.display()), &catalog()).items;
         assert_eq!(items.len(), 3);
         assert_eq!(items[1].title, "Open in VS Code");
+    }
+
+    #[test]
+    fn opens_the_scope_for_only_the_first_path() {
+        let catalog = catalog();
+        let first = std::env::temp_dir();
+        let second = std::env::current_dir().unwrap();
+        let request = |paths| PluginActionRequest {
+            command: "open-selection".into(),
+            item: None,
+            editable: None,
+            argument: Some(mytools_plugin_api::CommandArgument::Files { paths }),
+        };
+        let effect = action(request(vec![first.clone(), second]), &catalog)
+            .effect
+            .unwrap();
+        assert_eq!(
+            effect.search_query.as_deref(),
+            Some(paths::display(&first).as_str())
+        );
+        let unavailable = action(
+            request(vec![first.join("missing-selection-fixture"), first]),
+            &catalog,
+        );
+        assert!(unavailable.error.is_some());
     }
 
     #[test]

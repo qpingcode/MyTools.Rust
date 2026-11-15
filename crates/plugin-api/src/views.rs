@@ -66,6 +66,9 @@ pub struct PluginEffect {
     /// Text to display in the launcher's main area after executing a command.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result_text: Option<String>,
+    /// Open this plugin's search on this literal input (an empty string opens its initial view).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_query: Option<String>,
     /// Hide the launcher after the action succeeded (e.g. an external editor was opened).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dismiss: bool,

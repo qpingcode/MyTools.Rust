@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{Result, bail};
 use mytools_plugin_api::{
     CommandArgument, Icon, Resource,
-    commands::{self, CommandInput, CommandManifest, InputKind},
+    commands::{self, CommandInput, CommandManifest, CommandRun, InputKind},
     hotkeys::Hotkey,
     matching::rank,
     plugin_settings::Settings,
@@ -22,6 +22,7 @@ pub struct Command {
     /// The shortcut in effect, as the user or the manifest wrote it.
     pub hotkey: Option<String>,
     pub input: CommandInput,
+    pub run: CommandRun,
 }
 
 /// Reads a plugin's commands with the user's shortcut overrides applied.
@@ -39,6 +40,16 @@ pub fn load(
         if !commands::valid_id(&manifest.id) || !ids.insert(manifest.id.as_str()) {
             bail!(i18n::format("error.command_id", &[("id", &manifest.id)]));
         }
+        if manifest.run == CommandRun::Search
+            && (!manifest.input.contains(InputKind::AttachmentText)
+                || manifest.input.contains(InputKind::AttachmentFiles)
+                || manifest.input.can_run_without_attachment())
+        {
+            bail!(i18n::format(
+                "error.command_search_input",
+                &[("id", &manifest.id)]
+            ));
+        }
         let icon = manifest
             .icon
             .as_deref()
@@ -54,6 +65,7 @@ pub fn load(
                 .command_hotkey(plugin_id, &manifest.id, manifest.hotkey.as_deref())
                 .map(str::to_owned),
             input: manifest.input.clone(),
+            run: manifest.run,
         });
     }
     Ok(loaded)
@@ -152,6 +164,9 @@ fn entry(
     entry.set_source(&plugin.id);
     let action = action(plugin, command, process);
     entry.actions.push(match argument {
+        Some(argument) if command.run == CommandRun::Search => {
+            action.with_search(plugin.id.clone(), argument.clone())
+        }
         Some(argument) => action.with_argument(argument.clone()),
         None => action,
     });

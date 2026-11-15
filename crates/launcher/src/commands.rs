@@ -124,7 +124,7 @@ async fn execute(action: &Action) -> Result<()> {
             }
         }
         ActionEffect::CopyText(text) => arboard::Clipboard::new()?.set_text(text)?,
-        ActionEffect::Completed | ActionEffect::Retry(_) => {}
+        ActionEffect::Completed | ActionEffect::Retry(_) | ActionEffect::SearchPlugin { .. } => {}
     }
     Ok(())
 }

@@ -52,12 +52,17 @@ enum Operation {
     },
     /// Runs the current query again with a longer timeout.
     Retry(u32),
+    SearchPlugin(String),
 }
 
 pub enum ActionEffect {
     CopyText(String),
     Completed,
     Plugin(mytools_plugin_api::PluginEffect),
+    SearchPlugin {
+        id: String,
+        text: String,
+    },
     /// Search the current query again as this retry attempt.
     Retry(u32),
 }
@@ -116,6 +121,15 @@ impl Action {
         self
     }
 
+    pub(crate) fn with_search(
+        mut self,
+        id: String,
+        argument: std::sync::Arc<CommandArgument>,
+    ) -> Self {
+        self.operation = Operation::SearchPlugin(id);
+        self.with_argument(argument)
+    }
+
     /// This command on the selected `text`, saying whether it can be replaced.
     pub fn with_selection(&self, text: String, editable: bool) -> Self {
         let mut action = self.with_item(text);
@@ -128,6 +142,15 @@ impl Action {
         match &self.operation {
             Operation::Copy(text) => return Ok(ActionEffect::CopyText(text.clone())),
             Operation::Retry(attempt) => return Ok(ActionEffect::Retry(*attempt)),
+            Operation::SearchPlugin(id) => {
+                let Some(CommandArgument::Text { text }) = self.argument.as_deref() else {
+                    bail!(i18n::t("error.response_invalid"));
+                };
+                return Ok(ActionEffect::SearchPlugin {
+                    id: id.clone(),
+                    text: text.clone(),
+                });
+            }
             Operation::Open(path) | Operation::OpenApplication(path) => {
                 platform::open_application(path)?
             }
@@ -142,12 +165,19 @@ impl Action {
                 let process = process
                     .as_ref()
                     .ok_or_else(|| anyhow::anyhow!(i18n::t("error.process_stopped")))?;
-                return Ok(ActionEffect::Plugin(process.execute(
+                let mut effect = process.execute(
                     command,
                     item.as_deref(),
                     self.editable,
                     self.argument.as_deref(),
-                )?));
+                )?;
+                if let Some(text) = effect.search_query.take() {
+                    return Ok(ActionEffect::SearchPlugin {
+                        id: process.plugin_id().to_owned(),
+                        text,
+                    });
+                }
+                return Ok(ActionEffect::Plugin(effect));
             }
             Operation::Launch(path) => {
                 std::process::Command::new(path)

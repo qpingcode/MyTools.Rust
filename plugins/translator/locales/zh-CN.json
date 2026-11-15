@@ -1,4 +1,5 @@
 {
+  "command.translate_attachment": "翻译文本",
   "name": "中英翻译",
   "missing": "翻译请求已失效，请重新搜索",
   "config.error": "无法加载翻译配置：{error}",

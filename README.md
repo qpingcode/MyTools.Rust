@@ -254,6 +254,7 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
   按需启动尚未运行的插件，并按插件返回的 `effect` 复制、粘贴。
 - 按快捷键执行时不显示 MyTools 窗口：宿主记住按键时的前台应用，`paste` 粘贴到该应用；失败时在右下角提示。
   命令超过 0.4 秒仍未完成时，在当前窗口所在屏幕的中下方显示“正在<命令>…”，不抢焦点，完成后消失。
+- 仅支持 `attachment-text` 的命令可以声明 `"run": "search"`，把附件作为原文打开所属插件的搜索视图。需要先执行插件逻辑的命令也可以在执行结果中返回 `effect.search_query` 打开自己的搜索视图。
 - 附件命令通过 `input: ["attachment-text", "attachment-files"]` 声明支持的类型，也可以在同一数组中添加 `"selection"` 或 `"selection-optional"`。执行附件命令时，宿主通过 `argument` 传入 `{"type":"text","text":"原文"}` 或 `{"type":"files","paths":[...]}`。
 - `"input": "selection"` 的命令（目前仅 Windows）：宿主先读取前台应用中选中的文字，作为 `item` 发送给插件。
   插件把结果放在 `effect.copy_text` 并设置 `paste: true`；选中的文字可编辑时宿主粘贴结果替换它，

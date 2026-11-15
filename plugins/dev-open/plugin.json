@@ -1,4 +1,16 @@
 {
+  "commands": [
+    {
+      "id": "open-selection",
+      "title": {
+        "key": "command.open_selection",
+        "defaultValue": "Open Selected Project in IDE"
+      },
+      "input": [
+        "attachment-files"
+      ]
+    }
+  ],
   "id": "dev-open",
   "name": {
     "key": "name",

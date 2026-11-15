@@ -80,6 +80,7 @@ export component MainWindow inherits Window {
     in property <string> attachment-details;
     in property <bool> command-session;
     callback show-command-result(string);
+    callback open-plugin-search(string, string);
     callback detach-attachment();
     callback normal-launch();
     private property <length> results-top: Theme.search-height + attachment-bar.height;

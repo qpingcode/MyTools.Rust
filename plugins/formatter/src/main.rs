@@ -3,11 +3,11 @@ use formats::Format;
 use mytools_plugin_api::{SearchItem, i18n::Catalog, text};
 
 /// Formats the text after the alias, recognizing JSON or XML from its first character.
-fn search(query: &str, catalog: &Catalog) -> Vec<SearchItem> {
+fn search(query: &str, literal: bool, catalog: &Catalog) -> Vec<SearchItem> {
     if query.trim().is_empty() {
         return vec![text::hint(catalog.get("usage"), catalog.get("formats"))];
     }
-    let input = match text::input(query.trim_start()) {
+    let input = match text::read_input(query.trim_start(), literal) {
         Ok(input) => input,
         Err(error) => return vec![text::hint(catalog.get("input.error"), error)],
     };
@@ -35,7 +35,13 @@ fn main() -> std::io::Result<()> {
         include_str!("../locales/zh-CN.json"),
     )
     .unwrap();
-    mytools_plugin_api::serve(|query| search(query, &catalog))
+    mytools_plugin_api::serve_requests(
+        |request| mytools_plugin_api::SearchResponse {
+            items: search(&request.query, request.literal, &catalog),
+            ..Default::default()
+        },
+        |_| Default::default(),
+    )
 }
 
 #[cfg(test)]
@@ -44,7 +50,7 @@ mod tests {
 
     fn titles(query: &str) -> (String, String) {
         let catalog = Catalog::from_json(include_str!("../locales/en.json"), "{}").unwrap();
-        let items = search(query, &catalog);
+        let items = search(query, false, &catalog);
         (items[0].title.clone(), items[0].description.clone())
     }
 

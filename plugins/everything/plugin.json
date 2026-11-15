@@ -1,4 +1,17 @@
 {
+  "commands": [
+    {
+      "id": "search-text",
+      "title": {
+        "key": "command.search_text",
+        "defaultValue": "Search with Everything"
+      },
+      "input": [
+        "attachment-text"
+      ],
+      "run": "search"
+    }
+  ],
   "id": "everything",
   "name": {
     "key": "name",

@@ -354,7 +354,12 @@ impl Catalog {
             plugins: self
                 .plugins
                 .iter()
-                .map(|plugin| (plugin.aliases.clone(), plugin.name.clone()))
+                .map(|plugin| AliasEntry {
+                    aliases: plugin.aliases.clone(),
+                    name: plugin.name.clone(),
+                    id: plugin.id.clone(),
+                    view: plugin.view,
+                })
                 .collect(),
             tab: self
                 .tab_plugin()
@@ -402,6 +407,27 @@ impl Catalog {
 
     pub fn search_with(&self, input: &str, options: &SearchOptions) -> SearchResults {
         let (target, query) = route(&self.plugins, input);
+        self.search_routed(input, target, query, false, options)
+    }
+
+    pub fn search_plugin(&self, id: &str, query: &str, options: &SearchOptions) -> SearchResults {
+        let Some(index) = self.plugins.iter().position(|plugin| plugin.id == id) else {
+            return SearchResults {
+                errors: vec![i18n::format("error.plugin_unavailable", &[("id", id)])],
+                ..Default::default()
+            };
+        };
+        self.search_routed(query, Some(index), query, true, options)
+    }
+
+    fn search_routed(
+        &self,
+        input: &str,
+        target: Option<usize>,
+        query: &str,
+        literal: bool,
+        options: &SearchOptions,
+    ) -> SearchResults {
         let mut output = SearchResults {
             entries: vec![],
             errors: self.errors.clone(),
@@ -443,7 +469,7 @@ impl Catalog {
                 if !ready(process, plugin, input, target.is_some(), &mut output) {
                     continue;
                 }
-                match process.begin(query, timeout(plugin), target.is_some()) {
+                match process.begin_search(query, timeout(plugin), target.is_some(), literal) {
                     Ok(reply) => pending.push((plugin, reply)),
                     Err(err) => output.errors.push(format!("{}：{err}", plugin.name)),
                 }
@@ -759,18 +785,38 @@ fn route_by<'p, 'a>(
 /// without waiting for the worker that owns the catalog.
 #[derive(Clone, Debug, Default)]
 pub struct AliasTable {
-    plugins: Vec<(Vec<String>, String)>,
+    plugins: Vec<AliasEntry>,
     /// The scope Tab opens from global search, e.g. `"ai "`.
     tab: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+struct AliasEntry {
+    aliases: Vec<String>,
+    name: String,
+    id: String,
+    view: mytools_plugin_api::View,
+}
+
 impl AliasTable {
+    pub fn scope_for(&self, id: &str) -> Option<(&str, mytools_plugin_api::View)> {
+        self.plugins
+            .iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| {
+                (
+                    entry.aliases.first().unwrap_or(&entry.id).as_str(),
+                    entry.view,
+                )
+            })
+    }
+
     pub fn plugin_for(&self, input: &str) -> Option<&str> {
         let (index, _) = route_by(
-            self.plugins.iter().map(|(aliases, _)| aliases.as_slice()),
+            self.plugins.iter().map(|entry| entry.aliases.as_slice()),
             input,
         );
-        index.map(|index| self.plugins[index].1.as_str())
+        index.map(|index| self.plugins[index].name.as_str())
     }
 
     /// The scope of the plugin that Tab opens from global search (`"search": {"tab":
@@ -966,6 +1012,7 @@ mod tests {
             icon: "builtin:type".into(),
             hotkey: hotkey.map(str::to_owned),
             input: Default::default(),
+            run: Default::default(),
         }];
         plugin
     }
@@ -1051,6 +1098,25 @@ mod tests {
             panic!("a selection command shortcut");
         };
         assert!(action.needs_selection());
+    }
+
+    #[test]
+    fn attachment_search_command_targets_its_plugin_and_keeps_literal_input() {
+        use mytools_plugin_api::{CommandArgument, commands::CommandRun};
+
+        let mut plugin = with_command(plugin(), None);
+        let id = plugin.id.clone();
+        plugin.commands[0].input = serde_json::from_str(r#"["attachment-text"]"#).unwrap();
+        plugin.commands[0].run = CommandRun::Search;
+        let catalog = catalog(vec![plugin]);
+        let text = "  @notes.txt\n";
+        let attachment = Arc::new(CommandArgument::Text { text: text.into() });
+        let results = catalog.search_attachment("", &attachment);
+        assert!(matches!(
+            results.entries[0].actions[0].execute().unwrap(),
+            crate::actions::ActionEffect::SearchPlugin { id: target, text: input }
+                if target == id && input == text
+        ));
     }
 
     #[test]
@@ -1152,7 +1218,12 @@ mod tests {
     #[test]
     fn alias_table_names_the_routed_plugin_like_search_does() {
         let table = AliasTable {
-            plugins: vec![(vec!["calc".into(), "计算".into()], "计算器".into())],
+            plugins: vec![AliasEntry {
+                aliases: vec!["calc".into(), "计算".into()],
+                name: "计算器".into(),
+                id: "calculator".into(),
+                view: Default::default(),
+            }],
             tab: None,
         };
         assert_eq!(table.plugin_for(" CALC 1+1"), Some("计算器"));
@@ -1164,7 +1235,12 @@ mod tests {
     #[test]
     fn scope_prefix_keeps_the_alias_and_its_whitespace() {
         let table = AliasTable {
-            plugins: vec![(vec!["tr".into()], "Translator".into())],
+            plugins: vec![AliasEntry {
+                aliases: vec!["tr".into()],
+                name: "Translator".into(),
+                id: "translator".into(),
+                view: mytools_plugin_api::View::Editor,
+            }],
             tab: None,
         };
         assert_eq!(table.scope_prefix("tr hello"), Some("tr "));
@@ -1263,6 +1339,11 @@ mod tests {
         assert_eq!(scoped.entries[0].name, "3+3");
         // Second plugin was not invoked for global search while disabled.
         assert!(scoped.entries[0].description.ends_with('3'));
+        let explicit =
+            catalog.search_plugin("second", " calc @literal\n ", &SearchOptions::default());
+        assert!(explicit.errors.is_empty(), "{:?}", explicit.errors);
+        assert_eq!(explicit.entries.len(), 1);
+        assert_eq!(explicit.entries[0].name, " calc @literal\n ");
         let first_again = catalog.search("calc 4+4");
         assert_eq!(first_again.entries.len(), 1);
         assert!(first_again.entries[0].description.ends_with('4'));
