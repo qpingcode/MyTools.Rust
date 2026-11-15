@@ -1,17 +1,4 @@
 {
-  "commands": [
-    {
-      "id": "encode-text",
-      "title": {
-        "key": "command.encode_text",
-        "defaultValue": "Encode Text"
-      },
-      "input": [
-        "attachment-text"
-      ],
-      "run": "search"
-    }
-  ],
   "id": "encode",
   "name": {
     "defaultValue": "Encode",
@@ -27,5 +14,19 @@
   "search": {
     "global": false
   },
-  "view": "list"
+  "view": "list",
+  "contributes": {
+    "commands": [
+      {
+        "id": "encode-text",
+        "title": {
+          "key": "command.encode_text",
+          "defaultValue": "Encode Text"
+        },
+        "input": [
+          "attachment-text"
+        ]
+      }
+    ]
+  }
 }

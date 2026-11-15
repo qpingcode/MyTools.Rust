@@ -47,7 +47,7 @@ struct Manifest {
     view: mytools_plugin_api::View,
     #[serde(default)]
     hotkey: Option<String>,
-    /// Entries the host can search and bind to shortcuts; see `mytools_plugin_api::commands`.
+    /// Legacy location; newer manifests declare commands under contributes.
     #[serde(default)]
     commands: Vec<mytools_plugin_api::commands::CommandManifest>,
     #[serde(default)]
@@ -63,6 +63,8 @@ struct Manifest {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Contributes {
+    #[serde(default)]
+    commands: Option<Vec<mytools_plugin_api::commands::CommandManifest>>,
     /// Extra actions this plugin adds to other results, e.g. "Open in Rider" on paths.
     #[serde(default)]
     actions: Vec<ActionRuleManifest>,
@@ -304,7 +306,7 @@ impl Plugin {
                     .map(str::to_owned),
                 crate::commands::load(
                     &manifest.id,
-                    &manifest.commands,
+                    manifest.command_manifests(),
                     settings,
                     directory,
                     &icon,
@@ -452,6 +454,13 @@ fn localized_name(name: &PluginName, manifest: &Path, language: &str) -> Result<
 }
 
 impl Manifest {
+    fn command_manifests(&self) -> &[mytools_plugin_api::commands::CommandManifest] {
+        self.contributes
+            .commands
+            .as_deref()
+            .unwrap_or(&self.commands)
+    }
+
     fn validate(&self, path: &Path) -> Result<PathBuf> {
         if self.id.trim().is_empty() || self.name.default_value.trim().is_empty() {
             bail!(i18n::t("error.manifest_name"));
@@ -622,6 +631,24 @@ mod tests {
             let manifest: Manifest = serde_json::from_value(value).unwrap();
             assert_eq!(manifest.kind, kind);
         }
+    }
+
+    #[test]
+    fn command_contributions_take_precedence_over_legacy_commands() {
+        let mut manifest = serde_json::json!({
+            "id": "fixture", "name": {"defaultValue": "Fixture"},
+            "entry": "fixture", "version": "1.0", "type": "search",
+            "commands": [{"id": "legacy", "title": {"defaultValue": "Legacy"}}]
+        });
+        let parsed: Manifest = serde_json::from_value(manifest.clone()).unwrap();
+        assert_eq!(parsed.command_manifests()[0].id, "legacy");
+        manifest["contributes"] = serde_json::json!({
+            "actions": [],
+            "commands": [{"id": "nested", "title": {"defaultValue": "Nested"}}]
+        });
+        let parsed: Manifest = serde_json::from_value(manifest).unwrap();
+        assert_eq!(parsed.command_manifests().len(), 1);
+        assert_eq!(parsed.command_manifests()[0].id, "nested");
     }
 
     #[test]

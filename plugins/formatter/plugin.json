@@ -1,17 +1,4 @@
 {
-  "commands": [
-    {
-      "id": "format-text",
-      "title": {
-        "key": "command.format_text",
-        "defaultValue": "Format Text"
-      },
-      "input": [
-        "attachment-text"
-      ],
-      "run": "search"
-    }
-  ],
   "id": "formatter",
   "name": {
     "defaultValue": "Formatter",
@@ -28,5 +15,19 @@
   "search": {
     "global": false
   },
-  "view": "editor"
+  "view": "editor",
+  "contributes": {
+    "commands": [
+      {
+        "id": "format-text",
+        "title": {
+          "key": "command.format_text",
+          "defaultValue": "Format Text"
+        },
+        "input": [
+          "attachment-text"
+        ]
+      }
+    ]
+  }
 }

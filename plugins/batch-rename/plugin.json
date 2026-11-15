@@ -8,12 +8,14 @@
   "alias": ["rename"],
   "search": { "global": false },
   "view": "editor",
-  "commands": [
-    {
-      "id": "rename-files",
-      "title": { "key": "command.rename_files", "defaultValue": "Batch Rename" },
-      "keywords": ["rename", "replace", "prefix", "suffix", "number", "批量", "重命名", "改名", "编号"],
-      "input": ["attachment-files"]
-    }
-  ]
+  "contributes": {
+    "commands": [
+      {
+        "id": "rename-files",
+        "title": { "key": "command.rename_files", "defaultValue": "Batch Rename" },
+        "keywords": ["rename", "replace", "prefix", "suffix", "number", "批量", "重命名", "改名", "编号"],
+        "input": ["attachment-files"]
+      }
+    ]
+  }
 }

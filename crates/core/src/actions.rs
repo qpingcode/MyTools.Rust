@@ -52,7 +52,6 @@ enum Operation {
     },
     /// Runs the current query again with a longer timeout.
     Retry(u32),
-    SearchPlugin(String),
 }
 
 pub enum ActionEffect {
@@ -121,15 +120,6 @@ impl Action {
         self
     }
 
-    pub(crate) fn with_search(
-        mut self,
-        id: String,
-        argument: std::sync::Arc<CommandArgument>,
-    ) -> Self {
-        self.operation = Operation::SearchPlugin(id);
-        self.with_argument(argument)
-    }
-
     /// This command on the selected `text`, saying whether it can be replaced.
     pub fn with_selection(&self, text: String, editable: bool) -> Self {
         let mut action = self.with_item(text);
@@ -142,15 +132,6 @@ impl Action {
         match &self.operation {
             Operation::Copy(text) => return Ok(ActionEffect::CopyText(text.clone())),
             Operation::Retry(attempt) => return Ok(ActionEffect::Retry(*attempt)),
-            Operation::SearchPlugin(id) => {
-                let Some(CommandArgument::Text { text }) = self.argument.as_deref() else {
-                    bail!(i18n::t("error.response_invalid"));
-                };
-                return Ok(ActionEffect::SearchPlugin {
-                    id: id.clone(),
-                    text: text.clone(),
-                });
-            }
             Operation::Open(path) | Operation::OpenApplication(path) => {
                 platform::open_application(path)?
             }

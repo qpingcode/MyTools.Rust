@@ -217,7 +217,7 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 | `search.aliasTimeoutMs` | 可选，通过别名单独搜索该插件时的等待上限（毫秒），默认 3000，范围 1000–15000。普通（全局）搜索固定 1 秒，不受此值影响 |
 | `view` | `list`（默认）、`list-detail`、`editor`（左侧多行输入、右侧单条结果）或 `chat`（对话），见[插件视图约定](docs/plugin-views.md)；只在该插件的搜索作用域内启用 |
 | `hotkey` | 可选全局唤起快捷键，进入插件第一个别名的搜索作用域；用户可在设置窗口中修改 |
-| `commands` | 可选，插件命令：可被搜索、可绑定全局快捷键，按快捷键时直接执行而不打开窗口，见“插件命令” |
+| `contributes.commands` | 可选，插件命令：可被搜索、可绑定全局快捷键，见“插件命令” |
 | `contributes.actions` | 可选，按规则为其他结果追加本插件的动作，见“为其他结果追加动作” |
 | `startup` | 可选，`eager`：随 MyTools 启动；`lazy`：第一次用到时才启动。省略时 `search.global` 为 `true` 的插件随 MyTools 启动，其他按需启动。需要在后台持续工作的插件（如剪贴板历史）应写 `eager`。可在设置窗口中为每个插件修改 |
 | `startupTimeoutMs` | 可选，插件完成初始化的时限（毫秒），覆盖 `config.json` 的 `plugin_startup_timeout_ms`，范围 1000–120000 |
@@ -227,16 +227,20 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 
 ### 插件命令
 
-`search` 类型插件可以在 `commands` 中声明命令。宿主直接从配置读取命令，不需要启动插件就能搜索和注册快捷键：
+`search` 类型插件在 `contributes.commands` 中声明命令。宿主读取清单后即可搜索命令和注册快捷键。旧版顶层 `commands` 也可读取，同时声明时以 `contributes.commands` 为准。
 
 ```json
-"commands": [{
-  "id": "paste-plain",
-  "title": { "key": "command.paste_plain", "defaultValue": "Paste Clipboard as Plain Text" },
-  "keywords": ["plain", "纯文本", "无格式"],
-  "icon": "builtin:type",
-  "hotkey": "Ctrl+Shift+Alt+V"
-}]
+{
+  "contributes": {
+    "commands": [{
+      "id": "paste-plain",
+      "title": { "key": "command.paste_plain", "defaultValue": "Paste Clipboard as Plain Text" },
+      "keywords": ["plain", "纯文本", "无格式"],
+      "icon": "builtin:type",
+      "hotkey": "Ctrl+Shift+Alt+V"
+    }]
+  }
+}
 ```
 
 | 字段 | 用途 |
@@ -252,9 +256,9 @@ scripts/              debug-run（编译并从 target 运行）、deploy（更�
 - 设置窗口（“打开设置”）和脚本管理窗口（“管理脚本”）都是命令：在全局搜索中输入“设置”“脚本”找到它们；设置插件因此不常驻，第一次打开设置时才启动。
 - 从搜索结果执行命令，或按命令的快捷键，宿主都向插件发送 `{"action":{"command":"<id>"}}`（不带 `item`），
   按需启动尚未运行的插件，并按插件返回的 `effect` 复制、粘贴。
-- 按快捷键执行时不显示 MyTools 窗口：宿主记住按键时的前台应用，`paste` 粘贴到该应用；失败时在右下角提示。
+- 按快捷键执行时，宿主记住按键时的前台应用。`paste` 粘贴到该应用，`search_query` 打开插件搜索，执行失败时在右下角提示。
   命令超过 0.4 秒仍未完成时，在当前窗口所在屏幕的中下方显示“正在<命令>…”，不抢焦点，完成后消失。
-- 仅支持 `attachment-text` 的命令可以声明 `"run": "search"`，把附件作为原文打开所属插件的搜索视图。需要先执行插件逻辑的命令也可以在执行结果中返回 `effect.search_query` 打开自己的搜索视图。
+- 插件通过命令处理函数决定执行结果。返回 `effect.search_query` 可以用这段原文打开所属插件的搜索视图。单纯把文本附件交给搜索时，可以复用 SDK 的 `text::search_attachment`。
 - 附件命令通过 `input: ["attachment-text", "attachment-files"]` 声明支持的类型，也可以在同一数组中添加 `"selection"` 或 `"selection-optional"`。执行附件命令时，宿主通过 `argument` 传入 `{"type":"text","text":"原文"}` 或 `{"type":"files","paths":[...]}`。
 - `"input": "selection"` 的命令（目前仅 Windows）：宿主先读取前台应用中选中的文字，作为 `item` 发送给插件。
   插件把结果放在 `effect.copy_text` 并设置 `paste: true`；选中的文字可编辑时宿主粘贴结果替换它，

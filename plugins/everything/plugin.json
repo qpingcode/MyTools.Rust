@@ -1,17 +1,4 @@
 {
-  "commands": [
-    {
-      "id": "search-text",
-      "title": {
-        "key": "command.search_text",
-        "defaultValue": "Search with Everything"
-      },
-      "input": [
-        "attachment-text"
-      ],
-      "run": "search"
-    }
-  ],
   "id": "everything",
   "name": {
     "key": "name",
@@ -27,5 +14,19 @@
   "search": {
     "global": false,
     "aliasTimeoutMs": 5000
+  },
+  "contributes": {
+    "commands": [
+      {
+        "id": "search-text",
+        "title": {
+          "key": "command.search_text",
+          "defaultValue": "Search with Everything"
+        },
+        "input": [
+          "attachment-text"
+        ]
+      }
+    ]
   }
 }

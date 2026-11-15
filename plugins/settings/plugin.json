@@ -15,37 +15,39 @@
     "global": false
   },
   "startup": "lazy",
-  "commands": [
-    {
-      "id": "open",
-      "title": {
-        "key": "open",
-        "defaultValue": "Open Settings"
+  "contributes": {
+    "commands": [
+      {
+        "id": "open",
+        "title": {
+          "key": "open",
+          "defaultValue": "Open Settings"
+        },
+        "keywords": [
+          "settings",
+          "setting",
+          "plugins",
+          "设置",
+          "插件"
+        ],
+        "icon": "builtin:settings"
       },
-      "keywords": [
-        "settings",
-        "setting",
-        "plugins",
-        "设置",
-        "插件"
-      ],
-      "icon": "builtin:settings"
-    },
-    {
-      "id": "data-folder",
-      "title": {
-        "key": "data_folder",
-        "defaultValue": "Open Data Folder"
-      },
-      "keywords": [
-        "data",
-        "config",
-        "folder",
-        "数据",
-        "配置",
-        "文件夹"
-      ],
-      "icon": "builtin:folder-open"
-    }
-  ]
+      {
+        "id": "data-folder",
+        "title": {
+          "key": "data_folder",
+          "defaultValue": "Open Data Folder"
+        },
+        "keywords": [
+          "data",
+          "config",
+          "folder",
+          "数据",
+          "配置",
+          "文件夹"
+        ],
+        "icon": "builtin:folder-open"
+      }
+    ]
+  }
 }

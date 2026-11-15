@@ -24,6 +24,13 @@ struct Manifest {
     hotkey: Option<String>,
     #[serde(default)]
     commands: Vec<mytools_plugin_api::commands::CommandManifest>,
+    #[serde(default)]
+    contributes: Contributes,
+}
+#[derive(Default, Deserialize)]
+struct Contributes {
+    #[serde(default)]
+    commands: Option<Vec<mytools_plugin_api::commands::CommandManifest>>,
 }
 #[derive(Default, Deserialize)]
 struct Search {
@@ -112,7 +119,11 @@ pub fn list(paths: &Paths) -> Result<Vec<Entry>> {
             hotkeys::list(
                 &manifest.id,
                 manifest.hotkey.as_deref(),
-                &manifest.commands,
+                manifest
+                    .contributes
+                    .commands
+                    .as_deref()
+                    .unwrap_or(&manifest.commands),
                 &settings,
                 |command| command.title.resolve(&directory, language),
             )
@@ -308,6 +319,12 @@ mod tests {
             list(&paths).unwrap()[index].hotkeys[1].hotkey,
             "Ctrl+Shift+Alt+P"
         );
+        let legacy_hotkeys = list(&paths).unwrap()[index].hotkeys.clone();
+        let mut nested = manifest;
+        let commands = nested.as_object_mut().unwrap().remove("commands").unwrap();
+        nested["contributes"] = serde_json::json!({"commands": commands});
+        std::fs::write(clipboard.join("plugin.json"), nested.to_string()).unwrap();
+        assert_eq!(list(&paths).unwrap()[index].hotkeys, legacy_hotkeys);
         entries[index].hotkeys[0].hotkey = "Ctrl+Shift+Alt+P".into();
         assert!(save(&paths, &entries).is_err());
         std::fs::remove_dir_all(&clipboard).unwrap();

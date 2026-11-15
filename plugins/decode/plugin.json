@@ -1,17 +1,4 @@
 {
-  "commands": [
-    {
-      "id": "decode-text",
-      "title": {
-        "key": "command.decode_text",
-        "defaultValue": "Decode Text"
-      },
-      "input": [
-        "attachment-text"
-      ],
-      "run": "search"
-    }
-  ],
   "id": "decode",
   "name": {
     "defaultValue": "Decode",
@@ -27,5 +14,19 @@
   "search": {
     "global": false
   },
-  "view": "list"
+  "view": "list",
+  "contributes": {
+    "commands": [
+      {
+        "id": "decode-text",
+        "title": {
+          "key": "command.decode_text",
+          "defaultValue": "Decode Text"
+        },
+        "input": [
+          "attachment-text"
+        ]
+      }
+    ]
+  }
 }

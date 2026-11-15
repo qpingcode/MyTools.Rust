@@ -41,12 +41,13 @@ fn search(query: &str, decode: bool, literal: bool, catalog: &Catalog) -> Vec<Se
 
 pub fn run(decode: bool, english: &str, chinese: &str) -> std::io::Result<()> {
     let catalog = Catalog::for_language(english, chinese).expect("bundled codec locales");
+    let command = if decode { "decode-text" } else { "encode-text" };
     mytools_plugin_api::serve_requests(
         |request| mytools_plugin_api::SearchResponse {
             items: search(&request.query, decode, request.literal, &catalog),
             ..Default::default()
         },
-        |_| Default::default(),
+        |action| text::search_attachment(action, command, catalog.get("input.error")),
     )
 }
 

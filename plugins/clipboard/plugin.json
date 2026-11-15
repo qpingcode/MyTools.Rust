@@ -18,42 +18,44 @@
   "view": "list-detail",
   "hotkey": "Ctrl+Shift+V",
   "startup": "eager",
-  "commands": [
-    {
-      "id": "paste-plain",
-      "title": {
-        "key": "command.paste_plain",
-        "defaultValue": "Paste Clipboard as Plain Text"
+  "contributes": {
+    "commands": [
+      {
+        "id": "paste-plain",
+        "title": {
+          "key": "command.paste_plain",
+          "defaultValue": "Paste Clipboard as Plain Text"
+        },
+        "keywords": [
+          "plain",
+          "text",
+          "paste",
+          "format",
+          "纯文本",
+          "无格式",
+          "粘贴"
+        ],
+        "icon": "builtin:type",
+        "hotkey": "Ctrl+Shift+Alt+V"
       },
-      "keywords": [
-        "plain",
-        "text",
-        "paste",
-        "format",
-        "纯文本",
-        "无格式",
-        "粘贴"
-      ],
-      "icon": "builtin:type",
-      "hotkey": "Ctrl+Shift+Alt+V"
-    },
-    {
-      "id": "count-characters",
-      "title": {
-        "key": "command.count_characters",
-        "defaultValue": "Count Characters"
+      {
+        "id": "count-characters",
+        "title": {
+          "key": "command.count_characters",
+          "defaultValue": "Count Characters"
+        },
+        "keywords": ["count", "text", "字数", "字符统计"],
+        "input": ["attachment-text"]
       },
-      "keywords": ["count", "text", "字数", "字符统计"],
-      "input": ["attachment-text"]
-    },
-    {
-      "id": "copy-paths",
-      "title": {
-        "key": "command.copy_paths",
-        "defaultValue": "Copy All Paths"
-      },
-      "keywords": ["copy", "paths", "复制", "路径"],
-      "input": ["attachment-files"]
-    }
-  ]
+      {
+        "id": "copy-paths",
+        "title": {
+          "key": "command.copy_paths",
+          "defaultValue": "Copy All Paths"
+        },
+        "keywords": ["copy", "paths", "复制", "路径"],
+        "input": ["attachment-files"]
+      }
+    ]
+  }
 }

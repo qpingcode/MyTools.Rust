@@ -1,5 +1,4 @@
 {
-  "error.command_search_input": "Command {id} must accept only text attachments to run a search.",
   "error.plugin_unavailable": "Plugin {id} is unavailable.",
   "error.action_in_progress": "Plugin action is still running; results will refresh when it completes",
   "error.plugin_directory": "Plugin directory does not exist",

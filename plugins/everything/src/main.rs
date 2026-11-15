@@ -154,7 +154,14 @@ fn retry_hint(title: &str, catalog: &Catalog) -> SearchItem {
     item
 }
 
-fn action(request: PluginActionRequest) -> SearchResponse {
+fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
+    if request.command == "search-text" {
+        return mytools_plugin_api::text::search_attachment(
+            request,
+            "search-text",
+            catalog.get("input.error"),
+        );
+    }
     if request.command != RETRY {
         return SearchResponse {
             error: Some(format!("unknown command {}", request.command)),
@@ -267,7 +274,7 @@ fn main() -> std::io::Result<()> {
             items: search(query, &catalog),
             ..Default::default()
         },
-        action,
+        |request| action(request, &catalog),
     )
 }
 

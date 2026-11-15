@@ -1,4 +1,5 @@
 {
+  "input.error": "Could not read the text attachment.",
   "command.search_text": "Search with Everything",
   "name": "Everything",
   "usage": "Type a file or folder name; Everything search syntax is supported",

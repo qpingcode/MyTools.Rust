@@ -17,32 +17,34 @@
   },
   "view": "editor",
   "hotkey": "Alt+V",
-  "commands": [
-    {
-      "id": "translate-attachment",
-      "title": {
-        "key": "command.translate_attachment",
-        "defaultValue": "Translate Text"
+  "contributes": {
+    "commands": [
+      {
+        "id": "translate-attachment",
+        "title": {
+          "key": "command.translate_attachment",
+          "defaultValue": "Translate Text"
+        },
+        "input": [
+          "attachment-text"
+        ]
       },
-      "input": [
-        "attachment-text"
-      ]
-    },
-    {
-      "id": "translate-selection",
-      "title": {
-        "key": "command.selection",
-        "defaultValue": "Translate Selection"
-      },
-      "keywords": [
-        "selection",
-        "replace",
-        "划词",
-        "选中",
-        "翻译"
-      ],
-      "hotkey": "Ctrl+Alt+T",
-      "input": "selection"
-    }
-  ]
+      {
+        "id": "translate-selection",
+        "title": {
+          "key": "command.selection",
+          "defaultValue": "Translate Selection"
+        },
+        "keywords": [
+          "selection",
+          "replace",
+          "划词",
+          "选中",
+          "翻译"
+        ],
+        "hotkey": "Ctrl+Alt+T",
+        "input": "selection"
+      }
+    ]
+  }
 }

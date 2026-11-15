@@ -66,7 +66,7 @@ pub fn run(action: Action, origin: Origin) {
             run_on_selection(&action, origin, &window, &toast).await
         } else {
             toast.start(running(&command), String::new());
-            execute(&action).await
+            execute(&action, &window).await
         };
         toast.close();
         if let Err(error) = result {
@@ -111,7 +111,7 @@ async fn wait(duration: Duration) -> Result<()> {
     .await
 }
 
-async fn execute(action: &Action) -> Result<()> {
+async fn execute(action: &Action, window: &slint::Weak<MainWindow>) -> Result<()> {
     let worker = action.clone();
     let effect = background(move || worker.execute()).await?;
     match effect {
@@ -124,7 +124,8 @@ async fn execute(action: &Action) -> Result<()> {
             }
         }
         ActionEffect::CopyText(text) => arboard::Clipboard::new()?.set_text(text)?,
-        ActionEffect::Completed | ActionEffect::Retry(_) | ActionEffect::SearchPlugin { .. } => {}
+        ActionEffect::SearchPlugin { id, text } => open_plugin_search(window, id, text),
+        ActionEffect::Completed | ActionEffect::Retry(_) => {}
     }
     Ok(())
 }
@@ -167,6 +168,11 @@ async fn run_on_selection(
     };
     let effect = match result {
         Ok(ActionEffect::Plugin(effect)) => effect,
+        Ok(ActionEffect::SearchPlugin { id, text }) => {
+            restore(selection.previous_clipboard)?;
+            open_plugin_search(window, id, text);
+            return Ok(());
+        }
         Ok(_) => return restore(selection.previous_clipboard),
         Err(error) => {
             restore(selection.previous_clipboard)?;
@@ -204,6 +210,13 @@ async fn run_on_selection(
         None => arboard::Clipboard::new()?.set_text(output)?,
     }
     Ok(())
+}
+
+fn open_plugin_search(window: &slint::Weak<MainWindow>, id: String, text: String) {
+    if let Some(ui) = window.upgrade() {
+        desktop::show(&ui);
+        ui.invoke_open_plugin_search(id.into(), text.into());
+    }
 }
 
 /// Shows the plugin's scope with `text` in its input, as if typed there.

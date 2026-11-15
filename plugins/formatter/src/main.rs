@@ -40,7 +40,7 @@ fn main() -> std::io::Result<()> {
             items: search(&request.query, request.literal, &catalog),
             ..Default::default()
         },
-        |_| Default::default(),
+        |action| text::search_attachment(action, "format-text", catalog.get("input.error")),
     )
 }
 

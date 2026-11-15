@@ -1012,7 +1012,6 @@ mod tests {
             icon: "builtin:type".into(),
             hotkey: hotkey.map(str::to_owned),
             input: Default::default(),
-            run: Default::default(),
         }];
         plugin
     }
@@ -1098,25 +1097,6 @@ mod tests {
             panic!("a selection command shortcut");
         };
         assert!(action.needs_selection());
-    }
-
-    #[test]
-    fn attachment_search_command_targets_its_plugin_and_keeps_literal_input() {
-        use mytools_plugin_api::{CommandArgument, commands::CommandRun};
-
-        let mut plugin = with_command(plugin(), None);
-        let id = plugin.id.clone();
-        plugin.commands[0].input = serde_json::from_str(r#"["attachment-text"]"#).unwrap();
-        plugin.commands[0].run = CommandRun::Search;
-        let catalog = catalog(vec![plugin]);
-        let text = "  @notes.txt\n";
-        let attachment = Arc::new(CommandArgument::Text { text: text.into() });
-        let results = catalog.search_attachment("", &attachment);
-        assert!(matches!(
-            results.entries[0].actions[0].execute().unwrap(),
-            crate::actions::ActionEffect::SearchPlugin { id: target, text: input }
-                if target == id && input == text
-        ));
     }
 
     #[test]

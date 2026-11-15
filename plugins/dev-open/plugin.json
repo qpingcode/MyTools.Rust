@@ -1,16 +1,4 @@
 {
-  "commands": [
-    {
-      "id": "open-selection",
-      "title": {
-        "key": "command.open_selection",
-        "defaultValue": "Open Selected Project in IDE"
-      },
-      "input": [
-        "attachment-files"
-      ]
-    }
-  ],
   "id": "dev-open",
   "name": {
     "key": "name",
@@ -27,6 +15,18 @@
     "global": true
   },
   "contributes": {
+    "commands": [
+      {
+        "id": "open-selection",
+        "title": {
+          "key": "command.open_selection",
+          "defaultValue": "Open Selected Project in IDE"
+        },
+        "input": [
+          "attachment-files"
+        ]
+      }
+    ],
     "actions": [
       {
         "when": { "type": ["file", "folder"] },

@@ -17,20 +17,22 @@
     "global": true
   },
   "view": "list-detail",
-  "commands": [
-    {
-      "id": "manage",
-      "title": {
-        "key": "manage",
-        "defaultValue": "Manage Scripts"
-      },
-      "keywords": [
-        "scripts",
-        "script",
-        "脚本",
-        "管理"
-      ],
-      "icon": "builtin:square-terminal"
-    }
-  ]
+  "contributes": {
+    "commands": [
+      {
+        "id": "manage",
+        "title": {
+          "key": "manage",
+          "defaultValue": "Manage Scripts"
+        },
+        "keywords": [
+          "scripts",
+          "script",
+          "脚本",
+          "管理"
+        ],
+        "icon": "builtin:square-terminal"
+      }
+    ]
+  }
 }

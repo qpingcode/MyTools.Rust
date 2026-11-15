@@ -1,5 +1,8 @@
 //! Helpers for text-oriented search plugins using the host's existing layouts.
-use crate::{ActionId, ActionSpec, Preview, Resource, SearchItem};
+use crate::{
+    ActionId, ActionSpec, CommandArgument, PluginActionRequest, PluginEffect, Preview, Resource,
+    SearchItem, SearchResponse,
+};
 use std::{io::Read, path::Path};
 
 pub const INPUT_LIMIT: usize = 16 * 1024;
@@ -27,6 +30,30 @@ pub fn read_input(value: &str, literal: bool) -> Result<String, String> {
         return Err(format!("{INPUT_LIMIT} bytes"));
     }
     Ok(value)
+}
+
+/// Handles an action that opens the plugin's search on a literal text attachment.
+pub fn search_attachment(
+    request: PluginActionRequest,
+    command: &str,
+    invalid_input: &str,
+) -> SearchResponse {
+    if request.command == command
+        && let Some(CommandArgument::Text { text }) = request.argument
+    {
+        SearchResponse {
+            effect: Some(PluginEffect {
+                search_query: Some(text),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    } else {
+        SearchResponse {
+            error: Some(invalid_input.into()),
+            ..Default::default()
+        }
+    }
 }
 
 pub fn item(title: impl Into<String>, text: String, description: impl Into<String>) -> SearchItem {
@@ -94,6 +121,35 @@ pub fn command(command: &str, title: String) -> ActionSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_attachment_returns_the_literal_query_only_for_the_expected_command() {
+        let mut request = PluginActionRequest {
+            command: "format-text".into(),
+            item: None,
+            editable: None,
+            argument: Some(CommandArgument::Text {
+                text: "  @file.txt\n".into(),
+            }),
+        };
+        let response = search_attachment(request.clone(), "format-text", "invalid");
+        assert_eq!(
+            response.effect.unwrap().search_query.as_deref(),
+            Some("  @file.txt\n")
+        );
+        assert!(
+            search_attachment(request.clone(), "other", "invalid")
+                .effect
+                .is_none()
+        );
+        request.argument = Some(CommandArgument::Files { paths: vec![] });
+        assert_eq!(
+            search_attachment(request, "format-text", "invalid")
+                .error
+                .as_deref(),
+            Some("invalid")
+        );
+    }
 
     #[test]
     fn editor_results_show_text_and_prompts_show_title_and_description() {

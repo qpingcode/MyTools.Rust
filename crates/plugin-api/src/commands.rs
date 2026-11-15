@@ -2,13 +2,13 @@
 //! bind to a global shortcut) without asking the plugin first.
 //!
 //! ```json
-//! "commands": [{
+//! "contributes": { "commands": [{
 //!   "id": "paste-plain",
 //!   "title": { "key": "command.paste_plain", "defaultValue": "Paste as Plain Text" },
 //!   "keywords": ["plain", "纯文本"],
 //!   "icon": "builtin:type",
 //!   "hotkey": "Ctrl+Shift+Alt+V"
-//! }]
+//! }] }
 //! ```
 //!
 //! Running one sends the plugin the action `{"command":"<id>"}` without an `item`; with
@@ -57,17 +57,6 @@ pub struct CommandManifest {
     /// The input modes the command accepts.
     #[serde(default)]
     pub input: CommandInput,
-    #[serde(default)]
-    pub run: CommandRun,
-}
-
-/// Whether the host calls the plugin action or opens its search on the text attachment.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum CommandRun {
-    #[default]
-    Action,
-    Search,
 }
 
 /// What a command works on.
