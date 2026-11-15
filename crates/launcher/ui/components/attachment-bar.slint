@@ -7,15 +7,18 @@ export component AttachmentBar inherits Rectangle {
     in property <string> details;
     callback detach();
     private property <bool> expanded;
+    private property <length> header-height: 36px;
+    private property <length> details-height: min(contents.preferred-height, 96px);
     changed details => { self.expanded = false; }
-    height: self.label == "" ? 0px : self.expanded ? 128px : 36px;
+    height: self.label == "" ? 0px : self.header-height
+        + (self.expanded ? self.details-height + 8px : 0px);
     visible: self.label != "";
     border-radius: Theme.radius;
     background: Theme.selected;
     clip: true;
 
     Rectangle {
-        width: parent.width - 36px; height: 36px;
+        x: 0px; y: 0px; width: parent.width - 36px; height: root.header-height;
         Text {
             x: 10px; width: parent.width - 16px; height: parent.height;
             text: root.label; overflow: elide; vertical-alignment: center;
@@ -30,7 +33,7 @@ export component AttachmentBar inherits Rectangle {
         accessible-action-default => { root.expanded = !root.expanded; }
     }
     Rectangle {
-        x: parent.width - 34px; width: 32px; height: 36px;
+        x: parent.width - 34px; y: 0px; width: 32px; height: root.header-height;
         background: remove.has-hover ? Theme.hover : transparent;
         Text {
             text: "×"; horizontal-alignment: center; vertical-alignment: center;
@@ -41,13 +44,17 @@ export component AttachmentBar inherits Rectangle {
         accessible-label: I18n.text("attachment.remove");
         accessible-action-default => { root.detach(); }
     }
-    if root.expanded: details-scroll := ScrollView {
-        x: 10px; y: 36px; width: parent.width - 20px; height: parent.height - 40px;
+    details-scroll := ScrollView {
+        x: 10px; y: root.header-height; width: parent.width - 20px;
+        height: root.details-height;
+        visible: root.expanded;
         content-width: self.visible-width;
         content-height: contents.preferred-height;
         contents := Text {
-            width: details-scroll.visible-width;
+            x: 0px; y: 0px;
+            width: details-scroll.visible-width; height: self.preferred-height;
             text: root.details; wrap: word-wrap; color: Theme.muted; font-size: Theme.font-small;
+            vertical-alignment: top;
         }
     }
 }
