@@ -5,6 +5,7 @@ use crate::{
     file_mcp::{self, FileMcp},
     files::{Plan, Scope},
     session::{Ending, Event, Model},
+    skills::{self, Skills},
     tools::{Offered, Toolbox},
 };
 use mytools_ai::{Delta, Stopped, ToolCall, mcp::ServersFile};
@@ -21,6 +22,7 @@ const MAX_ROUNDS: usize = 6;
 pub struct DeepSeek {
     pub catalog: &'static Catalog,
     pub toolbox: Mutex<Toolbox>,
+    pub skills: Skills,
 }
 
 impl Model for DeepSeek {
@@ -74,12 +76,20 @@ impl Model for DeepSeek {
             prompt.push_str("\n\n");
             prompt.push_str(file_mcp::GUIDANCE);
         }
+        let skill_prompt = self.skills.prompt();
+        if let Some(index) = &skill_prompt {
+            prompt.push_str("\n\n");
+            prompt.push_str(index);
+        }
         let mut messages = vec![json!({"role": "system", "content": prompt})];
         messages.extend(history.iter().filter_map(model_message));
-        let tools: Vec<Value> = match &mut files {
+        let mut tools: Vec<Value> = match &mut files {
             Some(files) => files.functions(),
             None => offered.iter().map(function).collect(),
         };
+        if skill_prompt.is_some() {
+            tools.push(Skills::function());
+        }
         let mut wrote = false;
         for round in 0..=MAX_ROUNDS {
             let mut body = json!({"max_tokens": config.max_tokens, "messages": messages});
@@ -124,7 +134,12 @@ impl Model for DeepSeek {
             }
             messages.push(assistant);
             for call in &calls {
-                let content = if let Some(files) = &mut files {
+                let content = if call.name == skills::LOAD {
+                    if !(conversation.on_event)(Event::Text(String::new())) {
+                        return Ok(Ending::Cancelled);
+                    }
+                    self.skills.call(&call.arguments)
+                } else if let Some(files) = &mut files {
                     if !(conversation.on_event)(Event::Text(String::new())) {
                         return Ok(Ending::Cancelled);
                     }

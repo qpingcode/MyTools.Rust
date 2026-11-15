@@ -43,6 +43,8 @@ def main():
             shutil.copy2(manifest, destination / "plugin.json")
             shutil.copy2(ROOT / "target/release" / metadata["entry"], destination / metadata["entry"])
             shutil.copytree(manifest.parent / "locales", destination / "locales")
+            if (manifest.parent / "skills").is_dir():
+                shutil.copytree(manifest.parent / "skills", destination / "skills")
             for example in manifest.parent.glob("*.example.json"):
                 shutil.copy2(example, destination / example.name)
         shutil.copy2(ROOT / "README.md", resources / "README.md")

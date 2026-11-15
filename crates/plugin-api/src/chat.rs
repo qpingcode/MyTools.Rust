@@ -37,7 +37,8 @@ pub struct ChatMessage {
     /// Generated locally from an operation that may contain paths or mutation details.
     #[serde(default, skip_serializing_if = "crate::is_false")]
     pub local_only: bool,
-    /// A one-time action attached to the current assistant response.
+    /// A one-time action attached to the current assistant response. Clicking sends
+    /// `{"command":"confirm","item":"<id>"}` back to the plugin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirmation: Option<ChatConfirmation>,
     /// What the model thought before answering, for models that share it.

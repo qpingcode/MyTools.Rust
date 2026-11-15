@@ -81,6 +81,12 @@ try {
         foreach ($locale in Get-ChildItem -Path (Join-Path $manifest.Directory.FullName 'locales') -Filter '*.json') {
             $changed = (Update-File $locale.FullName (Join-Path $directory "locales/$($locale.Name)")) -or $changed
         }
+        $skills = Join-Path $manifest.Directory.FullName 'skills'
+        if (Test-Path -LiteralPath $skills) {
+            foreach ($skill in Get-ChildItem -Path (Join-Path $skills '*/SKILL.md') -File) {
+                $changed = (Update-File $skill.FullName (Join-Path $directory "skills/$($skill.Directory.Name)/SKILL.md")) -or $changed
+            }
+        }
         # Examples such as config.example.json and mcp.example.json; the user's own copies live
         # in %LOCALAPPDATA%\MyTools\<plugin>.
         foreach ($example in Get-ChildItem -Path $manifest.Directory.FullName -Filter '*.example.json') {

@@ -36,6 +36,10 @@ try {
         New-Item -ItemType Directory -Force -Path $localeDirectory | Out-Null
         Get-ChildItem -LiteralPath (Join-Path $root "plugins/$plugin/locales") -Filter '*.json' |
             Copy-Item -Destination $localeDirectory
+        $skills = Join-Path $manifest.Directory.FullName 'skills'
+        if (Test-Path -LiteralPath $skills) {
+            Copy-Item -LiteralPath $skills -Destination $pluginDirectory -Recurse -Force
+        }
         Copy-Item -LiteralPath (Join-Path $output "$entry.exe") -Destination $pluginDirectory
         Get-ChildItem -Path (Join-Path $root "plugins/$plugin") -Filter '*.example.json' |
             Copy-Item -Destination $pluginDirectory

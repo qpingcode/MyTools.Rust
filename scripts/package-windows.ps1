@@ -35,6 +35,10 @@ try {
         $executable = "$($metadata.entry).exe"
         Copy-Item -LiteralPath (Join-Path $source $executable) -Destination $directory
         Copy-Item -LiteralPath (Join-Path $manifest.Directory.FullName 'locales') -Destination $directory -Recurse
+        $skills = Join-Path $manifest.Directory.FullName 'skills'
+        if (Test-Path -LiteralPath $skills) {
+            Copy-Item -LiteralPath $skills -Destination $directory -Recurse
+        }
         Get-ChildItem -Path $manifest.Directory.FullName -Filter '*.example.json' |
             Copy-Item -Destination $directory
     }

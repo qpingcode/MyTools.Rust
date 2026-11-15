@@ -8,6 +8,7 @@ mod files;
 mod history;
 mod mcp_server;
 mod session;
+mod skills;
 mod tools;
 mod web;
 
@@ -206,6 +207,13 @@ fn main() -> std::io::Result<()> {
     let model = answer::DeepSeek {
         catalog,
         toolbox: Mutex::new(tools::Toolbox::default()),
+        skills: skills::Skills::discover(
+            std::env::current_exe()
+                .ok()
+                .and_then(|path| path.parent().map(|dir| dir.join("skills")))
+                .into_iter()
+                .chain(std::iter::once(config::directory().join("skills"))),
+        ),
     };
     let session = Session::new(
         Arc::new(model),
