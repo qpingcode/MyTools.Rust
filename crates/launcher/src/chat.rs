@@ -199,7 +199,15 @@ fn show(ui: &MainWindow, chat: &mut ChatState, session: ChatSession) {
     }
     let session_grew = same && session.chat.messages.len() > old.len();
     ui.set_chat_busy(session.chat.busy());
-    ui.set_chat_attachment(session.chat.attachment.clone().unwrap_or_default().into());
+    let attachment_preview = session
+        .chat
+        .attachment
+        .as_deref()
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    ui.set_chat_attachment(attachment_preview.into());
     chat.session = Some(session);
     if changed {
         // A new question or conversation shows its end even after scrolling up.

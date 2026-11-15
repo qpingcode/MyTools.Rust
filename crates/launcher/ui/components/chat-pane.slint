@@ -454,6 +454,7 @@ export component ChatPane inherits Rectangle {
         width: parent.width - 24px; height: root.chip-height - 6px;
         background: Theme.selected;
         border-radius: Theme.radius;
+        clip: true;
         HorizontalLayout {
             padding-left: 10px; padding-right: 4px; spacing: 8px;
             Icon {
