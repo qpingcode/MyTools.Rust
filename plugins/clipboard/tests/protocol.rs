@@ -192,7 +192,9 @@ fn searches_previews_and_executes_commands_in_one_resident_session() {
     let response = fixture.request(serde_json::json!({
         "action":{"command":"count-characters","argument":{"type":"text","text":" 你好\n"}}
     }));
-    assert!(response.effect.unwrap().message.contains('4'));
+    let effect = response.effect.unwrap();
+    assert!(effect.result_text.unwrap().contains('4'));
+    assert!(effect.message.is_empty());
     let deleted =
         fixture.request(serde_json::json!({"action":{"command":"delete","item":"a".repeat(64)}}));
     assert!(deleted.effect.unwrap().refresh);

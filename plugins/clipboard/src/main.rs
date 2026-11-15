@@ -52,10 +52,10 @@ fn execute(
     match (request.command.as_str(), request.argument.as_ref()) {
         ("count-characters", Some(CommandArgument::Text { text })) => {
             return Ok(PluginEffect {
-                message: i18n::format(
+                result_text: Some(i18n::format(
                     "attachment.character_count",
                     &[("count", &text.chars().count().to_string())],
-                ),
+                )),
                 ..Default::default()
             });
         }

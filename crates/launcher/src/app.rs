@@ -300,6 +300,8 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
 /// Searches `text` as the newest query; older results are ignored when they arrive.
 fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String) {
     actions::close_panel(ui, state);
+    ui.set_command_session(false);
+    ui.set_command_result("".into());
     state.generation += 1;
     let searching = match state
         .attachment

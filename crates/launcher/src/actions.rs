@@ -116,6 +116,7 @@ fn wire_execution(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             ui.set_selected(index);
             close_panel(&ui, &mut state);
             sync_selection(&ui, &state);
+            crate::attachments::consume(&ui, &mut state);
             start_action(&ui, action);
         }
     });
@@ -134,6 +135,7 @@ fn wire_execution(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             .cloned();
         if let Some(action) = action {
             close_panel(&ui, &mut state);
+            crate::attachments::consume(&ui, &mut state);
             start_action(&ui, action);
         }
     });
@@ -280,21 +282,24 @@ fn start_action(ui: &MainWindow, action: Action) {
     );
     ui.set_action_busy(true);
     let query = ui.get_query();
-    let attachment = ui.get_attachment_details();
+    let command_session = ui.get_command_session();
     let weak = ui.as_weak();
     std::thread::spawn(move || {
         let result = action.execute();
         let _ = weak.upgrade_in_event_loop(move |ui| {
+            let current = || {
+                ui.get_query() == query
+                    && ui.get_command_session() == command_session
+                    && ui.get_attachment_label().is_empty()
+            };
+            let mut showed_result = false;
             let message = result.and_then(|effect| match effect {
                 ActionEffect::CopyText(text) => {
                     arboard::Clipboard::new()?.set_text(text.clone())?;
                     Ok(i18n::format("status.copied", &[("text", &text)]))
                 }
                 ActionEffect::Completed => {
-                    if action.dismiss_on_success()
-                        && ui.get_query() == query
-                        && ui.get_attachment_details() == attachment
-                    {
+                    if action.dismiss_on_success() && current() {
                         ui.hide()?;
                     }
                     Ok(i18n::format(
@@ -317,10 +322,14 @@ fn start_action(ui: &MainWindow, action: Action) {
                     if effect.refresh {
                         ui.invoke_refresh();
                     }
-                    if effect.dismiss
-                        && ui.get_query() == query
-                        && ui.get_attachment_details() == attachment
+                    if let Some(text) = effect.result_text
+                        && current()
                     {
+                        ui.set_command_session(true);
+                        ui.set_command_result(text.into());
+                        showed_result = true;
+                    }
+                    if effect.dismiss && current() {
                         ui.invoke_normal_launch();
                         ui.hide()?;
                     }
@@ -337,7 +346,7 @@ fn start_action(ui: &MainWindow, action: Action) {
             }
             ui.set_action_busy(false);
             // A completed action must not replace the status of a newer search.
-            if ui.get_query() == query && ui.get_attachment_details() == attachment {
+            if current() || showed_result {
                 match message {
                     Ok(message) => {
                         ui.set_failed(false);

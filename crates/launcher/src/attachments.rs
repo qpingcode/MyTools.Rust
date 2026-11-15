@@ -18,9 +18,8 @@ pub fn wire(
             state.attachment_open = state.attachment_open.wrapping_add(1);
             state.attachment.take().is_some()
         };
-        if removed {
-            ui.set_attachment_label("".into());
-            ui.set_attachment_details("".into());
+        if removed || ui.get_command_session() {
+            clear_bar(&ui);
             ui.invoke_search(ui.get_query());
         }
     });
@@ -81,6 +80,26 @@ pub fn wire(
     Ok(move |source| {
         let _ = sender.try_send(source);
     })
+}
+
+fn clear_bar(ui: &MainWindow) {
+    ui.set_attachment_label("".into());
+    ui.set_attachment_details("".into());
+}
+
+pub fn consume(ui: &MainWindow, state: &mut State) {
+    if state.attachment.take().is_none() {
+        return;
+    }
+    state.attachment_open = state.attachment_open.wrapping_add(1);
+    state.entries.clear();
+    clear_bar(ui);
+    ui.set_results(Default::default());
+    ui.set_empty_text("".into());
+    ui.set_status("".into());
+    ui.set_failed(false);
+    ui.set_command_session(true);
+    crate::actions::sync_selection(ui, state);
 }
 
 fn attachment_display(attachment: &CommandArgument) -> (String, String) {

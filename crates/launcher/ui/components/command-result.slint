@@ -1,0 +1,31 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../../../../ui/theme.slint";
+import { I18n } from "../../../../ui/i18n.slint";
+import { AppButton } from "../../../../ui/components/button.slint";
+
+export component CommandResult inherits Rectangle {
+    in property <string> text;
+    callback copy();
+
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 12px;
+        ScrollView {
+            horizontal-stretch: 1;
+            content-width: self.visible-width;
+            content-height: result-text.preferred-height;
+            result-text := Text {
+                x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
+                text: root.text; wrap: word-wrap; vertical-alignment: top;
+                font-size: Theme.font-title; color: Theme.foreground;
+            }
+        }
+        VerticalLayout {
+            alignment: start;
+            AppButton {
+                text: I18n.text("actions.copy");
+                clicked => { root.copy(); }
+            }
+        }
+    }
+}
