@@ -66,20 +66,13 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
         });
     tray.global::<I18n>().on_text(|key| i18n::t(&key).into());
     about.global::<I18n>().on_text(|key| i18n::t(&key).into());
-    tray.set_tooltip_text(
-        i18n::format(
-            "tray.tooltip",
-            &[(
-                "shortcut",
-                if cfg!(target_os = "macos") {
-                    "Option+Space"
-                } else {
-                    "Alt+Space"
-                },
-            )],
-        )
-        .into(),
-    );
+    let hotkeys = config
+        .as_ref()
+        .map(|config| config.hotkeys.clone())
+        .unwrap_or_default();
+    let shortcut = mytools_plugin_api::hotkeys::normalize(&hotkeys.launcher_hotkey)
+        .unwrap_or_else(|| hotkeys.launcher_hotkey.clone());
+    tray.set_tooltip_text(i18n::format("tray.tooltip", &[("shortcut", &shortcut)]).into());
     let font = crate::fonts::UI_FONT;
     crate::fonts::prefer_ui_font_for_chinese();
     ui.set_app_font_family(font.into());
@@ -105,10 +98,6 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     for error in &theme_errors {
         mytools_plugin_api::log::error("config.invalid", format!("theme setting ignored: {error}"));
     }
-    let selection_hotkey = config
-        .as_ref()
-        .ok()
-        .and_then(|config| config.selection_hotkey.clone());
     if let Err(error) = config {
         initial.desktop_error = Some(i18n::format(
             "config.invalid",
@@ -204,12 +193,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
         let _ = command_sender.send_blocking(action);
     };
     let capture_selection = crate::attachments::wire(&ui, &state, notifier.clone())?;
-    match desktop::Desktop::new(
-        &ui,
-        selection_hotkey.as_deref(),
-        run_command,
-        capture_selection,
-    ) {
+    match desktop::Desktop::new(&ui, &hotkeys, run_command, capture_selection) {
         Ok(mut created) => {
             if let Some(message) = created.selection_hotkey_error.take() {
                 startup_notices.push(Notice {
@@ -220,7 +204,7 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
             *desktop.borrow_mut() = Some(created);
         }
         Err(error) => {
-            // Without Alt+Space the window would be hard to reach, so it opens as well.
+            // Without the launcher shortcut the window would be hard to reach, so it opens as well.
             let message = format!("{error:#}");
             state.borrow_mut().desktop_error = Some(message.clone());
             startup_notices.push(Notice {

@@ -3,7 +3,40 @@
 //! Parsing accepts the usual spellings of modifiers and keys; [`Hotkey`]'s `Display` gives
 //! one canonical spelling, so the settings window can compare and show shortcuts, and
 //! [`Hotkey::registration`] gives the spelling the host's hotkey library registers.
-use std::fmt;
+use std::{fmt, path::PathBuf};
+
+/// The host-owned global shortcuts in config.json.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(default)]
+pub struct LauncherHotkeys {
+    pub launcher_hotkey: String,
+    pub selection_hotkey: Option<String>,
+}
+
+impl Default for LauncherHotkeys {
+    fn default() -> Self {
+        Self {
+            launcher_hotkey: "Alt+Space".into(),
+            selection_hotkey: Some("Alt+X".into()),
+        }
+    }
+}
+
+impl LauncherHotkeys {
+    pub fn selection(&self) -> Option<&str> {
+        if cfg!(windows) {
+            self.selection_hotkey.as_deref()
+        } else {
+            None
+        }
+    }
+}
+
+pub fn launcher_config_path() -> PathBuf {
+    std::env::var_os("MYTOOLS_CONFIG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| crate::dirs::root().join("config.json"))
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Hotkey {

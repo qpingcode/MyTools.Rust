@@ -56,7 +56,7 @@
   "tray.tooltip": "MyTools · {shortcut}",
   "about.title": "关于 MyTools",
   "desktop.init_failed": "无法初始化全局快捷键",
-  "desktop.register_failed": "无法注册 Alt+空格，可能已被其他程序占用",
+  "desktop.register_failed": "无法注册 {shortcut}，可能已被其他程序占用",
   "desktop.show_failed": "无法显示窗口：{error}",
   "config.invalid": "无法加载配置：{error}",
   "tray.language": "语言",

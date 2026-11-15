@@ -1,5 +1,6 @@
 {
-  "selection_hotkey": "",
+  "launcher_hotkey": "Alt+Space",
+  "selection_hotkey": "Alt+X",
   "language": "auto",
   "plugin_startup_timeout_ms": 10000,
   "log_level": "info",

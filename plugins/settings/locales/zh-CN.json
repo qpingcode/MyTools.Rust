@@ -60,5 +60,5 @@
   "hotkeys.label": "快捷键：",
   "error.hotkey": "{name} 的快捷键“{hotkey}”无效，请按 Ctrl+Shift+V 的格式填写。",
   "error.duplicate_hotkey": "快捷键 {hotkey} 同时被 {first} 和 {second} 使用。",
-  "error.hotkey_launcher": "{hotkey} 用于打开 MyTools，不能分配给插件。"
+  "error.hotkey_launcher": "{hotkey} 已由 MyTools 占用，不能分配给插件。"
 }

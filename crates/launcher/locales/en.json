@@ -56,7 +56,7 @@
   "tray.tooltip": "MyTools · {shortcut}",
   "about.title": "About MyTools",
   "desktop.init_failed": "Cannot initialize global shortcut",
-  "desktop.register_failed": "Cannot register Alt+Space; another application may be using it",
+  "desktop.register_failed": "Cannot register {shortcut}; another application may be using it",
   "desktop.show_failed": "Cannot show window: {error}",
   "config.invalid": "Cannot load configuration: {error}",
   "tray.language": "Language",

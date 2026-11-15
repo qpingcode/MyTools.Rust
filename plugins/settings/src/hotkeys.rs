@@ -4,13 +4,10 @@ use crate::i18n;
 use anyhow::{Result, ensure};
 use mytools_plugin_api::{
     commands::CommandManifest,
-    hotkeys::normalize,
+    hotkeys::{LauncherHotkeys, launcher_config_path, normalize},
     plugin_settings::{CommandOverride, Override, Settings},
 };
 use std::collections::BTreeMap;
-
-/// The launcher's own shortcut, which no plugin may take.
-const LAUNCHER: &str = "Alt+Space";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hotkey {
@@ -81,6 +78,22 @@ pub fn apply(hotkeys: &[Hotkey], item: &mut Override) {
 /// Every shortcut must be valid, and those of enabled plugins must differ from each other
 /// and from the launcher's.
 pub fn validate<'a>(plugins: impl Iterator<Item = (&'a str, bool, &'a [Hotkey])>) -> Result<()> {
+    let hotkeys = std::fs::read(launcher_config_path())
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default();
+    validate_with(plugins, &hotkeys)
+}
+
+fn validate_with<'a>(
+    plugins: impl Iterator<Item = (&'a str, bool, &'a [Hotkey])>,
+    hotkeys: &LauncherHotkeys,
+) -> Result<()> {
+    let reserved: Vec<_> = [Some(hotkeys.launcher_hotkey.as_str()), hotkeys.selection()]
+        .into_iter()
+        .flatten()
+        .filter_map(normalize)
+        .collect();
     let mut seen: Vec<(String, String)> = Vec::new();
     for (name, enabled, hotkeys) in plugins {
         for hotkey in hotkeys {
@@ -103,8 +116,8 @@ pub fn validate<'a>(plugins: impl Iterator<Item = (&'a str, bool, &'a [Hotkey])>
                 continue;
             }
             ensure!(
-                normalized != LAUNCHER,
-                i18n::format("error.hotkey_launcher", &[("hotkey", LAUNCHER)])
+                !reserved.contains(&normalized),
+                i18n::format("error.hotkey_launcher", &[("hotkey", &normalized)])
             );
             if let Some((_, first)) = seen.iter().find(|(known, _)| *known == normalized) {
                 anyhow::bail!(i18n::format(
@@ -158,14 +171,56 @@ mod tests {
     fn rejects_invalid_duplicate_and_reserved_shortcuts() {
         let one = [hotkey(None, "", "Ctrl+Shift+V")];
         let same = [hotkey(Some("x"), "", "shift+ctrl+v")];
-        assert!(validate([("A", true, &one[..]), ("B", true, &same[..])].into_iter()).is_err());
+        assert!(
+            validate_with(
+                [("A", true, &one[..]), ("B", true, &same[..])].into_iter(),
+                &LauncherHotkeys::default()
+            )
+            .is_err()
+        );
         // A disabled plugin's shortcut is not registered, so it may repeat.
-        assert!(validate([("A", true, &one[..]), ("B", false, &same[..])].into_iter()).is_ok());
+        assert!(
+            validate_with(
+                [("A", true, &one[..]), ("B", false, &same[..])].into_iter(),
+                &LauncherHotkeys::default()
+            )
+            .is_ok()
+        );
         let invalid = [hotkey(None, "", "Ctrl+Nope")];
-        assert!(validate([("A", false, &invalid[..])].into_iter()).is_err());
+        assert!(
+            validate_with(
+                [("A", false, &invalid[..])].into_iter(),
+                &LauncherHotkeys::default()
+            )
+            .is_err()
+        );
         let launcher = [hotkey(None, "", "alt+space")];
-        assert!(validate([("A", true, &launcher[..])].into_iter()).is_err());
+        assert!(
+            validate_with(
+                [("A", true, &launcher[..])].into_iter(),
+                &LauncherHotkeys::default()
+            )
+            .is_err()
+        );
+        let custom = LauncherHotkeys {
+            launcher_hotkey: "Ctrl+Space".into(),
+            selection_hotkey: Some("Alt+X".into()),
+        };
+        assert!(validate_with([("A", true, &launcher[..])].into_iter(), &custom).is_ok());
+        let claimed = [hotkey(None, "", "ctrl+space")];
+        assert!(validate_with([("A", true, &claimed[..])].into_iter(), &custom).is_err());
+        #[cfg(windows)]
+        {
+            let selection = [hotkey(None, "", "alt+x")];
+            assert!(validate_with([("A", true, &selection[..])].into_iter(), &custom).is_err());
+        }
         let empty = [hotkey(None, "Alt+V", " ")];
-        assert!(validate([("A", true, &empty[..])].into_iter()).is_ok());
+        assert!(
+            validate_with(
+                [("A", true, &empty[..])].into_iter(),
+                &LauncherHotkeys::default()
+            )
+            .is_ok()
+        );
     }
 }

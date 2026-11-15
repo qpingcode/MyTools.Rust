@@ -4,7 +4,8 @@ use std::path::PathBuf;
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub selection_hotkey: Option<String>,
+    #[serde(flatten)]
+    pub hotkeys: mytools_plugin_api::hotkeys::LauncherHotkeys,
     pub language: String,
     /// Old home of plugin shortcuts, by plugin id; moved into `plugin-settings.json` at
     /// startup (see [`migrate_plugin_shortcuts`]).
@@ -21,7 +22,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            selection_hotkey: None,
+            hotkeys: Default::default(),
             language: "auto".into(),
             plugin_shortcuts: Default::default(),
             theme: Default::default(),
@@ -44,9 +45,7 @@ impl Config {
 
 /// `config.json` in the data folder ([`mytools_plugin_api::dirs`]), or `MYTOOLS_CONFIG`.
 pub fn path() -> anyhow::Result<PathBuf> {
-    Ok(std::env::var_os("MYTOOLS_CONFIG")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| mytools_plugin_api::dirs::root().join("config.json")))
+    Ok(mytools_plugin_api::hotkeys::launcher_config_path())
 }
 
 pub fn load() -> anyhow::Result<Config> {
@@ -128,6 +127,28 @@ fn update_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shortcut_defaults_match_the_example_and_allow_overrides() {
+        let defaults: Config = serde_json::from_str("{}").unwrap();
+        let example: Config =
+            serde_json::from_str(include_str!("../../../config.example.json")).unwrap();
+        assert_eq!(defaults.hotkeys.launcher_hotkey, "Alt+Space");
+        assert_eq!(defaults.hotkeys.selection_hotkey.as_deref(), Some("Alt+X"));
+        assert_eq!(
+            defaults.hotkeys.launcher_hotkey,
+            example.hotkeys.launcher_hotkey
+        );
+        assert_eq!(
+            defaults.hotkeys.selection_hotkey,
+            example.hotkeys.selection_hotkey
+        );
+        let custom: Config =
+            serde_json::from_str(r#"{"launcher_hotkey":"Ctrl+Space","selection_hotkey":""}"#)
+                .unwrap();
+        assert_eq!(custom.hotkeys.launcher_hotkey, "Ctrl+Space");
+        assert_eq!(custom.hotkeys.selection_hotkey.as_deref(), Some(""));
+    }
+
     #[test]
     fn language_is_optional_but_must_be_a_string() {
         assert_eq!(

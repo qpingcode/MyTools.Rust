@@ -1,9 +1,6 @@
 use crate::{MainWindow, i18n};
 use anyhow::{Context, Result};
-use global_hotkey::{
-    GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
-    hotkey::{Code, HotKey, Modifiers},
-};
+use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
 use mytools_core::{Action, HotkeyBinding, HotkeyTarget};
 use slint::{ComponentHandle, winit_030::WinitWindowAccessor};
 use std::sync::{Arc, Mutex};
@@ -52,11 +49,11 @@ pub fn configure_backend() -> Result<()> {
 }
 
 impl Desktop {
-    /// Registers Alt+Space; plugin shortcuts follow with [`Desktop::bind`] once the
+    /// Registers the configured launcher shortcuts; plugin shortcuts follow with [`Desktop::bind`] once the
     /// catalog has loaded. `run_command` receives command shortcuts, on any thread.
     pub fn new(
         ui: &MainWindow,
-        selection_hotkey: Option<&str>,
+        hotkeys: &mytools_plugin_api::hotkeys::LauncherHotkeys,
         run_command: impl Fn(Action) + Send + Sync + 'static,
         capture_selection: impl Fn(selection::Source) + Send + Sync + 'static,
     ) -> Result<Self> {
@@ -69,17 +66,22 @@ impl Desktop {
                 )
             })
             .context(i18n::t("desktop.init_failed"))?;
-        let hotkey = HotKey::new(Some(Modifiers::ALT), Code::Space);
+        let hotkey = parse_hotkey(&hotkeys.launcher_hotkey)?;
         let weak = ui.as_weak();
         manager
             .register(hotkey)
             .inspect_err(|error| {
                 log::error(
                     "hotkey.failed",
-                    format!("could not register Alt+Space: {error}"),
+                    format!("could not register {}: {error}", hotkeys.launcher_hotkey),
                 )
             })
-            .context(i18n::t("desktop.register_failed"))?;
+            .with_context(|| {
+                i18n::format(
+                    "desktop.register_failed",
+                    &[("shortcut", &hotkeys.launcher_hotkey)],
+                )
+            })?;
         let mut desktop = Self {
             manager,
             hotkey,
@@ -88,7 +90,8 @@ impl Desktop {
             bound: Vec::new(),
             routes: Arc::default(),
         };
-        if let Some(key) = selection_hotkey
+        if let Some(key) = hotkeys
+            .selection()
             .map(str::trim)
             .filter(|key| !key.is_empty())
         {
@@ -180,20 +183,24 @@ impl Desktop {
     }
 
     fn register(&self, text: &str) -> Result<HotKey> {
-        let parsed = mytools_plugin_api::hotkeys::Hotkey::parse(text)
-            .with_context(|| i18n::format("desktop.hotkey_invalid", &[("hotkey", text)]))?;
-        let key: HotKey = parsed.registration().parse()?;
+        let key = parse_hotkey(text)?;
         anyhow::ensure!(
             key.id() != self.hotkey.id()
                 && !self
                     .selection_hotkey
                     .is_some_and(|bound| bound.id() == key.id())
                 && !self.bound.iter().any(|bound| bound.id() == key.id()),
-            i18n::format("desktop.hotkey_taken", &[("hotkey", &parsed.to_string())])
+            i18n::format("desktop.hotkey_taken", &[("hotkey", text)])
         );
         self.manager.register(key)?;
         Ok(key)
     }
+}
+
+fn parse_hotkey(text: &str) -> Result<HotKey> {
+    let parsed = mytools_plugin_api::hotkeys::Hotkey::parse(text)
+        .with_context(|| i18n::format("desktop.hotkey_invalid", &[("hotkey", text)]))?;
+    Ok(parsed.registration().parse()?)
 }
 
 impl Drop for Desktop {
