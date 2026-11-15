@@ -1,3 +1,5 @@
+#[cfg(windows)]
+pub mod clipboard_history;
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead, Write};
 
