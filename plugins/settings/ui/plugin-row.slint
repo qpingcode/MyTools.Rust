@@ -49,6 +49,8 @@ component StatusDot inherits Rectangle {
         : Theme.disabled;
     width: 18px; height: 18px;
     Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
         width: 9px; height: 9px; border-radius: 4.5px;
         background: root.state == "idle" || root.state == "" ? transparent : root.tone;
         border-width: root.state == "idle" || root.state == "" ? 1.5px : 0px;
@@ -277,27 +279,37 @@ export component PluginCard inherits Rectangle {
         HorizontalLayout {
             height: CardMetrics.metadata;
             padding-left: 64px; padding-right: 16px; padding-bottom: 6px; spacing: 8px; alignment: start;
-            StatusDot {
-                state: root.plugin.state;
-                accessible-label: root.plugin.status-text;
-                hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
+            VerticalLayout {
+                width: 18px; alignment: center;
+                StatusDot {
+                    state: root.plugin.state;
+                    accessible-label: root.plugin.status-text;
+                    hovered(inside, x, y) => { root.status-hovered(inside, x, y); }
+                }
             }
             Text {
+                width: clamp(root.width * 0.28, 100px, 180px);
                 text: root.plugin.id; color: Theme.muted; font-size: Theme.font-caption;
                 overflow: elide; vertical-alignment: center;
             }
-            if root.plugin.state == "failed": Chip {
-                text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
-                tint: Theme.danger;
-                clicked => { root.restart(); }
+            if root.plugin.startup != "": VerticalLayout {
+                alignment: center;
+                Chip {
+                    text: root.plugin.startup == "eager"
+                        ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
+                    icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
+                    enabled: root.plugin.enabled;
+                    clicked => { root.startup-toggled(); }
+                    accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
+                }
             }
-            if root.plugin.startup != "": Chip {
-                text: root.plugin.startup == "eager"
-                    ? I18n.text("plugins.startup.eager") : I18n.text("plugins.startup.lazy");
-                icon: root.plugin.startup == "eager" ? "builtin:zap" : "builtin:clock";
-                enabled: root.plugin.enabled;
-                clicked => { root.startup-toggled(); }
-                accessible-label: I18n.text("plugins.startup") + " " + root.plugin.name;
+            if root.plugin.state == "failed": VerticalLayout {
+                alignment: center;
+                Chip {
+                    text: I18n.text("plugins.restart"); icon: "builtin:refresh-cw";
+                    tint: Theme.danger;
+                    clicked => { root.restart(); }
+                }
             }
         }
         if root.expanded: VerticalLayout {
