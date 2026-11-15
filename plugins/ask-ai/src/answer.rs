@@ -2,6 +2,8 @@
 //! search when the model asks for them.
 use crate::{
     config::{self, Config},
+    file_mcp::{self, FileMcp},
+    files::{Plan, Scope},
     session::{Ending, Event, Model},
     tools::{Offered, Toolbox},
 };
@@ -28,6 +30,17 @@ impl Model for DeepSeek {
         model: Option<&str>,
         on_event: &mut dyn FnMut(Event) -> bool,
     ) -> Result<Ending, String> {
+        self.answer_on_files(history, model, &Scope::default(), &mut None, on_event)
+    }
+
+    fn answer_on_files(
+        &self,
+        history: &[ChatMessage],
+        model: Option<&str>,
+        scope: &Scope,
+        plan: &mut Option<Plan>,
+        on_event: &mut dyn FnMut(Event) -> bool,
+    ) -> Result<Ending, String> {
         let catalog = self.catalog;
         let config =
             Config::load().map_err(|error| catalog.format("config.error", &[("error", &error)]))?;
@@ -35,14 +48,19 @@ impl Model for DeepSeek {
         if !provider.has_key() {
             return Err(catalog.get("key.missing").into());
         }
-        let servers: ServersFile = config::read("MYTOOLS_ASK_AI_MCP", "mcp.json")
-            .map_err(|error| catalog.format("mcp.error", &[("error", &error)]))?;
         let mut toolbox = self.toolbox.lock().unwrap();
-        toolbox.configure(config.web_search, &servers);
-        let offered = toolbox.offered();
-        for problem in toolbox.problems.drain(..) {
-            mytools_plugin_api::log::warn("mcp.start", problem);
-        }
+        let (offered, mut files) = if scope.is_empty() {
+            let servers: ServersFile = config::read("MYTOOLS_ASK_AI_MCP", "mcp.json")
+                .map_err(|error| catalog.format("mcp.error", &[("error", &error)]))?;
+            toolbox.configure(config.web_search, &servers);
+            let offered = toolbox.offered();
+            for problem in toolbox.problems.drain(..) {
+                mytools_plugin_api::log::warn("mcp.start", problem);
+            }
+            (offered, None)
+        } else {
+            (Vec::new(), Some(FileMcp::new(scope)))
+        };
         let mut conversation = Conversation {
             catalog,
             toolbox: &mut toolbox,
@@ -51,11 +69,17 @@ impl Model for DeepSeek {
             steps: 0,
             on_event,
         };
-        let mut messages = vec![json!({
-            "role": "system", "content": system_prompt(&config, !offered.is_empty()),
-        })];
+        let mut prompt = system_prompt(&config, !offered.is_empty());
+        if files.is_some() {
+            prompt.push_str("\n\n");
+            prompt.push_str(file_mcp::GUIDANCE);
+        }
+        let mut messages = vec![json!({"role": "system", "content": prompt})];
         messages.extend(history.iter().filter_map(model_message));
-        let tools: Vec<Value> = offered.iter().map(function).collect();
+        let tools: Vec<Value> = match &mut files {
+            Some(files) => files.functions(),
+            None => offered.iter().map(function).collect(),
+        };
         let mut wrote = false;
         for round in 0..=MAX_ROUNDS {
             let mut body = json!({"max_tokens": config.max_tokens, "messages": messages});
@@ -100,8 +124,24 @@ impl Model for DeepSeek {
             }
             messages.push(assistant);
             for call in &calls {
-                let Some(content) = conversation.run(call) else {
-                    return Ok(Ending::Cancelled);
+                let content = if let Some(files) = &mut files {
+                    if !(conversation.on_event)(Event::Text(String::new())) {
+                        return Ok(Ending::Cancelled);
+                    }
+                    let content = match serde_json::from_str(&call.arguments) {
+                        Ok(arguments) => files.call(&call.name, arguments),
+                        Err(error) => format!("Error: invalid arguments: {error}"),
+                    };
+                    if let Some(proposal) = files.plan.take() {
+                        *plan = Some(proposal);
+                        return Ok(Ending::Finished);
+                    }
+                    content
+                } else {
+                    let Some(content) = conversation.run(call) else {
+                        return Ok(Ending::Cancelled);
+                    };
+                    content
                 };
                 messages.push(json!({"role": "tool", "tool_call_id": call.id, "content": content}));
             }
@@ -112,6 +152,9 @@ impl Model for DeepSeek {
 
 /// A question or answer as the model gets it; failed answers are left out.
 fn model_message(message: &ChatMessage) -> Option<Value> {
+    if message.local_only {
+        return None;
+    }
     match message.role {
         Role::User => {
             let content = match &message.attachment {

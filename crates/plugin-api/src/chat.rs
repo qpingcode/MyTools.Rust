@@ -34,6 +34,9 @@ pub struct ChatMessage {
     /// The answer failed; `text` says why.
     #[serde(default, skip_serializing_if = "crate::is_false")]
     pub error: bool,
+    /// Generated locally from an operation that may contain paths or mutation details.
+    #[serde(default, skip_serializing_if = "crate::is_false")]
+    pub local_only: bool,
     /// What the model thought before answering, for models that share it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reasoning: String,

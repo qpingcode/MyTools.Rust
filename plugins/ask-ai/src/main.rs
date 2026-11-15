@@ -3,7 +3,10 @@
 //! selected text. The model can search the web and call the tools of MCP servers.
 mod answer;
 mod config;
+mod file_mcp;
+mod files;
 mod history;
+mod mcp_server;
 mod session;
 mod tools;
 mod web;
@@ -15,7 +18,7 @@ use mytools_plugin_api::{
     text,
 };
 use session::{Notes, Session};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Conversations offered by Ctrl+K besides the current one.
 const RECENT: usize = 8;
@@ -136,23 +139,23 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
             paste: true,
             ..Default::default()
         }),
-        "ask-selection" => {
-            if let Some(mytools_plugin_api::CommandArgument::Text { text }) = action.argument {
+        "ask-selection" => match action.argument {
+            Some(mytools_plugin_api::CommandArgument::Text { text }) => {
                 session.start_on(&text, false);
-                return SearchResponse {
-                    effect: Some(PluginEffect {
-                        search_query: Some(String::new()),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                };
+                Ok(attachment_effect())
             }
-            session.start_on(&item, action.editable == Some(true));
-            Ok(PluginEffect {
-                open: true,
-                ..Default::default()
-            })
-        }
+            Some(mytools_plugin_api::CommandArgument::Files { paths }) => session
+                .start_on_files(paths)
+                .map(|()| attachment_effect())
+                .map_err(|error| catalog.format("files.failed", &[("error", &error)])),
+            None => {
+                session.start_on(&item, action.editable == Some(true));
+                Ok(PluginEffect {
+                    open: true,
+                    ..Default::default()
+                })
+            }
+        },
         _ => Err(catalog.get("missing").to_owned()),
     };
     match result {
@@ -167,18 +170,30 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
     }
 }
 
+fn attachment_effect() -> PluginEffect {
+    PluginEffect {
+        search_query: Some(String::new()),
+        ..Default::default()
+    }
+}
+
+fn catalog() -> &'static Catalog {
+    static CATALOG: OnceLock<Catalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        Catalog::for_language(
+            include_str!("../locales/en.json"),
+            include_str!("../locales/zh-CN.json"),
+        )
+        .expect("bundled Ask AI locales")
+    })
+}
+
 fn main() -> std::io::Result<()> {
     mytools_plugin_api::crash::install();
     if std::env::args().any(|argument| argument == web::ARGUMENT) {
         return web::serve();
     }
-    let catalog: &'static Catalog = Box::leak(Box::new(
-        Catalog::for_language(
-            include_str!("../locales/en.json"),
-            include_str!("../locales/zh-CN.json"),
-        )
-        .unwrap(),
-    ));
+    let catalog = catalog();
     let notes = Notes {
         length: catalog.get("length").into(),
         stopped: catalog.get("stopped").into(),

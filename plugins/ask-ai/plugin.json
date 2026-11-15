@@ -30,9 +30,11 @@
           "selection",
           "选中",
           "划词",
-          "提问"
+          "提问",
+          "批量重命名",
+          "rename"
         ],
-        "input": ["selection-optional", "attachment-text"]
+        "input": ["selection-optional", "attachment-text", "attachment-files"]
       }
     ]
   }

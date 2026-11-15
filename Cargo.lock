@@ -3384,12 +3384,15 @@ dependencies = [
 name = "mytools-ask-ai"
 version = "0.0.1"
 dependencies = [
+ "libc",
  "mytools-ai",
  "mytools-plugin-api",
  "reqwest",
  "scraper",
  "serde",
  "serde_json",
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

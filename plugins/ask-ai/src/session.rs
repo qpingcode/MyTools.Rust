@@ -1,11 +1,15 @@
 //! The current conversation: questions go to the model on a background thread, and each
 //! change of the answer is pushed to the host while it is written. Finished conversations
 //! are kept in the history.
-use crate::history::History;
+use crate::{
+    files::{Plan, Scope},
+    history::History,
+};
 use mytools_plugin_api::chat::{
     Chat, ChatMessage, ChatSource, ChatStep, ChatUpdate, Role, StepState,
 };
 use std::{
+    path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -46,6 +50,17 @@ pub trait Model: Send + Sync {
         model: Option<&str>,
         on_event: &mut dyn FnMut(Event) -> bool,
     ) -> Result<Ending, String>;
+
+    fn answer_on_files(
+        &self,
+        history: &[ChatMessage],
+        model: Option<&str>,
+        _files: &Scope,
+        _plan: &mut Option<Plan>,
+        on_event: &mut dyn FnMut(Event) -> bool,
+    ) -> Result<Ending, String> {
+        self.answer(history, model, on_event)
+    }
 }
 
 /// Texts added to an answer, in the user's language.
@@ -74,6 +89,8 @@ struct State {
     replaceable: bool,
     /// The model picked with Ctrl+K; `None` uses the configured one.
     model: Option<String>,
+    files: Scope,
+    pending: Option<Plan>,
 }
 
 impl Session {
@@ -117,6 +134,8 @@ impl Session {
         let mut state = self.state.lock().unwrap();
         state.chat = chat;
         state.replaceable = false;
+        state.files = Scope::default();
+        state.pending = None;
     }
 
     fn new_id(&self) -> String {
@@ -150,9 +169,22 @@ impl Session {
         state.replaceable = replaceable && state.chat.attachment.is_some();
     }
 
+    pub fn start_on_files(&self, paths: Vec<PathBuf>) -> Result<(), String> {
+        let files = Scope::new(paths)?;
+        self.start("");
+        let mut state = self.state.lock().unwrap();
+        state.chat.attachment = Some(files.label(crate::catalog()));
+        state.files = files;
+        Ok(())
+    }
+
     /// Drops the text waiting to go with the next question.
     pub fn detach(&self) {
-        self.state.lock().unwrap().chat.attachment = None;
+        let mut state = self.state.lock().unwrap();
+        if state.chat.attachment.take().is_some() {
+            state.files = Scope::default();
+            state.pending = None;
+        }
     }
 
     /// Shows a conversation from the history; `false` when it is gone.
@@ -179,7 +211,51 @@ impl Session {
             attachment,
             ..Default::default()
         });
+        if let Some(plan) = state.pending.take() {
+            let catalog = crate::catalog();
+            let result = match text.to_ascii_lowercase().as_str() {
+                "继续" | "continue" => Some(plan.apply().map(|()| {
+                    state.files.update_after(&plan);
+                    state.files.refresh();
+                    catalog.get("files.done").to_owned()
+                })),
+                "取消" | "cancel" => Some(Ok(catalog.get("files.cancelled").into())),
+                _ => {
+                    state.files.remember(plan);
+                    None
+                }
+            };
+            if let Some(result) = result {
+                let error = result.is_err();
+                state.chat.messages.push(ChatMessage {
+                    role: Role::Assistant,
+                    text: result.unwrap_or_else(|error| {
+                        catalog.format("files.failed", &[("error", &error)])
+                    }),
+                    error,
+                    local_only: true,
+                    ..Default::default()
+                });
+                self.history.save(&state.chat);
+                return Ok(());
+            }
+        } else if !state.files.is_empty()
+            && matches!(
+                text.to_ascii_lowercase().as_str(),
+                "继续" | "continue" | "取消" | "cancel"
+            )
+        {
+            state.chat.messages.push(ChatMessage {
+                role: Role::Assistant,
+                text: crate::catalog().get("files.no_plan").into(),
+                local_only: true,
+                ..Default::default()
+            });
+            self.history.save(&state.chat);
+            return Ok(());
+        }
         let history = state.chat.messages.clone();
+        let files = state.files.clone();
         state.chat.messages.push(ChatMessage {
             role: Role::Assistant,
             streaming: true,
@@ -198,7 +274,7 @@ impl Session {
         };
         let model = self.model.clone();
         let chosen = state.model.clone();
-        std::thread::spawn(move || answer.write(&*model, &history, chosen.as_deref()));
+        std::thread::spawn(move || answer.write(&*model, &history, chosen.as_deref(), &files));
         Ok(())
     }
 
@@ -265,9 +341,16 @@ struct Answer {
 }
 
 impl Answer {
-    fn write(self, model: &dyn Model, history: &[ChatMessage], chosen: Option<&str>) {
+    fn write(
+        self,
+        model: &dyn Model,
+        history: &[ChatMessage],
+        chosen: Option<&str>,
+        files: &Scope,
+    ) {
         let mut last_push = Instant::now();
-        let result = model.answer(history, chosen, &mut |event| {
+        let mut plan = None;
+        let mut on_event = |event| {
             if self.cancel.load(Ordering::SeqCst) {
                 return false;
             }
@@ -293,9 +376,20 @@ impl Answer {
                     })
                 },
             )
-        });
+        };
+        let result = if files.is_empty() {
+            model.answer(history, chosen, &mut on_event)
+        } else {
+            model.answer_on_files(history, chosen, files, &mut plan, &mut on_event)
+        };
         if self.cancel.load(Ordering::SeqCst) {
             return; // `stop` finished the message.
+        }
+        if matches!(result, Ok(Ending::Finished))
+            && let Some(plan) = plan
+        {
+            self.finish_plan(plan);
+            return;
         }
         self.update(
             |message| {
@@ -323,6 +417,29 @@ impl Answer {
         if state.chat.id == self.chat {
             self.history.save(&state.chat);
         }
+    }
+
+    fn finish_plan(&self, plan: Plan) {
+        let mut state = self.state.lock().unwrap();
+        if self.cancel.load(Ordering::SeqCst) || state.chat.id != self.chat {
+            return;
+        }
+        let message = &mut state.chat.messages[self.index];
+        message.text = plan.preview(crate::catalog());
+        message.reasoning.clear();
+        message.streaming = false;
+        message.local_only = true;
+        finish_steps(message);
+        let update = ChatUpdate {
+            chat: self.chat.clone(),
+            index: self.index,
+            message: message.clone(),
+        };
+        state.pending = Some(plan);
+        state.cancel = None;
+        self.history.save(&state.chat);
+        drop(state);
+        (self.push)(update);
     }
 
     /// Changes the message while it is still this answer's, then pushes what `send` picks;
@@ -517,6 +634,77 @@ mod tests {
         session.start_on("x", false);
         session.detach();
         assert_eq!(session.chat().attachment, None);
+    }
+
+    #[test]
+    fn a_file_plan_requires_confirmation_and_revisions_replace_it() {
+        struct RenameModel;
+        impl Model for RenameModel {
+            fn answer(
+                &self,
+                _: &[ChatMessage],
+                _: Option<&str>,
+                _: &mut dyn FnMut(Event) -> bool,
+            ) -> Result<Ending, String> {
+                panic!("expected a file attachment")
+            }
+
+            fn answer_on_files(
+                &self,
+                history: &[ChatMessage],
+                _: Option<&str>,
+                scope: &Scope,
+                plan: &mut Option<Plan>,
+                _: &mut dyn FnMut(Event) -> bool,
+            ) -> Result<Ending, String> {
+                let mut mcp = crate::file_mcp::FileMcp::new(scope);
+                assert_eq!(mcp.functions().len(), 3);
+                let files = mcp.call("files_list", serde_json::json!({}));
+                assert!(files.contains("prefix-Picture_01.png"));
+                assert!(!files.contains("\\\\"));
+                let name = &history.last().unwrap().text;
+                let response = mcp.call(
+                    "files_propose_change",
+                    serde_json::json!({
+                        "operation": "rename", "changes": [{"file": 0, "name": name}],
+                    }),
+                );
+                *plan = Some(mcp.plan.take().ok_or(response)?);
+                Ok(Ending::Finished)
+            }
+        }
+
+        let (sender, updates) = mpsc::channel();
+        let session = Session::new(
+            Arc::new(RenameModel),
+            Arc::new(move |update| {
+                sender.send(update).unwrap();
+            }),
+            Notes {
+                length: "limit".into(),
+                stopped: "stopped".into(),
+            },
+            History::temporary(),
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let before = dir.path().join("prefix-Picture_01.png");
+        std::fs::write(&before, "image").unwrap();
+        session.start_on_files(vec![before.clone()]).unwrap();
+        session.send("01-Picture.png").unwrap();
+        let preview = finished(&updates, 1);
+        assert!(preview.local_only && preview.text.contains("| --- | --- |"));
+        assert!(before.exists());
+        session.send("001-Picture.png").unwrap();
+        finished(&updates, 3);
+        assert!(before.exists());
+        session.send("继续").unwrap();
+        assert!(!before.exists());
+        assert!(!dir.path().join("01-Picture.png").exists());
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("001-Picture.png")).unwrap(),
+            "image"
+        );
+        assert!(!session.chat().messages.last().unwrap().error);
     }
 
     #[test]

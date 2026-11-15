@@ -1,5 +1,17 @@
 {
   "name": "询问 AI",
+  "files.attachment": "文件附件（{count} 项）",
+  "files.preview": "拟执行的文件变更",
+  "files.before": "修改前",
+  "files.after": "修改后",
+  "files.modified": "替换文件内容",
+  "files.deleted": "永久删除",
+  "files.directories": "本次变更需要授权的目录",
+  "files.confirm": "回复「继续」以授权上述目录用于本次方案并执行变更，或回复「取消」放弃方案。",
+  "files.done": "已执行文件变更。",
+  "files.cancelled": "已放弃文件变更。",
+  "files.no_plan": "当前没有待确认的文件变更。",
+  "files.failed": "文件操作失败：{error}",
   "conversation": "当前对话",
   "new": "新对话",
   "stop": "停止回答",
@@ -21,5 +33,5 @@
   "detach": "移除附加的文字",
   "open": "打开：{title}",
   "model": "使用模型 {model}",
-  "command.ask": "就选中文字询问 AI"
+  "command.ask": "就选中内容询问 AI"
 }
