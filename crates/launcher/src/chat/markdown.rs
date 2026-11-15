@@ -197,7 +197,10 @@ fn without_marker(text: &str) -> &str {
     if let Some(rest) = text.strip_prefix("• ") {
         return rest;
     }
-    let digits = text.len() - text.trim_start_matches(|ch: char| ch.is_ascii_digit()).len();
+    let digits = text.len()
+        - text
+            .trim_start_matches(|ch: char| ch.is_ascii_digit())
+            .len();
     match text[digits..].strip_prefix(". ") {
         Some(rest) if digits > 0 => rest,
         _ => text,
