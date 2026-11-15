@@ -60,10 +60,13 @@ impl History {
         if std::fs::create_dir_all(&chats).is_err() {
             return;
         }
-        let saved = Chat {
+        let mut saved = Chat {
             attachment: None,
             ..chat.clone()
         };
+        for message in &mut saved.messages {
+            message.confirmation = None;
+        }
         let Ok(bytes) = serde_json::to_vec(&saved) else {
             return;
         };

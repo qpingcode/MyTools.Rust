@@ -383,6 +383,9 @@ fn send(ui: &MainWindow, state: &mut State, requests: &QuerySender, text: String
         text.strip_prefix(prefix)
             .map(|input| (id.clone(), input.to_owned()))
     });
+    if scope.is_some() || state.attachment.is_some() || requests.scope_prefix(&text).is_some() {
+        ui.set_tab_target(Default::default());
+    }
     state.sent = text.clone();
     requests.send(Query {
         scope,
@@ -447,11 +450,14 @@ fn apply_results(
             &[("count", &results.entries.len().to_string())],
         )
     };
-    // Global search tells where Tab goes.
-    let status = match (&results.tab, errors.is_empty()) {
-        (Some(name), true) => i18n::format("status.tab", &[("status", &status), ("name", name)]),
-        _ => status,
-    };
+    ui.set_tab_target(
+        results
+            .tab
+            .as_deref()
+            .map(|name| i18n::format("search.tab_action", &[("name", name)]))
+            .unwrap_or_default()
+            .into(),
+    );
     let rows: Vec<_> = results
         .entries
         .iter()

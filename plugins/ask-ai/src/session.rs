@@ -6,7 +6,7 @@ use crate::{
     history::History,
 };
 use mytools_plugin_api::chat::{
-    Chat, ChatMessage, ChatSource, ChatStep, ChatUpdate, Role, StepState,
+    Chat, ChatConfirmation, ChatMessage, ChatSource, ChatStep, ChatUpdate, Role, StepState,
 };
 use std::{
     path::PathBuf,
@@ -204,6 +204,9 @@ impl Session {
         if state.chat.busy() || (text.is_empty() && state.chat.attachment.is_none()) {
             return Err(());
         }
+        if let Some(message) = state.chat.messages.last_mut() {
+            message.confirmation = None;
+        }
         let attachment = state.chat.attachment.take();
         state.chat.messages.push(ChatMessage {
             role: Role::User,
@@ -212,47 +215,17 @@ impl Session {
             ..Default::default()
         });
         if let Some(plan) = state.pending.take() {
-            let catalog = crate::catalog();
-            let result = match text.to_ascii_lowercase().as_str() {
-                "继续" | "continue" => Some(plan.apply().map(|()| {
-                    state.files.update_after(&plan);
-                    state.files.refresh();
-                    catalog.get("files.done").to_owned()
-                })),
-                "取消" | "cancel" => Some(Ok(catalog.get("files.cancelled").into())),
-                _ => {
-                    state.files.remember(plan);
-                    None
-                }
-            };
-            if let Some(result) = result {
-                let error = result.is_err();
+            if text == "取消" || text.eq_ignore_ascii_case("cancel") {
                 state.chat.messages.push(ChatMessage {
                     role: Role::Assistant,
-                    text: result.unwrap_or_else(|error| {
-                        catalog.format("files.failed", &[("error", &error)])
-                    }),
-                    error,
+                    text: crate::catalog().get("files.cancelled").into(),
                     local_only: true,
                     ..Default::default()
                 });
                 self.history.save(&state.chat);
                 return Ok(());
             }
-        } else if !state.files.is_empty()
-            && matches!(
-                text.to_ascii_lowercase().as_str(),
-                "继续" | "continue" | "取消" | "cancel"
-            )
-        {
-            state.chat.messages.push(ChatMessage {
-                role: Role::Assistant,
-                text: crate::catalog().get("files.no_plan").into(),
-                local_only: true,
-                ..Default::default()
-            });
-            self.history.save(&state.chat);
-            return Ok(());
+            state.files.remember(plan);
         }
         let history = state.chat.messages.clone();
         let files = state.files.clone();
@@ -275,6 +248,40 @@ impl Session {
         let model = self.model.clone();
         let chosen = state.model.clone();
         std::thread::spawn(move || answer.write(&*model, &history, chosen.as_deref(), &files));
+        Ok(())
+    }
+
+    pub fn confirm(&self, id: &str) -> Result<(), ()> {
+        let mut state = self.state.lock().unwrap();
+        let Some(message) = state.chat.messages.last() else {
+            return Err(());
+        };
+        if state.chat.busy()
+            || message
+                .confirmation
+                .as_ref()
+                .is_none_or(|item| item.id != id)
+        {
+            return Err(());
+        }
+        let plan = state.pending.take().ok_or(())?;
+        state.chat.messages.last_mut().unwrap().confirmation = None;
+        let catalog = crate::catalog();
+        let result = plan.apply().map(|()| {
+            state.files.update_after(&plan);
+            state.files.refresh();
+            catalog.get("files.done").to_owned()
+        });
+        let error = result.is_err();
+        state.chat.messages.push(ChatMessage {
+            role: Role::Assistant,
+            text: result
+                .unwrap_or_else(|error| catalog.format("files.failed", &[("error", &error)])),
+            error,
+            local_only: true,
+            ..Default::default()
+        });
+        self.history.save(&state.chat);
         Ok(())
     }
 
@@ -429,6 +436,10 @@ impl Answer {
         message.reasoning.clear();
         message.streaming = false;
         message.local_only = true;
+        message.confirmation = Some(ChatConfirmation {
+            id: format!("{}:{}", self.chat, self.index),
+            label: crate::catalog().get("files.continue").into(),
+        });
         finish_steps(message);
         let update = ChatUpdate {
             chat: self.chat.clone(),
@@ -693,11 +704,18 @@ mod tests {
         session.send("01-Picture.png").unwrap();
         let preview = finished(&updates, 1);
         assert!(preview.local_only && preview.text.contains("| --- | --- |"));
+        let old = preview.confirmation.unwrap().id;
+        let saved = session.history().load(&session.chat().id).unwrap();
+        assert!(saved.messages.last().unwrap().confirmation.is_none());
         assert!(before.exists());
         session.send("001-Picture.png").unwrap();
-        finished(&updates, 3);
+        assert!(session.confirm(&old).is_err());
+        let revised = finished(&updates, 3).confirmation.unwrap().id;
+        assert_ne!(old, revised);
+        assert!(session.confirm(&old).is_err());
         assert!(before.exists());
-        session.send("继续").unwrap();
+        session.confirm(&revised).unwrap();
+        assert!(session.confirm(&revised).is_err());
         assert!(!before.exists());
         assert!(!dir.path().join("01-Picture.png").exists());
         assert_eq!(

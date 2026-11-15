@@ -113,6 +113,10 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
             .send(&item)
             .map(|()| refresh)
             .map_err(|()| catalog.get("busy").to_owned()),
+        "confirm" => session
+            .confirm(&item)
+            .map(|()| refresh)
+            .map_err(|()| catalog.get("files.no_plan").to_owned()),
         "new" => {
             session.start(&item);
             Ok(refresh)

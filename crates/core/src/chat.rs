@@ -42,6 +42,10 @@ impl ChatSession {
         self.action("send", text)
     }
 
+    pub fn confirm(&self, id: &str) -> Action {
+        self.action("confirm", id)
+    }
+
     /// Starts a new conversation, with `text` as its first message unless it is empty.
     pub fn start(&self, text: &str) -> Action {
         self.action("new", text)

@@ -37,6 +37,9 @@ pub struct ChatMessage {
     /// Generated locally from an operation that may contain paths or mutation details.
     #[serde(default, skip_serializing_if = "crate::is_false")]
     pub local_only: bool,
+    /// A one-time action attached to the current assistant response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation: Option<ChatConfirmation>,
     /// What the model thought before answering, for models that share it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reasoning: String,
@@ -49,6 +52,12 @@ pub struct ChatMessage {
     /// Pages the answer cites as `[1]`, `[2]`… in this order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<ChatSource>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ChatConfirmation {
+    pub id: String,
+    pub label: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]

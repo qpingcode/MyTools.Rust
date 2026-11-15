@@ -89,6 +89,7 @@ export component MainWindow inherits Window {
     callback editor-edited(string);
     /// Sends the chat input as the next question.
     callback chat-send(string);
+    callback chat-confirm(string);
     callback chat-stop();
     callback chat-detach();
     callback copy-text(string);
@@ -96,6 +97,7 @@ export component MainWindow inherits Window {
     /// Tab in the search box: opens the plugin that takes it with what was typed; `false`
     /// when there is none, or the query is in a plugin's scope.
     callback tab-pressed() -> bool;
+    in property <string> tab-target;
     /// Searches the newest query again, e.g. after an action asked for fresh results.
     callback refresh();
     callback execute(int);
@@ -142,7 +144,7 @@ export component MainWindow inherits Window {
                 return accept;
             }
             if (event.text == Key.Tab && !event.modifiers.shift && !event.modifiers.control
-                    && !root.editor-view && !root.chat-view && !root.actions-open) {
+                    && !root.editor-view && !root.chat-view && !root.actions-open && !search-bar.composing) {
                 if (root.tab-pressed()) { return accept; }
             }
             if (root.actions-open) {
@@ -159,6 +161,8 @@ export component MainWindow inherits Window {
                 x: 0px; y: 0px;
                 width: parent.width;
                 query <=> root.query;
+                tab-target: root.editor-view || root.chat-view || root.actions-open ? "" : root.tab-target;
+                tab-clicked => { root.tab-pressed(); }
                 loading: root.show-loading || root.plugins-starting;
                 edited(query) => { root.search(query); }
                 accepted => {
@@ -229,6 +233,7 @@ export component MainWindow inherits Window {
                 attachment: root.chat-attachment;
                 text <=> root.editor-text;
                 send(text) => { root.chat-send(text); }
+                confirm(id) => { root.chat-confirm(id); }
                 stop => { root.chat-stop(); }
                 detach => { root.chat-detach(); }
                 copy-text(text) => { root.copy-text(text); }

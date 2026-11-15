@@ -1,4 +1,4 @@
-import { ScrollView } from "std-widgets.slint";
+import { Button, ScrollView } from "std-widgets.slint";
 import { I18n } from "../../../../ui/i18n.slint";
 import { Theme } from "../../../../ui/theme.slint";
 import { Icon } from "../../../../ui/components/icon.slint";
@@ -302,6 +302,9 @@ component SourcesView inherits VerticalLayout {
 component MessageView inherits VerticalLayout {
     in property <ChatMessageData> message;
     in property <length> available-width;
+    in property <bool> show-confirmation;
+    in property <bool> can-confirm;
+    callback confirm(string);
     callback copy-text(string);
     callback open-link(string);
     spacing: 8px;
@@ -329,6 +332,14 @@ component MessageView inherits VerticalLayout {
             available-width: root.available-width;
             text-color: root.message.error ? Theme.danger : Theme.foreground;
             copy-text(text) => { root.copy-text(text); }
+        }
+        if root.show-confirmation && root.message.confirmation-id != "": HorizontalLayout {
+            alignment: start;
+            Button {
+                text: root.message.confirmation-label;
+                enabled: root.can-confirm;
+                clicked => { root.confirm(root.message.confirmation-id); }
+            }
         }
         if root.message.streaming && root.message.blocks.length == 0 && root.message.reasoning == ""
                 && root.message.steps.length == 0: HorizontalLayout {
@@ -370,6 +381,7 @@ export component ChatPane inherits Rectangle {
     /// Text that goes with the next question, e.g. a selection; shown above the input.
     in property <string> attachment;
     callback send(string);
+    callback confirm(string);
     callback stop();
     callback detach();
     callback copy-text(string);
@@ -413,9 +425,12 @@ export component ChatPane inherits Rectangle {
             // Its own height, or the layout would stretch the messages to fill the view.
             x: 20px; y: 16px; width: list.visible-width - 40px; height: self.preferred-height;
             spacing: 24px;
-            for message in root.messages: MessageView {
+            for message[index] in root.messages: MessageView {
                 message: message;
                 available-width: column.width;
+                show-confirmation: index == root.messages.length - 1;
+                can-confirm: !root.busy && root.text == "" && input.preedit-text == "";
+                confirm(id) => { root.confirm(id); }
                 copy-text(text) => { root.copy-text(text); }
                 open-link(url) => { root.open-link(url); }
             }

@@ -67,6 +67,21 @@ pub fn wire(ui: &MainWindow, state: &Rc<RefCell<State>>, requests: &QuerySender)
         }
     });
     let weak = ui.as_weak();
+    let confirm_state = state.clone();
+    ui.on_chat_confirm(move |id| {
+        let Some(ui) = weak.upgrade() else { return };
+        let state = confirm_state.borrow();
+        let Some(session) = &state.chat.session else {
+            return;
+        };
+        if session.chat.busy() || !ui.get_editor_text().is_empty() {
+            return;
+        }
+        if hide_confirmation(&state.chat, Some(&id)) {
+            run(&ui, session.confirm(&id));
+        }
+    });
+    let weak = ui.as_weak();
     let stop_state = state.clone();
     ui.on_chat_stop(move || {
         if let Some(ui) = weak.upgrade() {
@@ -293,6 +308,18 @@ fn message_data(message: &ChatMessage) -> ChatMessageData {
         attachment: message.attachment.clone().unwrap_or_default().into(),
         steps: ModelRc::new(VecModel::from(steps)),
         sources: ModelRc::new(VecModel::from(sources)),
+        confirmation_id: message
+            .confirmation
+            .as_ref()
+            .map(|item| item.id.as_str())
+            .unwrap_or_default()
+            .into(),
+        confirmation_label: message
+            .confirmation
+            .as_ref()
+            .map(|item| item.label.as_str())
+            .unwrap_or_default()
+            .into(),
     }
 }
 
@@ -321,11 +348,29 @@ fn send(ui: &MainWindow, state: &State, text: &str) {
     if text.trim().is_empty() && session.chat.attachment.is_none() {
         return;
     }
+    hide_confirmation(&state.chat, None);
     run(ui, session.send(text));
     ui.set_editor_text(Default::default());
     if let Some(prefix) = scope_of(&ui.get_query()) {
         ui.set_query(prefix.into());
     }
+}
+
+fn hide_confirmation(chat: &ChatState, expected: Option<&str>) -> bool {
+    let Some(index) = chat.messages.row_count().checked_sub(1) else {
+        return false;
+    };
+    let Some(mut message) = chat.messages.row_data(index) else {
+        return false;
+    };
+    if message.confirmation_id.is_empty()
+        || expected.is_some_and(|id| id != message.confirmation_id.as_str())
+    {
+        return false;
+    }
+    message.confirmation_id = SharedString::default();
+    chat.messages.set_row_data(index, message);
+    true
 }
 
 /// The query up to and including the alias, e.g. `"ai "` of `"ai hello"`.

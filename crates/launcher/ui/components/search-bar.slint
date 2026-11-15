@@ -4,10 +4,13 @@ import { WindowDragArea } from "../../../../ui/components/window-drag-area.slint
 
 export component SearchBar inherits Rectangle {
     in-out property <string> query;
+    in property <string> tab-target;
+    out property <bool> composing: input.preedit-text != "";
     /// Shows an indeterminate bar along the bottom edge while a search runs.
     in property <bool> loading;
     callback edited(string);
     callback accepted();
+    callback tab-clicked();
     callback navigate(int);
     callback drag-requested();
     forward-focus: input;
@@ -54,7 +57,8 @@ export component SearchBar inherits Rectangle {
     }
     input := TextInput {
         x: 22px + Theme.font-search + 16px; y: (parent.height - self.height) / 2;
-        width: parent.width - self.x - 22px; height: Theme.font-search * 1.6;
+        width: parent.width - self.x - 22px - (root.tab-target == "" ? 0px : tab-key.width + 10px);
+        height: Theme.font-search * 1.6;
         text <=> root.query;
         color: Theme.foreground; font-size: Theme.font-search;
         vertical-alignment: center;
@@ -68,6 +72,30 @@ export component SearchBar inherits Rectangle {
             if (event.text == Key.DownArrow) { root.navigate(1); return accept; }
             reject
         }
+    }
+    tab-key := Rectangle {
+        visible: root.tab-target != "";
+        width: 40px; height: 24px;
+        x: parent.width - self.width - 22px;
+        y: (parent.height - self.height) / 2;
+        border-width: 1px;
+        border-color: Theme.control-border;
+        border-radius: 5px;
+        background: tab-touch.has-hover && !root.composing ? Theme.hover : transparent;
+        Text {
+            text: "Tab";
+            color: Theme.muted; font-size: Theme.font-caption;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
+        tab-touch := TouchArea {
+            enabled: tab-key.visible && !root.composing;
+            mouse-cursor: pointer;
+            clicked => { root.tab-clicked(); }
+        }
+        accessible-role: button;
+        accessible-label: root.tab-target;
+        accessible-enabled: tab-touch.enabled;
+        accessible-action-default => { if (tab-touch.enabled) { root.tab-clicked(); } }
     }
     Rectangle { y: parent.height - 1px; height: 1px; background: Theme.border; }
     if root.loading: Rectangle {
