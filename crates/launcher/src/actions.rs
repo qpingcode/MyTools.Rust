@@ -205,7 +205,7 @@ pub fn sync_selection(ui: &MainWindow, state: &State) {
         .unwrap_or_default();
     let primary = actions.first();
     ui.set_primary_available(primary.is_some());
-    ui.set_actions_available(!actions.is_empty());
+    ui.set_actions_available(actions.len() > usize::from(!ui.get_chat_view()));
     ui.set_primary_title(
         primary
             .map(i18n::action_title)

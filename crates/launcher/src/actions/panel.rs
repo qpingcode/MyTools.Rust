@@ -14,6 +14,7 @@ pub(crate) struct Panel {
     rows: Vec<ActionData>,
     visible: Vec<usize>,
     query: String,
+    first: usize,
 }
 
 impl Panel {
@@ -24,6 +25,7 @@ impl Panel {
             .rows
             .iter()
             .enumerate()
+            .skip(self.first)
             .filter_map(|(index, row)| {
                 if query.is_empty() {
                     Some((0, index))
@@ -89,7 +91,9 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         else {
             return;
         };
-        if entry.actions.is_empty() {
+        // In chat Enter sends a message, so it does not replace any result action.
+        let first = usize::from(!ui.get_chat_view());
+        if entry.actions.len() <= first {
             return;
         }
         let snapshot = entry.actions.clone();
@@ -107,12 +111,10 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             rows,
             visible: Vec::new(),
             query: String::new(),
+            first,
         };
         panel.refresh_shortcuts(&state.action_shortcuts);
         panel.show(&ui, "");
-        if !ui.get_chat_view() && panel.visible.len() > 1 {
-            ui.set_selected_action(1);
-        }
         state.panel = Some(panel);
         ui.set_actions_open(true);
     });
@@ -252,6 +254,7 @@ mod tests {
             ],
             visible: Vec::new(),
             query: String::new(),
+            first: 1,
         };
         for query in ["复制", "fzlj", "fuzhilujing"] {
             let results = panel.filter(query);
@@ -262,6 +265,12 @@ mod tests {
         assert!(panel.action(1).is_none());
         assert!(panel.filter("missing").is_empty());
         assert!(panel.action(0).is_none());
+        assert!(panel.filter("browser").is_empty());
+        assert_eq!(panel.filter("").len(), 1);
+        assert_eq!(panel.action(0).unwrap().id, ActionId::CopyText);
+
+        // Chat displays every action because the Enter button sends messages.
+        panel.first = 0;
         assert_eq!(panel.filter("").len(), 2);
         assert_eq!(panel.action(0).unwrap().id, ActionId::OpenInBrowser);
     }
