@@ -18,6 +18,7 @@ export component StatusBar inherits Rectangle {
     callback toggle-actions();
     callback drag-requested();
     height: Theme.status-height;
+    clip: true;
     background: Theme.panel;
     WindowDragArea {
         x: 0px; y: 0px; width: buttons.x; height: parent.height;

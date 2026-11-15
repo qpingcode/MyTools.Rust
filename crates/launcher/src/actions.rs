@@ -243,8 +243,8 @@ fn start_action(ui: &MainWindow, action: Action) {
             let mut showed_result = false;
             let message = result.and_then(|effect| match effect {
                 ActionEffect::CopyText(text) => {
-                    arboard::Clipboard::new()?.set_text(text.clone())?;
-                    Ok(i18n::format("status.copied", &[("text", &text)]))
+                    arboard::Clipboard::new()?.set_text(text)?;
+                    Ok(i18n::t("status.copied"))
                 }
                 ActionEffect::Completed => {
                     if action.dismiss_on_success() && current() {

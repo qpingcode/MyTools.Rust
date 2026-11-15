@@ -66,7 +66,7 @@
   "status.ready": "Ready · {count} results",
   "status.plugin": "{name} · {count} results",
   "status.partial": "{ready}/{total} plugins loaded, results may be incomplete · {count} results",
-  "status.copied": "Copied {text}",
+  "status.copied": "Copied to clipboard",
   "status.completed": "{action} succeeded",
   "status.retrying": "Retrying with a longer timeout…",
   "status.failed": "Action failed: {error}",
