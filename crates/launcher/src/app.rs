@@ -311,7 +311,7 @@ fn wire_search(ui: &MainWindow, state: &Rc<RefCell<State>>, worker: &SearchWorke
         let text = format!("{prefix}{input}");
         let mut state = scope_state.borrow_mut();
         state.command_scope = Some((id.into(), prefix.clone()));
-        ui.set_editor_text(input.into());
+        ui.set_editor_text(input);
         ui.set_query(if view == mytools_plugin_api::View::Editor {
             prefix.into()
         } else {

@@ -56,7 +56,7 @@ impl Session {
         };
         runtime.spawn(async move {
             if let Err(error) = axum::serve(listener, app).await {
-                mytools_plugin_api::log::error("lan_transfer.server", &error.to_string());
+                mytools_plugin_api::log::error("lan_transfer.server", error.to_string());
             }
         });
         Ok(Self {

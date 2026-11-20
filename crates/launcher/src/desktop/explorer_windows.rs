@@ -155,11 +155,11 @@ fn selected_paths(view: &IShellView) -> windows::core::Result<Vec<PathBuf>> {
         for index in 0..items.GetCount()? {
             let item = items.GetItemAt(index)?;
             // Virtual items such as This PC do not have a filesystem path.
-            if let Ok(path) = item.GetDisplayName(SIGDN_FILESYSPATH) {
-                if !path.is_null() {
-                    paths.push(OsString::from_wide(path.as_wide()).into());
-                    CoTaskMemFree(Some(path.0.cast()));
-                }
+            if let Ok(path) = item.GetDisplayName(SIGDN_FILESYSPATH)
+                && !path.is_null()
+            {
+                paths.push(OsString::from_wide(path.as_wide()).into());
+                CoTaskMemFree(Some(path.0.cast()));
             }
         }
         Ok(paths)
