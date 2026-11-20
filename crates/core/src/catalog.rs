@@ -144,6 +144,9 @@ fn search_timeout(plugin: &Plugin, targeted: bool, attempt: u32) -> std::time::D
         .min(crate::plugins::MAX_ALIAS_TIMEOUT)
 }
 
+// A short-lived return value that is matched right away; boxing the reply would only add
+// an allocation per plugin reply.
+#[allow(clippy::large_enum_variant)]
 enum Waited {
     Response(Result<mytools_plugin_api::SearchResponse>),
     TimedOut,
