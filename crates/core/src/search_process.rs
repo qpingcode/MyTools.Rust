@@ -827,7 +827,7 @@ mod tests {
     #[test]
     fn running_action_is_awaited_without_queueing_short_timeout_searches() {
         let process = std::sync::Arc::new(SearchProcess::start_factory(SearchProcess::powershell(
-            "while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.action) { Start-Sleep -Milliseconds 1200; '{\"items\":[],\"effect\":{\"refresh\":true}}' } else { '{\"items\":[]}' } }",
+            "while ($null -ne ($line=[Console]::ReadLine())) { $r=$line|ConvertFrom-Json; if ($r.action) { Start-Sleep -Milliseconds 1200; '{\"items\":[],\"effect\":{\"refresh\":true,\"dismiss\":false}}' } else { '{\"items\":[]}' } }",
         )).unwrap());
         process
             .begin("warmup", SEARCH_TIMEOUT, false)

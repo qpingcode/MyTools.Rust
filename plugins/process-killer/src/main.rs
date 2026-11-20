@@ -111,7 +111,7 @@ impl State {
                 effect: Some(PluginEffect {
                     refresh: true,
                     message: catalog.get("killed").into(),
-                    ..Default::default()
+                    ..PluginEffect::stay()
                 }),
                 ..Default::default()
             }

@@ -126,7 +126,7 @@ fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
             Some(path) => SearchResponse {
                 effect: Some(PluginEffect {
                     search_query: Some(paths::display(&path)),
-                    ..Default::default()
+                    ..PluginEffect::stay()
                 }),
                 ..Default::default()
             },
@@ -146,8 +146,7 @@ fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
         Ok(message) => SearchResponse {
             effect: Some(PluginEffect {
                 message,
-                dismiss: true,
-                ..Default::default()
+                ..PluginEffect::hide()
             }),
             ..Default::default()
         },

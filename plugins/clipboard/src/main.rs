@@ -56,7 +56,7 @@ fn execute(
                     "attachment.character_count",
                     &[("count", &text.chars().count().to_string())],
                 )),
-                ..Default::default()
+                ..PluginEffect::stay()
             });
         }
         ("copy-paths", Some(CommandArgument::Files { paths })) if !paths.is_empty() => {
@@ -71,7 +71,7 @@ fn execute(
                     "attachment.copied_paths",
                     &[("count", &paths.len().to_string())],
                 ),
-                ..Default::default()
+                ..PluginEffect::hide()
             });
         }
         ("count-characters" | "copy-paths", _) => anyhow::bail!(i18n::text("unsupported")),
@@ -85,7 +85,7 @@ fn execute(
             Ok(PluginEffect {
                 refresh: true,
                 message: i18n::text("deleted"),
-                ..Default::default()
+                ..PluginEffect::stay()
             })
         }
         "clear" => {
@@ -93,7 +93,7 @@ fn execute(
             Ok(PluginEffect {
                 refresh: true,
                 message: i18n::text("cleared"),
-                ..Default::default()
+                ..PluginEffect::stay()
             })
         }
         // A manifest command: works on whatever is on the clipboard now, not on an entry.
@@ -103,7 +103,7 @@ fn execute(
             Ok(PluginEffect {
                 paste: true,
                 message: i18n::text("pasted_plain"),
-                ..Default::default()
+                ..PluginEffect::hide()
             })
         }
         "paste" | "plain" | "copy" => {
@@ -123,7 +123,7 @@ fn execute(
             Ok(PluginEffect {
                 paste: request.command != "copy",
                 message: i18n::text("copied"),
-                ..Default::default()
+                ..PluginEffect::hide()
             })
         }
         _ => anyhow::bail!(i18n::text("unsupported")),

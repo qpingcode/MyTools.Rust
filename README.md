@@ -343,7 +343,7 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 - 未知字段或类型值会使 manifest 加载失败，错误显示在状态栏。`actions: []` 的提示类结果不追加任何动作。
 
 执行时宿主向贡献动作的插件发送 `{"action":{"command":"<command>","item":"<值>"}}`，`item` 为结果的主值：
-文件/文件夹/应用为路径，`url` 为链接，`text` 为文本，`plugin_item` 为其 `id`。插件返回 `effect.dismiss: true` 表示成功后隐藏启动器。
+文件/文件夹/应用为路径，`url` 为链接，`text` 为文本，`plugin_item` 为其 `id`。插件必须在 `effect.dismiss` 中说明成功后是否隐藏启动器（`PluginEffect::hide()` / `PluginEffect::stay()`）。
 
 ## 剪贴板历史
 

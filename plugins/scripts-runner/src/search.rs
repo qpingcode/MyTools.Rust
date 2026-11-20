@@ -106,8 +106,7 @@ pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<Pl
     if request.command == "manage" && request.item.is_none() {
         open_manager(None)?;
         return Ok(PluginEffect {
-            dismiss: true,
-            ..Default::default()
+            ..PluginEffect::hide()
         });
     } else if let Some(admin) = terminal_command(&request.command) {
         terminal::run(item, admin)?;
@@ -125,7 +124,7 @@ pub fn execute(store: &Store, request: PluginActionRequest) -> anyhow::Result<Pl
     }
     Ok(PluginEffect {
         message: i18n::t("run.started"),
-        ..Default::default()
+        ..PluginEffect::hide()
     })
 }
 /// Whether `command` runs a terminal command, and if so whether elevated.

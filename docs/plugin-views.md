@@ -81,10 +81,12 @@
 成功响应：
 
 ```json
-{"items":[],"effect":{"refresh":false,"paste":true,"message":"已复制到剪贴板"}}
+{"items":[],"effect":{"refresh":false,"paste":true,"dismiss":true,"message":"已复制到剪贴板"}}
 ```
 
 插件先完成自身操作再回复；`refresh` 请求刷新当前作用域，`paste` 请求宿主返回原应用并粘贴。
+`dismiss` 必填，由插件为每个命令决定成功后是否隐藏启动器：结果在别处（剪贴板、外部窗口）时为 `true`，
+结果显示在启动器里（刷新列表、结果文本、打开搜索）或用户可能继续操作时为 `false`。Rust 插件从 `PluginEffect::hide()` 或 `PluginEffect::stay()` 开始构造。
 `effect.copy_text` 可携带待复制文本，由宿主在 UI 线程写入剪贴板；可和 `paste` 组合使用。
 剪贴板插件负责恢复内容，宿主负责焦点、快捷键释放等待及平台输入适配。
 返回 `{"items":[],"error":"操作失败的本地化说明"}` 表示业务失败，不停止插件进程。

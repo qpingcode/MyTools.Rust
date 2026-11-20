@@ -88,14 +88,19 @@ impl Action {
         Ok(())
     }
 
+    /// Whether a built-in action hides the launcher once it succeeded: its result is in
+    /// another window or on the clipboard. Plugin commands decide in their effect instead.
     pub fn dismiss_on_success(&self) -> bool {
-        matches!(
-            self.operation,
-            Operation::OpenApplication(_)
-                | Operation::Launch(_)
-                | Operation::RunAsAdmin(_)
-                | Operation::OpenUrl(_)
-        )
+        match self.operation {
+            Operation::Open(_)
+            | Operation::OpenApplication(_)
+            | Operation::OpenUrl(_)
+            | Operation::Copy(_)
+            | Operation::Reveal(_)
+            | Operation::Launch(_)
+            | Operation::RunAsAdmin(_) => true,
+            Operation::Plugin { .. } | Operation::Retry(_) => false,
+        }
     }
 
     /// Whether the host must read the selected text and pass it with [`Self::with_item`].
@@ -520,7 +525,8 @@ mod tests {
     #[test]
     fn generates_defaults_and_correct_copy_payloads() {
         let actions = resolve_actions(&file(), None).unwrap();
-        assert!(!actions[0].dismiss_on_success());
+        assert!(actions.iter().all(Action::dismiss_on_success));
+        assert!(!Action::retry(1).dismiss_on_success());
         assert_eq!(
             actions.iter().map(|action| action.id).collect::<Vec<_>>(),
             vec![
@@ -538,8 +544,7 @@ mod tests {
         };
         let actions = resolve_actions(&url, None).unwrap();
         assert_eq!(actions[0].id, ActionId::OpenInBrowser);
-        assert!(actions[0].dismiss_on_success());
-        assert!(!actions[1].dismiss_on_success());
+        assert!(actions.iter().all(Action::dismiss_on_success));
         let application = Resource::Application {
             path: std::env::temp_dir().join("example.exe"),
         };

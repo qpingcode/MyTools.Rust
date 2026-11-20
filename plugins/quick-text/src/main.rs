@@ -145,7 +145,7 @@ impl State {
                     return Ok(PluginEffect {
                         copy_text: Some(phrase.content.clone()),
                         message: catalog.get("copied").into(),
-                        ..Default::default()
+                        ..PluginEffect::hide()
                     });
                 }
                 phrases.retain(|phrase| phrase.trigger != trigger);
@@ -160,7 +160,7 @@ impl State {
         Ok(PluginEffect {
             refresh: true,
             message: catalog.get(message).into(),
-            ..Default::default()
+            ..PluginEffect::stay()
         })
     }
 }

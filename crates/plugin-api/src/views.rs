@@ -52,7 +52,9 @@ pub struct PluginActionRequest {
     pub argument: Option<CommandArgument>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// What the host does after a plugin command succeeded. There is no default: every command
+/// starts from [`PluginEffect::hide`] or [`PluginEffect::stay`].
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PluginEffect {
     /// Ask the host to copy text using its UI-thread clipboard integration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -69,10 +71,50 @@ pub struct PluginEffect {
     /// Open this plugin's search on this literal input (an empty string opens its initial view).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_query: Option<String>,
-    /// Hide the launcher after the action succeeded (e.g. an external editor was opened).
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// Required: hide the launcher once the command succeeded (its result is elsewhere, e.g.
+    /// on the clipboard or in an editor), or keep it open (it shows a refreshed list, a
+    /// result, or the user is likely to act again).
     pub dismiss: bool,
     /// Show the plugin's scope (its first alias), e.g. a conversation a command started.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub open: bool,
+}
+
+impl PluginEffect {
+    /// The command's result is elsewhere: hide the launcher.
+    pub fn hide() -> Self {
+        Self::new(true)
+    }
+
+    /// The command's result is in the launcher, or the user is likely to act again.
+    pub fn stay() -> Self {
+        Self::new(false)
+    }
+
+    fn new(dismiss: bool) -> Self {
+        Self {
+            copy_text: None,
+            refresh: false,
+            paste: false,
+            message: String::new(),
+            result_text: None,
+            search_query: None,
+            dismiss,
+            open: false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PluginEffect;
+
+    #[test]
+    fn plugins_must_say_whether_the_launcher_hides() {
+        assert!(serde_json::from_str::<PluginEffect>(r#"{"refresh":true}"#).is_err());
+        let effect: PluginEffect = serde_json::from_str(r#"{"dismiss":true}"#).unwrap();
+        assert!(effect.dismiss && !effect.refresh);
+        assert!(PluginEffect::hide().dismiss);
+        assert!(!PluginEffect::stay().dismiss);
+    }
 }

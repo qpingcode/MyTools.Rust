@@ -244,6 +244,9 @@ fn start_action(ui: &MainWindow, action: Action) {
             let message = result.and_then(|effect| match effect {
                 ActionEffect::CopyText(text) => {
                     arboard::Clipboard::new()?.set_text(text)?;
+                    if action.dismiss_on_success() && current() {
+                        ui.hide()?;
+                    }
                     Ok(i18n::t("status.copied"))
                 }
                 ActionEffect::Completed => {

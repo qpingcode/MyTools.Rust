@@ -23,8 +23,7 @@ pub fn execute(request: PluginActionRequest) -> anyhow::Result<PluginEffect> {
         _ => anyhow::bail!(i18n::t("error.command")),
     }
     Ok(PluginEffect {
-        dismiss: true,
-        ..Default::default()
+        ..PluginEffect::hide()
     })
 }
 

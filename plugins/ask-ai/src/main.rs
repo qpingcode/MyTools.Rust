@@ -107,7 +107,7 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
     let item = action.item.unwrap_or_default();
     let refresh = PluginEffect {
         refresh: true,
-        ..Default::default()
+        ..PluginEffect::stay()
     };
     let result = match action.command.as_str() {
         "send" => session
@@ -142,7 +142,7 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
         "paste" => Ok(PluginEffect {
             copy_text: Some(item),
             paste: true,
-            ..Default::default()
+            ..PluginEffect::hide()
         }),
         "ask-selection" => match action.argument {
             Some(mytools_plugin_api::CommandArgument::Text { text }) => {
@@ -157,7 +157,7 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
                 session.start_on(&item, action.editable == Some(true));
                 Ok(PluginEffect {
                     open: true,
-                    ..Default::default()
+                    ..PluginEffect::stay()
                 })
             }
         },
@@ -178,7 +178,7 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
 fn attachment_effect() -> PluginEffect {
     PluginEffect {
         search_query: Some(String::new()),
-        ..Default::default()
+        ..PluginEffect::stay()
     }
 }
 

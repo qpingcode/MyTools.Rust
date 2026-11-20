@@ -107,7 +107,7 @@ fn main() -> io::Result<()> {
             SearchResponse {
                 effect: Some(PluginEffect {
                     refresh: true,
-                    ..Default::default()
+                    ..PluginEffect::stay()
                 }),
                 ..Default::default()
             }

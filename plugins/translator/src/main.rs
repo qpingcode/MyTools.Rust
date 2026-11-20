@@ -193,7 +193,7 @@ fn start(
                 .map_err(|error| catalog.format("speak.failed", &[("error", &error)]))?;
             Ok(PluginEffect {
                 message: catalog.format("spoken", &[("word", &item)]),
-                ..Default::default()
+                ..PluginEffect::stay()
             })
         }
         "translate" => translate(state, &config, &item, catalog),
@@ -222,7 +222,7 @@ fn start(
             state.revision += 1;
             Ok(PluginEffect {
                 search_query: Some(text),
-                ..Default::default()
+                ..PluginEffect::stay()
             })
         }
         _ => Err(catalog.get("missing").into()),
@@ -265,7 +265,7 @@ fn translate(
     Ok(PluginEffect {
         refresh: true,
         message: catalog.get(message).into(),
-        ..Default::default()
+        ..PluginEffect::stay()
     })
 }
 
@@ -328,7 +328,7 @@ fn translate_selection(
         copy_text: Some(translation),
         paste: true,
         message: catalog.get("completed").into(),
-        ..Default::default()
+        ..PluginEffect::hide()
     })
 }
 

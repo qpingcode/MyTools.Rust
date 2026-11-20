@@ -44,7 +44,7 @@ pub fn search_attachment(
         SearchResponse {
             effect: Some(PluginEffect {
                 search_query: Some(text),
-                ..Default::default()
+                ..PluginEffect::stay()
             }),
             ..Default::default()
         }

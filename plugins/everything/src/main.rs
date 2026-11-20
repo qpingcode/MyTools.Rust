@@ -171,7 +171,7 @@ fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
     SearchResponse {
         effect: Some(PluginEffect {
             refresh: true,
-            ..Default::default()
+            ..PluginEffect::stay()
         }),
         ..Default::default()
     }
