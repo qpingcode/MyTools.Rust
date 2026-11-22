@@ -55,6 +55,16 @@
         "icon": "builtin:pen-line",
         "keywords": ["polish", "rewrite", "improve", "polite", "professional", "ai", "润色", "改写", "礼貌", "专业"],
         "input": ["selection", "attachment-text"]
+      },
+      {
+        "id": "polish-english",
+        "title": {
+          "key": "command.polish-english",
+          "defaultValue": "Polish into English with AI"
+        },
+        "icon": "builtin:globe",
+        "keywords": ["polish", "english", "translate", "rewrite", "polite", "professional", "ai", "润色", "英文", "英语", "翻译"],
+        "input": ["selection", "attachment-text"]
       }
     ]
   }

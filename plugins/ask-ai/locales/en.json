@@ -37,6 +37,8 @@
   "command.ask": "Ask AI about Selection",
   "command.summarize": "Summarize with AI",
   "command.polish": "Polish with AI",
+  "command.polish-english": "Polish into English with AI",
   "prompt.summarize": "Summarize this text briefly. Write the summary in English, whatever language the text is in.",
-  "prompt.polish": "Polish this text so it reads naturally to a native speaker and sounds polite and professional. Keep its language, meaning, formatting and names. Reply with only the polished text."
+  "prompt.polish": "Polish this text so it reads naturally to a native speaker and sounds polite and professional. Keep its language, meaning, formatting and names. Reply with only the polished text.",
+  "prompt.polish-english": "You are a communications editor and a native English speaker. Polish the text below into English so it reads like a well-judged work message a native speaker wrote naturally.\n\nRequirements:\n- Warm, polite and professional, but not overly formal: somewhere between a familiar colleague and a client.\n- Leave room in requests and suggestions: prefer phrasing like I'd be happy to… / I'd be grateful if… / Would that work for you? / Please let me know if…, and avoid imperatives and blunt Can you… or You need to….\n- Use the first person to take on part of the work before asking the other person to help, so it reads like working it out together rather than handing out tasks.\n- Split long sentences, and drop translationese and needless pleasantries; keep a natural rhythm, with one or two short sentences where they fit.\n- Keep the meaning, information and facts exactly as they are; add nothing that is not in the original.\n- Write in English whatever language the original is in; keep its formatting, forms of address, names and terms.\n- Reply with only the polished text, without explanations, headings or quotation marks."
 }

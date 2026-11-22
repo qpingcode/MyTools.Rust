@@ -158,9 +158,10 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
                 Ok(open_effect())
             }
         },
-        "summarize" | "polish" => {
+        "summarize" | "polish" | "polish-english" => {
             let instruction = catalog.get(match action.command.as_str() {
                 "summarize" => "prompt.summarize",
+                "polish-english" => "prompt.polish-english",
                 _ => "prompt.polish",
             });
             let editable = action.editable == Some(true);
@@ -381,6 +382,7 @@ mod tests {
         for (command, key) in [
             ("summarize", "prompt.summarize"),
             ("polish", "prompt.polish"),
+            ("polish-english", "prompt.polish-english"),
         ] {
             let session = session();
             let response = run(&session, on_attachment(command, true), &catalog);
