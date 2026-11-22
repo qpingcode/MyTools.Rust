@@ -233,6 +233,10 @@ fn decode_list(bytes: &[u8]) -> Result<Vec<Hit>, SearchError> {
         let path = if parent.is_empty() {
             // Drives are reported as "C:" without a parent folder.
             PathBuf::from(if drive { format!("{name}\\") } else { name })
+        } else if parent.ends_with(':') {
+            // Items in a drive's root have the parent "D:", and joining onto a bare drive
+            // would give the relative path "D:name".
+            PathBuf::from(format!("{parent}\\{name}"))
         } else {
             PathBuf::from(parent).join(name)
         };
@@ -286,7 +290,7 @@ mod tests {
 
     #[test]
     fn decodes_files_folders_and_drives() {
-        let mut header: Vec<u8> = [3u32, 3, 0, REQUEST_NAME | REQUEST_PATH, 1]
+        let mut header: Vec<u8> = [4u32, 4, 0, REQUEST_NAME | REQUEST_PATH, 1]
             .iter()
             .flat_map(|value| value.to_le_bytes())
             .collect();
@@ -294,6 +298,7 @@ mod tests {
             (0, "App.sln", r"C:\work"),
             (ITEM_FOLDER, "src", r"C:\work"),
             (ITEM_FOLDER | ITEM_DRIVE, "D:", ""),
+            (ITEM_FOLDER, "WI01 - notes", "D:"),
         ];
         let mut data = Vec::new();
         let data_start = 20 + entries.len() * 8;
@@ -310,6 +315,7 @@ mod tests {
         assert!(hits[1].folder);
         assert_eq!(hits[2].path, PathBuf::from(r"D:\"));
         assert!(hits[2].drive);
+        assert_eq!(hits[3].path, PathBuf::from(r"D:\WI01 - notes"));
         assert!(decode_list(&header[..30]).is_err());
     }
 }

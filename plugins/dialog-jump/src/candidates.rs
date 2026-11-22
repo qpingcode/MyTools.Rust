@@ -31,11 +31,15 @@ pub fn typed_path(query: &str) -> Option<&str> {
 }
 
 /// `indexed` are Everything's hits for a query that is not a path, as `(path, is_file)`.
+/// Folders found by Everything come before files, keeping Everything's order otherwise: a
+/// folder is what the dialog jumps to, and files with shorter matching names (e.g. under
+/// `.git`) would otherwise push it out of sight.
 pub fn collect(
     query: &str,
     explorer: Vec<PathBuf>,
-    indexed: Vec<(PathBuf, bool)>,
+    mut indexed: Vec<(PathBuf, bool)>,
 ) -> Vec<Candidate> {
+    indexed.sort_by_key(|&(_, file)| file);
     let found: Vec<(PathBuf, bool, Source)> = match typed_path(query) {
         Some(path) => typed_folders(path)
             .into_iter()
@@ -206,8 +210,9 @@ mod tests {
             "docs",
             vec![PathBuf::from(r"C:\work\docs")],
             vec![
-                (PathBuf::from(r"C:\work\docs"), false),
                 (PathBuf::from(r"C:\work\docs.txt"), true),
+                (PathBuf::from(r"C:\work\docs"), false),
+                (PathBuf::from(r"D:\docs"), false),
             ],
         );
         let kinds: Vec<_> = found
@@ -216,8 +221,14 @@ mod tests {
             .collect();
         assert_eq!(
             kinds,
-            [(Source::Explorer, false), (Source::Everything, true)]
+            [
+                (Source::Explorer, false),
+                (Source::Everything, false),
+                (Source::Everything, true)
+            ],
+            "folders from Everything come before files"
         );
+        assert_eq!(found[1].path, PathBuf::from(r"D:\docs"));
     }
 
     #[test]
