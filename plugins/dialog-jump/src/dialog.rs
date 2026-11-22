@@ -93,10 +93,7 @@ pub fn jump(dialog: Dialog, folder: &Path) -> Result<(), String> {
     let address = wait_for(Duration::from_millis(600), || focused_address(window))
         .ok_or("Alt+D did not focus the address bar")?;
     let path = mytools_plugin_api::paths::display(folder);
-    set_text(address, &path);
-    if win::control_text(address) != path {
-        return Err("the address bar did not take the path".into());
-    }
+    enter_path(address, &path)?;
     if !in_front(window) || focused_address(window) != Some(address) {
         return Err("the focus left the address bar".into());
     }
@@ -119,6 +116,27 @@ fn focused_address(dialog: HWND) -> Option<HWND> {
         && unsafe { IsChild(dialog, focus) }.as_bool()
         && is_address_edit(focus))
     .then_some(focus)
+}
+
+/// Puts the path in the address bar and waits until it stays there: right after Alt+D the
+/// shell may still fill the box with the current location and overwrite it, so the path is
+/// set again until it survives a few polls in a row.
+fn enter_path(address: HWND, path: &str) -> Result<(), String> {
+    const STABLE_POLLS: u32 = 3;
+    let mut stable = 0;
+    let settled = wait_until(Duration::from_millis(800), || {
+        if win::control_text(address) == path {
+            stable += 1;
+        } else {
+            stable = 0;
+            set_text(address, path);
+        }
+        stable >= STABLE_POLLS
+    });
+    settled.map_err(|()| {
+        let shown = win::control_text(address);
+        format!("the address bar did not keep the path {path:?}, it shows {shown:?}")
+    })
 }
 
 fn set_text(control: HWND, text: &str) {
