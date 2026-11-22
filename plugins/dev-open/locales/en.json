@@ -12,5 +12,18 @@
   "opened": "Opened {target} in {ide}",
   "no_project": "Cannot open in {ide}: no .sln/.slnx/.slnf or project file (.csproj/.fsproj/.vbproj) found in {path} or its parent folders",
   "not_installed": "{ide} was not found; set its executable path in dev-open\\config.json in the MyTools data folder",
-  "launch_failed": "Failed to start {ide}: {error}"
+  "launch_failed": "Failed to start {ide}: {error}",
+  "command.build_project": "Build Selected Project",
+  "command.build_solution": "Build Selected Solution",
+  "action.build_project": "Build Project",
+  "action.build_solution": "Build Solution",
+  "build.no_project": "No project file (.csproj/.fsproj/.vbproj) found in {path} or its parent folders",
+  "build.no_solution": "No solution (.sln/.slnx/.slnf) found in {path} or its parent folders",
+  "build.empty_solution": "{solution} has no project dotnet can build",
+  "build.started": "Building {count} projects in a terminal",
+  "build.started_skipped": "Building {count} projects in a terminal; nothing to build for {skipped} selected items",
+  "build.failed": "Build failed: {project}",
+  "build.done": "Built {count} projects in {seconds} s",
+  "build.launch_failed": "Failed to open the terminal: {error}",
+  "build.unsupported": "Building is only available on Windows"
 }

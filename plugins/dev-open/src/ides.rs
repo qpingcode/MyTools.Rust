@@ -39,13 +39,15 @@ impl Ide {
     }
 }
 
-/// Optional `config.json` in the plugin's data folder overriding auto-detected executables.
+/// Optional `config.json` in the plugin's data folder: executables overriding the detected
+/// ones, and the command that builds a project.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
     rider: String,
     vscode: String,
     visualstudio: String,
+    build_command: String,
 }
 
 impl Config {
@@ -54,6 +56,14 @@ impl Config {
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default()
+    }
+
+    /// The PowerShell command run for each project, `{project}` standing for its path.
+    pub fn build_command(&self) -> &str {
+        match self.build_command.trim() {
+            "" => crate::build::DEFAULT_COMMAND,
+            command => command,
+        }
     }
 
     fn configured(&self, ide: Ide) -> Option<PathBuf> {
@@ -278,6 +288,15 @@ mod tests {
         for ide in [Ide::Rider, Ide::VsCode, Ide::VisualStudio] {
             println!("{:?} -> {:?}", ide, locate(ide, &config));
         }
+    }
+
+    #[test]
+    fn build_command_defaults_when_not_configured() {
+        let config: Config = serde_json::from_str(r#"{"rider":""}"#).unwrap();
+        assert_eq!(config.build_command(), crate::build::DEFAULT_COMMAND);
+        let config: Config =
+            serde_json::from_str(r#"{"build_command":" dotnet build {project} "}"#).unwrap();
+        assert_eq!(config.build_command(), "dotnet build {project}");
     }
 
     #[test]

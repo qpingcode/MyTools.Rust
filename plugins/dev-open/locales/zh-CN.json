@@ -12,5 +12,18 @@
   "opened": "已用 {ide} 打开 {target}",
   "no_project": "无法用 {ide} 打开：{path} 及其上级目录中没有找到 .sln/.slnx/.slnf 或项目文件（.csproj/.fsproj/.vbproj）",
   "not_installed": "未找到 {ide}，可在 MyTools 数据目录的 dev-open\\config.json 中设置程序路径",
-  "launch_failed": "启动 {ide} 失败：{error}"
+  "launch_failed": "启动 {ide} 失败：{error}",
+  "command.build_project": "编译选中文件所在的项目",
+  "command.build_solution": "编译选中文件所在的解决方案",
+  "action.build_project": "编译项目",
+  "action.build_solution": "编译解决方案",
+  "build.no_project": "{path} 及其上级目录中没有找到项目文件（.csproj/.fsproj/.vbproj）",
+  "build.no_solution": "{path} 及其上级目录中没有找到解决方案（.sln/.slnx/.slnf）",
+  "build.empty_solution": "{solution} 中没有 dotnet 可以编译的项目",
+  "build.started": "已在终端中开始编译 {count} 个项目",
+  "build.started_skipped": "已在终端中开始编译 {count} 个项目，{skipped} 个选中项没有可编译的项目",
+  "build.failed": "编译失败：{project}",
+  "build.done": "{count} 个项目编译完成，用时 {seconds} 秒",
+  "build.launch_failed": "无法打开终端：{error}",
+  "build.unsupported": "编译目前只支持 Windows"
 }

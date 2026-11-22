@@ -1,5 +1,6 @@
 {
   "rider": "",
   "vscode": "",
-  "visualstudio": ""
+  "visualstudio": "",
+  "build_command": "dotnet build {project} --nologo /p:EnforceCodeStyleInBuild=false /p:CompileUsingReferenceAssemblies=false --no-dependencies"
 }

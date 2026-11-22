@@ -577,7 +577,8 @@ mod tests {
         let manifest: Manifest =
             serde_json::from_str(include_str!("../../../plugins/dev-open/plugin.json")).unwrap();
         let rule = &manifest.contributes.actions[0];
-        assert_eq!(rule.actions.len(), 3);
+        // Three IDEs, then building the project or the solution.
+        assert_eq!(rule.actions.len(), 5);
         let file = Resource::File {
             path: "C:\\a.txt".into(),
         };

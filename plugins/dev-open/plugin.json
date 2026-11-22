@@ -25,6 +25,26 @@
         "input": [
           "attachment-files"
         ]
+      },
+      {
+        "id": "build-project",
+        "title": {
+          "key": "command.build_project",
+          "defaultValue": "Build Selected Project"
+        },
+        "keywords": ["build", "dotnet", "csproj", "编译"],
+        "icon": "builtin:square-terminal",
+        "input": ["attachment-files"]
+      },
+      {
+        "id": "build-solution",
+        "title": {
+          "key": "command.build_solution",
+          "defaultValue": "Build Selected Solution"
+        },
+        "keywords": ["build", "dotnet", "sln", "solution", "编译", "解决方案"],
+        "icon": "builtin:package",
+        "input": ["attachment-files"]
       }
     ],
     "actions": [
@@ -45,6 +65,16 @@
             "command": "visualstudio",
             "title": { "key": "action.visualstudio", "defaultValue": "Open in Visual Studio" },
             "icon": "builtin:code"
+          },
+          {
+            "command": "build-project",
+            "title": { "key": "action.build_project", "defaultValue": "Build Project" },
+            "icon": "builtin:square-terminal"
+          },
+          {
+            "command": "build-solution",
+            "title": { "key": "action.build_solution", "defaultValue": "Build Solution" },
+            "icon": "builtin:package"
           }
         ]
       }

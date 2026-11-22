@@ -3548,9 +3548,11 @@ dependencies = [
 name = "mytools-dev-open"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "mytools-plugin-api",
  "serde",
  "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

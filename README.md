@@ -315,6 +315,16 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
   与目录同名者，再按名称排序。
 - **用 VS Code 打开**：打开当前目录；若是文件，则打开其所在目录并定位到该文件。
 - **用 Visual Studio 打开**：查找逻辑同 Rider，通过 `vswhere` 选择版本最高的 `devenv.exe`。
+- **编译项目**：从当前目录向上找到最近的 `.csproj` / `.fsproj` / `.vbproj`（文件所属的项目；项目文件本身直接使用），
+  在新的 PowerShell 窗口中执行 `dotnet build <项目> --nologo /p:EnforceCodeStyleInBuild=false /p:CompileUsingReferenceAssemblies=false --no-dependencies`。
+- **编译解决方案**：向上找到最近的 `.sln` / `.slnx` / `.slnf`（解决方案文件本身直接使用），读出其中 dotnet 能编译的项目，
+  按 `<ProjectReference>` 排序（被引用的先编译），逐个用上面的命令编译。`--no-dependencies` 使解决方案之外的引用不被编译，
+  直接使用已有的输出；用 `$(SolutionDir)` 等 MSBuild 属性写成的引用无法解析，按没有引用处理。
+
+两个编译动作也是命令“编译选中文件所在的项目”“编译选中文件所在的解决方案”，接受文件附件（如资源管理器或桌面上选中的文件）。
+选中多个文件时按所属项目去重、按引用排序后依次编译。终端窗口编译完不关闭，某个项目失败即停止并标红显示，全部成功显示用时。
+每个项目执行的命令可在数据目录的 `dev-open/config.json` 中用 `build_command` 修改，`{project}` 代表项目路径（PowerShell 语法），
+默认值见插件目录的 `config.example.json`。
 
 在搜索框直接输入一个已存在的绝对路径（或 `ide 路径`）也会列出这三个动作。Rider 依次从 JetBrains Toolbox 脚本、
 `%LOCALAPPDATA%\JetBrains\Installations`、`%LOCALAPPDATA%\Programs`、`%ProgramFiles%\JetBrains` 和 PATH 查找；

@@ -1,6 +1,7 @@
-//! Opens files and folders in Rider, VS Code or Visual Studio.
+//! Opens files and folders in Rider, VS Code or Visual Studio, and builds the .NET project
+//! or solution they belong to.
 //! The host offers these commands on every file/folder result (see `contributes.actions`
-//! in plugin.json); typing an existing path also lists them directly.
+//! in plugin.json) and on attached files; typing an existing path also lists the IDEs.
 use ides::Ide;
 use mytools_plugin_api::{
     ActionId, ActionSpec, PluginActionRequest, PluginEffect, Resource, SearchItem, SearchResponse,
@@ -8,8 +9,11 @@ use mytools_plugin_api::{
 };
 use std::path::{Path, PathBuf};
 
+mod build;
 mod ides;
 mod project;
+mod solution;
+mod terminal;
 
 const IDES: [Ide; 3] = [Ide::Rider, Ide::VsCode, Ide::VisualStudio];
 
@@ -116,7 +120,51 @@ fn open(ide: Ide, path: &Path, catalog: &Catalog) -> Result<String, String> {
     ))
 }
 
+/// Builds the project or solution of attached files, or of the result an action is on.
+fn build_selection(
+    scope: build::Scope,
+    request: &PluginActionRequest,
+    catalog: &Catalog,
+) -> SearchResponse {
+    let selected: Vec<PathBuf> = match &request.argument {
+        Some(mytools_plugin_api::CommandArgument::Files { paths }) => paths.clone(),
+        _ => request
+            .item
+            .iter()
+            .map(|item| PathBuf::from(item.trim()))
+            .collect(),
+    };
+    let config = ides::Config::load();
+    let result = build::plan(scope, &selected, catalog).and_then(|plan| {
+        build::run(&plan, config.build_command(), catalog)?;
+        let count = plan.projects.len().to_string();
+        Ok(match plan.skipped {
+            0 => catalog.format("build.started", &[("count", &count)]),
+            skipped => catalog.format(
+                "build.started_skipped",
+                &[("count", &count), ("skipped", &skipped.to_string())],
+            ),
+        })
+    });
+    match result {
+        Ok(message) => SearchResponse {
+            effect: Some(PluginEffect {
+                message,
+                ..PluginEffect::hide()
+            }),
+            ..Default::default()
+        },
+        Err(error) => SearchResponse {
+            error: Some(error),
+            ..Default::default()
+        },
+    }
+}
+
 fn action(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
+    if let Some(scope) = build::Scope::from_command(&request.command) {
+        return build_selection(scope, &request, catalog);
+    }
     if request.command == "open-selection" {
         let path = match request.argument {
             Some(mytools_plugin_api::CommandArgument::Files { paths }) => paths.into_iter().next(),

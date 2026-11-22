@@ -6,13 +6,42 @@ const SOLUTION_EXTENSIONS: &[&str] = &["sln", "slnx", "slnf"];
 /// .NET project formats both IDEs open directly when no solution exists.
 const PROJECT_EXTENSIONS: &[&str] = &["csproj", "fsproj", "vbproj", "vcxproj", "esproj", "proj"];
 
+/// Project formats `dotnet build` builds; C++ and JavaScript projects need Visual Studio.
+pub const BUILDABLE_EXTENSIONS: &[&str] = &["csproj", "fsproj", "vbproj"];
+
+/// The project `path` belongs to: the project file itself, or the nearest one in its folder
+/// or a parent folder.
+pub fn owning_project(path: &Path) -> Option<PathBuf> {
+    if path.is_file() && has_extension(path, BUILDABLE_EXTENSIONS.iter()) {
+        return Some(path.to_path_buf());
+    }
+    nearest(start(path)?, BUILDABLE_EXTENSIONS)
+}
+
+/// The solution `path` belongs to: the solution file itself, or the nearest one in its
+/// folder or a parent folder.
+pub fn owning_solution(path: &Path) -> Option<PathBuf> {
+    if path.is_file() && has_extension(path, SOLUTION_EXTENSIONS.iter()) {
+        return Some(path.to_path_buf());
+    }
+    nearest(start(path)?, SOLUTION_EXTENSIONS)
+}
+
+fn start(path: &Path) -> Option<&Path> {
+    if path.is_dir() {
+        Some(path)
+    } else {
+        path.parent()
+    }
+}
+
 /// Walks from `path` up to the root looking for a solution; only when none exists anywhere
 /// does it walk again looking for a project file. A solution/project path is used as-is.
 pub fn find(path: &Path) -> Option<PathBuf> {
     if path.is_file() && has_extension(path, SOLUTION_EXTENSIONS.iter().chain(PROJECT_EXTENSIONS)) {
         return Some(path.to_path_buf());
     }
-    let start = if path.is_dir() { path } else { path.parent()? };
+    let start = start(path)?;
     nearest(start, SOLUTION_EXTENSIONS).or_else(|| nearest(start, PROJECT_EXTENSIONS))
 }
 
@@ -51,7 +80,7 @@ fn best_in(directory: &Path, extensions: &[&str]) -> Option<PathBuf> {
     candidates.into_iter().next()
 }
 
-fn has_extension<'a>(path: &Path, mut extensions: impl Iterator<Item = &'a &'a str>) -> bool {
+pub fn has_extension<'a>(path: &Path, mut extensions: impl Iterator<Item = &'a &'a str>) -> bool {
     path.extension()
         .map(|ext| ext.to_string_lossy().to_lowercase())
         .is_some_and(|ext| extensions.any(|candidate| *candidate == ext))
@@ -111,6 +140,39 @@ mod tests {
             &["Work/Other.sln", "Work/Work.sln", "Work/Work.slnx"],
         );
         assert_eq!(find(&f.0.join("Work")), Some(f.0.join("Work/Work.sln")));
+    }
+
+    #[test]
+    fn owning_project_is_the_nearest_buildable_one_and_ignores_solutions() {
+        let f = fixture(
+            "own",
+            &[
+                "Repo.sln",
+                "src/App/App.csproj",
+                "src/App/Code/Program.cs",
+                "src/Native/Native.vcxproj",
+                "src/Native/main.cpp",
+            ],
+        );
+        assert_eq!(
+            owning_project(&f.0.join("src/App/Code/Program.cs")),
+            Some(f.0.join("src/App/App.csproj"))
+        );
+        assert_eq!(
+            owning_project(&f.0.join("src/App/App.csproj")),
+            Some(f.0.join("src/App/App.csproj"))
+        );
+        // A C++ project is skipped; the walk goes on above it.
+        let native = owning_project(&f.0.join("src/Native/main.cpp"));
+        assert!(native.is_none_or(|path| !path.starts_with(&f.0)));
+        assert_eq!(
+            owning_solution(&f.0.join("src/App/Code/Program.cs")),
+            Some(f.0.join("Repo.sln"))
+        );
+        assert_eq!(
+            owning_solution(&f.0.join("Repo.sln")),
+            Some(f.0.join("Repo.sln"))
+        );
     }
 
     #[test]
