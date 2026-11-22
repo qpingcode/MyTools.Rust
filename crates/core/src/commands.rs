@@ -93,14 +93,18 @@ fn match_rank(plugin: &Plugin, command: &Command, query: &str) -> u8 {
     )
 }
 
+/// What the selection shortcut captured, for the commands that accept it.
+#[derive(Clone, Debug)]
+pub struct Attachment {
+    pub argument: Arc<CommandArgument>,
+    /// Whether the selected text is in a text field, so pasting over it replaces it.
+    pub editable: bool,
+}
+
 /// Search results for the commands that match `query`; every command when it is empty.
 /// They answer global search only, never a plugin's alias scope.
-pub fn entries(
-    plugins: &[Plugin],
-    query: &str,
-    argument: Option<&Arc<CommandArgument>>,
-) -> Vec<Entry> {
-    let kind = argument.map(|argument| match argument.as_ref() {
+pub fn entries(plugins: &[Plugin], query: &str, attachment: Option<&Attachment>) -> Vec<Entry> {
+    let kind = attachment.map(|attachment| match attachment.argument.as_ref() {
         CommandArgument::Text { .. } => InputKind::AttachmentText,
         CommandArgument::Files { .. } => InputKind::AttachmentFiles,
     });
@@ -114,23 +118,19 @@ pub fn entries(
                 Some(kind) => command.input.contains(kind),
                 None => command.input.can_run_without_attachment(),
             };
-            let rank = match_rank(plugin, command, query);
-            if compatible && rank < 4 {
-                entries.push((rank, entry(plugin, command, process, argument)));
+            if compatible && match_rank(plugin, command, query) < 4 {
+                entries.push(entry(plugin, command, process, attachment));
             }
         }
     }
-    if argument.is_some() {
-        entries.sort_by_key(|(rank, _)| *rank);
-    }
-    entries.into_iter().map(|(_, entry)| entry).collect()
+    entries
 }
 
 fn entry(
     plugin: &Plugin,
     command: &Command,
     process: &Arc<SearchProcess>,
-    argument: Option<&Arc<CommandArgument>>,
+    attachment: Option<&Attachment>,
 ) -> Entry {
     let description = match command.hotkey.as_deref().and_then(Hotkey::parse) {
         Some(hotkey) => i18n::format(
@@ -151,8 +151,8 @@ fn entry(
     .expect("an empty action list fits every resource");
     entry.set_source(&plugin.id);
     let action = action(plugin, command, process);
-    entry.actions.push(match argument {
-        Some(argument) => action.with_argument(argument.clone()),
+    entry.actions.push(match attachment {
+        Some(attachment) => action.with_argument(attachment.argument.clone(), attachment.editable),
         None => action,
     });
     entry

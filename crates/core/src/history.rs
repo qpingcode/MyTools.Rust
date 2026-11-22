@@ -123,10 +123,9 @@ impl History {
         ((1.0 - (-total / 10.0).exp()) * 1000.0) as u32
     }
 
+    /// Counts a use of `selection`; an empty query is a pick from the attachment
+    /// commands with nothing typed, which counts towards frequency only.
     fn select(&mut self, selection: &Selection, time: u64) {
-        if selection.query.is_empty() {
-            return;
-        }
         // Preserve selection order even when two actions finish within one millisecond.
         let time = time.max(
             self.records
@@ -175,9 +174,6 @@ fn path() -> Option<PathBuf> {
 }
 
 fn record_at(path: &Path, selection: &Selection, time: u64) -> anyhow::Result<()> {
-    if selection.query.is_empty() {
-        return Ok(());
-    }
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         fs::create_dir_all(parent)?;
     }
@@ -252,6 +248,14 @@ mod tests {
             history.select(&selection("dev", "app"), time);
         }
         assert!(history.frequency("app", 1000) <= 1000);
+    }
+
+    #[test]
+    fn picks_without_a_query_count_towards_frequency_only() {
+        let mut history = History::default();
+        history.select(&selection("", "command"), 1);
+        assert!(history.frequency("command", 2) > 0);
+        assert!(history.reused("dev", ["command"].into_iter(), 2).is_none());
     }
 
     #[test]

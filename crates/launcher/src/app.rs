@@ -5,9 +5,8 @@ use crate::{
     theme, tray,
 };
 use mytools_core::{Entry, Notice, SearchResults};
-use mytools_plugin_api::CommandArgument;
 use slint::{ComponentHandle, VecModel};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -25,7 +24,7 @@ pub(crate) struct State {
     desktop_error: Option<String>,
     /// Plugin or command shortcuts that could not be registered.
     hotkey_error: Option<String>,
-    pub attachment: Option<Arc<CommandArgument>>,
+    pub attachment: Option<mytools_core::Attachment>,
     pub attachment_open: u64,
     pub chat: crate::chat::ChatState,
 }

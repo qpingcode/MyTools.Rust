@@ -388,14 +388,22 @@ impl Catalog {
         crate::commands::bindings(&self.plugins)
     }
 
+    /// The commands that accept what the selection shortcut captured, those used most first.
     pub fn search_attachment(
         &self,
         input: &str,
-        argument: &std::sync::Arc<mytools_plugin_api::CommandArgument>,
+        attachment: &crate::commands::Attachment,
     ) -> SearchResults {
         let query = input.trim();
+        let mut entries = crate::commands::entries(&self.plugins, query, Some(attachment));
+        rank_attachment(
+            &mut entries,
+            query,
+            &crate::history::History::load(),
+            crate::history::now(),
+        );
         SearchResults {
-            entries: crate::commands::entries(&self.plugins, query, Some(argument)),
+            entries,
             errors: self.errors.clone(),
             plugin_name: None,
             view: Default::default(),
@@ -687,6 +695,33 @@ fn contributed_item(resource: &Resource) -> String {
         Resource::Text { text } => text.clone(),
         Resource::PluginItem { id } => id.clone(),
     }
+}
+
+/// Ranks the commands offered for an attachment like global search; with nothing typed,
+/// by how often each was used, keeping plugin order among equals.
+fn rank_attachment(
+    entries: &mut [Entry],
+    query: &str,
+    history: &crate::history::History,
+    time: u64,
+) {
+    if !query.is_empty() {
+        return rank_global(entries, query, history, time);
+    }
+    for entry in entries.iter_mut() {
+        let selection = crate::history::Selection::new(&entry.source_id, &entry.resource, query);
+        if let Some(action) = entry.actions.first_mut() {
+            action.selection = Some(selection);
+        }
+    }
+    entries.sort_by_cached_key(|entry| {
+        let frequency = entry
+            .actions
+            .first()
+            .and_then(|action| action.selection.as_ref())
+            .map_or(0, |selection| history.frequency(&selection.key, time));
+        std::cmp::Reverse(frequency)
+    });
 }
 
 fn rank_global(entries: &mut [Entry], query: &str, history: &crate::history::History, time: u64) {
@@ -988,6 +1023,26 @@ mod tests {
         assert_eq!(entries[1].name, "a dev");
     }
 
+    #[test]
+    fn attachment_commands_rank_by_use_and_keep_their_order_otherwise() {
+        let used = ranked_entry("c used");
+        let key = crate::history::Selection::new("fixture", &used.resource, "").key;
+        let history = serde_json::from_value(
+            serde_json::json!({"records":[{"query":"","key":key,"last":100,"uses":3.0}]}),
+        )
+        .unwrap();
+        let mut entries = vec![ranked_entry("b"), ranked_entry("a"), used];
+        rank_attachment(&mut entries, "", &history, 101);
+        assert_eq!(
+            entries.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
+            vec!["c used", "b", "a"]
+        );
+        assert_eq!(entries[0].actions[0].selection.as_ref().unwrap().query, "");
+        // Typing ranks the match first, as global search does.
+        rank_attachment(&mut entries, "a", &history, 101);
+        assert_eq!(entries[0].name, "a");
+    }
+
     fn plugin() -> Plugin {
         Plugin {
             id: "calculator".into(),
@@ -1072,7 +1127,11 @@ mod tests {
         plugin.commands.push(files);
         let catalog = catalog(vec![plugin]);
 
-        let text = Arc::new(CommandArgument::Text {
+        let attach = |argument| crate::commands::Attachment {
+            argument: Arc::new(argument),
+            editable: false,
+        };
+        let text = attach(CommandArgument::Text {
             text: " hello\n".into(),
         });
         let results = catalog.search_attachment("", &text);
@@ -1080,7 +1139,7 @@ mod tests {
         assert_eq!(results.entries[0].name, "Paste as Plain Text");
         assert!(!results.entries[0].actions[0].needs_selection());
 
-        let paths = Arc::new(CommandArgument::Files {
+        let paths = attach(CommandArgument::Files {
             paths: vec!["example.txt".into()],
         });
         assert_eq!(

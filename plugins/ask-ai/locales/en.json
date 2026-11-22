@@ -34,5 +34,9 @@
   "detach": "Remove the attached text",
   "open": "Open: {title}",
   "model": "Use model {model}",
-  "command.ask": "Ask AI about Selection"
+  "command.ask": "Ask AI about Selection",
+  "command.summarize": "Summarize with AI",
+  "command.polish": "Polish with AI",
+  "prompt.summarize": "Summarize this text briefly, in the language it is written in.",
+  "prompt.polish": "Polish this text so it reads naturally to a native speaker and sounds polite and professional. Keep its language, meaning, formatting and names. Reply with only the polished text."
 }

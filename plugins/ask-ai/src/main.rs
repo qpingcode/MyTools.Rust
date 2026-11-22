@@ -146,7 +146,7 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
         }),
         "ask-selection" => match action.argument {
             Some(mytools_plugin_api::CommandArgument::Text { text }) => {
-                session.start_on(&text, false);
+                session.start_on(&text, action.editable == Some(true));
                 Ok(attachment_effect())
             }
             Some(mytools_plugin_api::CommandArgument::Files { paths }) => session
@@ -155,12 +155,27 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
                 .map_err(|error| catalog.format("files.failed", &[("error", &error)])),
             None => {
                 session.start_on(&item, action.editable == Some(true));
-                Ok(PluginEffect {
-                    open: true,
-                    ..PluginEffect::stay()
-                })
+                Ok(open_effect())
             }
         },
+        "summarize" | "polish" => {
+            let instruction = catalog.get(match action.command.as_str() {
+                "summarize" => "prompt.summarize",
+                _ => "prompt.polish",
+            });
+            let editable = action.editable == Some(true);
+            let (text, effect) = match action.argument {
+                Some(mytools_plugin_api::CommandArgument::Text { text }) => {
+                    (text, attachment_effect())
+                }
+                _ => (item, open_effect()),
+            };
+            session.start_on(&text, editable);
+            session
+                .send(instruction)
+                .map(|()| effect)
+                .map_err(|()| catalog.get("busy").to_owned())
+        }
         _ => Err(catalog.get("missing").to_owned()),
     };
     match result {
@@ -175,6 +190,15 @@ fn run(session: &Session, action: PluginActionRequest, catalog: &Catalog) -> Sea
     }
 }
 
+/// Opens the conversation in the plugin's scope, for a command run on the selection.
+fn open_effect() -> PluginEffect {
+    PluginEffect {
+        open: true,
+        ..PluginEffect::stay()
+    }
+}
+
+/// Shows the conversation in place of the commands offered for an attachment.
 fn attachment_effect() -> PluginEffect {
     PluginEffect {
         search_query: Some(String::new()),
@@ -326,25 +350,60 @@ mod tests {
         );
     }
 
+    fn on_attachment(command: &str, editable: bool) -> PluginActionRequest {
+        PluginActionRequest {
+            command: command.into(),
+            item: None,
+            editable: Some(editable),
+            argument: Some(mytools_plugin_api::CommandArgument::Text {
+                text: "Hello".into(),
+            }),
+        }
+    }
+
     #[test]
-    fn an_attachment_opens_chat_without_sending_or_enabling_replacement() {
+    fn an_attachment_opens_chat_without_sending() {
         let catalog = catalog();
+        let session = session();
+        let response = run(&session, on_attachment("ask-selection", false), &catalog);
+        assert_eq!(response.effect.unwrap().search_query.as_deref(), Some(""));
+        assert_eq!(session.chat().attachment.as_deref(), Some("Hello"));
+        assert!(session.chat().messages.is_empty());
+        assert!(!session.replaceable());
+
+        run(&session, on_attachment("ask-selection", true), &catalog);
+        assert!(session.replaceable());
+    }
+
+    #[test]
+    fn summarize_and_polish_send_their_instruction_with_the_text() {
+        let catalog = catalog();
+        for (command, key) in [
+            ("summarize", "prompt.summarize"),
+            ("polish", "prompt.polish"),
+        ] {
+            let session = session();
+            let response = run(&session, on_attachment(command, true), &catalog);
+            assert_eq!(response.effect.unwrap().search_query.as_deref(), Some(""));
+            let question = session.chat().messages[0].clone();
+            assert_eq!(question.text, catalog.get(key));
+            assert_eq!(question.attachment.as_deref(), Some("Hello"));
+            assert!(session.replaceable());
+        }
+
         let session = session();
         let response = run(
             &session,
             PluginActionRequest {
-                command: "ask-selection".into(),
-                item: None,
-                editable: None,
-                argument: Some(mytools_plugin_api::CommandArgument::Text {
-                    text: "Hello".into(),
-                }),
+                command: "polish".into(),
+                item: Some("Hi".into()),
+                editable: Some(false),
+                argument: None,
             },
             &catalog,
         );
-        assert_eq!(response.effect.unwrap().search_query.as_deref(), Some(""));
-        assert_eq!(session.chat().attachment.as_deref(), Some("Hello"));
-        assert!(session.chat().messages.is_empty());
+        assert!(response.effect.unwrap().open);
+        assert_eq!(session.chat().messages[0].attachment.as_deref(), Some("Hi"));
         assert!(!session.replaceable());
     }
 

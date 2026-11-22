@@ -43,10 +43,12 @@ impl Source {
         }
     }
 
-    pub fn capture(self) -> Result<Option<mytools_plugin_api::CommandArgument>> {
+    pub fn capture(self) -> Result<Option<mytools_core::Attachment>> {
         #[cfg(windows)]
         {
+            use mytools_core::Attachment;
             use mytools_plugin_api::CommandArgument;
+            use std::sync::Arc;
             use windows::Win32::{
                 Foundation::HWND,
                 UI::WindowsAndMessaging::{
@@ -80,14 +82,18 @@ impl Source {
                     explorer::selected_files(window, &crate::i18n::t("explorer_probe.ambiguous"))?;
                 return Ok(paths
                     .filter(|paths| !paths.is_empty())
-                    .map(|paths| CommandArgument::Files { paths }));
+                    .map(|paths| Attachment {
+                        argument: Arc::new(CommandArgument::Files { paths }),
+                        editable: false,
+                    }));
             }
             let selection = platform::capture_from(window, true)?;
-            Ok(
-                (!selection.text.is_empty()).then_some(CommandArgument::Text {
+            Ok((!selection.text.is_empty()).then(|| Attachment {
+                argument: Arc::new(CommandArgument::Text {
                     text: selection.text,
                 }),
-            )
+                editable: selection.editable,
+            }))
         }
         #[cfg(not(windows))]
         anyhow::bail!(crate::i18n::t("selection.unsupported"))

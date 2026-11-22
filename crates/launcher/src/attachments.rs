@@ -2,7 +2,7 @@ use crate::{MainWindow, app::State, desktop, i18n, notices::Notifier};
 use mytools_core::Notice;
 use mytools_plugin_api::CommandArgument;
 use slint::ComponentHandle;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 pub fn wire(
     ui: &MainWindow,
@@ -63,8 +63,8 @@ pub fn wire(
                 }]);
                 continue;
             };
-            let (label, details) = attachment_display(&attachment);
-            state.borrow_mut().attachment = Some(Arc::new(attachment));
+            let (label, details) = attachment_display(&attachment.argument);
+            state.borrow_mut().attachment = Some(attachment);
             ui.set_attachment_label(label.into());
             ui.set_attachment_details(details.into());
             ui.set_detail_view(false);

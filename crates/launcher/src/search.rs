@@ -19,7 +19,7 @@ const TICK: Duration = Duration::from_millis(250);
 pub struct Query {
     pub generation: u64,
     pub text: String,
-    pub attachment: Option<Arc<mytools_plugin_api::CommandArgument>>,
+    pub attachment: Option<mytools_core::Attachment>,
     pub scope: Option<(String, String)>,
     /// 0 for typed input; a retry asks plugins to wait longer.
     pub attempt: u32,

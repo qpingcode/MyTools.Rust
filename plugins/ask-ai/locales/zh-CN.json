@@ -34,5 +34,9 @@
   "detach": "移除附加的文字",
   "open": "打开：{title}",
   "model": "使用模型 {model}",
-  "command.ask": "就选中内容询问 AI"
+  "command.ask": "就选中内容询问 AI",
+  "command.summarize": "AI 总结",
+  "command.polish": "AI 润色",
+  "prompt.summarize": "请用原文的语言简要总结这段文字。",
+  "prompt.polish": "请润色这段文字，使其对母语者读来自然，语气礼貌、专业。保持原文的语言、含义、格式和名称不变。只回复润色后的文字。"
 }

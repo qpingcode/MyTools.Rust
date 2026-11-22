@@ -16,8 +16,8 @@ pub struct Action {
     operation: Operation,
     pub(crate) selection: Option<crate::history::Selection>,
     input: Input,
-    /// Sent with a command on the selection: whether the selection can be replaced.
     argument: Option<std::sync::Arc<CommandArgument>>,
+    /// Sent with a command on the selection: whether the selection can be replaced.
     editable: Option<bool>,
 }
 
@@ -131,9 +131,14 @@ impl Action {
         action
     }
 
-    pub(crate) fn with_argument(mut self, argument: std::sync::Arc<CommandArgument>) -> Self {
+    pub(crate) fn with_argument(
+        mut self,
+        argument: std::sync::Arc<CommandArgument>,
+        editable: bool,
+    ) -> Self {
         self.input = Input::None;
         self.argument = Some(argument);
+        self.editable = Some(editable);
         self
     }
 

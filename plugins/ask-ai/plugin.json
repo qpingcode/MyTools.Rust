@@ -35,6 +35,26 @@
           "rename"
         ],
         "input": ["selection-optional", "attachment-text", "attachment-files"]
+      },
+      {
+        "id": "summarize",
+        "title": {
+          "key": "command.summarize",
+          "defaultValue": "Summarize with AI"
+        },
+        "icon": "builtin:list",
+        "keywords": ["summarize", "summary", "tldr", "ai", "总结", "摘要", "概括"],
+        "input": ["selection", "attachment-text"]
+      },
+      {
+        "id": "polish",
+        "title": {
+          "key": "command.polish",
+          "defaultValue": "Polish with AI"
+        },
+        "icon": "builtin:pen-line",
+        "keywords": ["polish", "rewrite", "improve", "polite", "professional", "ai", "润色", "改写", "礼貌", "专业"],
+        "input": ["selection", "attachment-text"]
       }
     ]
   }
