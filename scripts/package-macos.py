@@ -38,6 +38,8 @@ def main():
         shutil.copy2(ROOT / "target/release/mytools", binaries / "mytools")
         for manifest in sorted((ROOT / "plugins").glob("*/plugin.json")):
             metadata = json.loads(manifest.read_text(encoding="utf-8-sig"))
+            if "macos" not in metadata.get("platforms", ["macos"]):
+                continue
             destination = binaries / "plugins" / manifest.parent.name
             destination.mkdir(parents=True)
             shutil.copy2(manifest, destination / "plugin.json")

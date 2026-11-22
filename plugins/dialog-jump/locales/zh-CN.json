@@ -1,0 +1,15 @@
+{
+  "name": "文件对话框跳转",
+  "action.jump": "在文件对话框中打开",
+  "no_dialog": "前台没有保存或打开对话框",
+  "no_dialog_detail": "请先切换到文件对话框，再按 Ctrl+Alt+G",
+  "unsupported": "文件对话框跳转仅支持 Windows",
+  "explorer": "资源管理器中已打开 · {path}",
+  "no_results": "没有匹配的文件或文件夹",
+  "no_results_detail": "输入文件或文件夹名称的一部分（通过 Everything 搜索），或输入文件夹路径",
+  "everything.not_running": "Everything 未运行，只列出已打开的文件夹和输入的路径",
+  "everything.busy": "Everything 正忙，结果可能不完整",
+  "everything.failed": "Everything 搜索失败：{error}",
+  "missing_path": "文件或文件夹已不存在：{path}",
+  "dialog_gone": "保存或打开对话框已不在前台"
+}

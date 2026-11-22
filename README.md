@@ -355,6 +355,23 @@ Everything 未运行时提示启动；已安装时按 Enter 启动 Everything。
 执行时宿主向贡献动作的插件发送 `{"action":{"command":"<command>","item":"<值>"}}`，`item` 为结果的主值：
 文件/文件夹/应用为路径，`url` 为链接，`text` 为文本，`plugin_item` 为其 `id`。插件必须在 `effect.dismiss` 中说明成功后是否隐藏启动器（`PluginEffect::hide()` / `PluginEffect::stay()`）。
 
+## 文件对话框跳转（dialog-jump，Windows）
+
+在任意程序的“另存为 / 打开”对话框中按 `Ctrl+Alt+G`（可在设置中修改），启动器进入 `jump` 范围：
+
+- 不输入时列出资源管理器中已打开的文件夹（前台窗口在前）。
+- 输入关键字时，先列出名称匹配的已打开文件夹，再列出 Everything 搜到的文件和文件夹。查询复用 everything 插件的
+  客户端代码，不自建索引；Everything 未运行时给出提示。
+- 输入绝对路径（如 `C:\work\`、`C:\work\re`）则列出该文件夹及匹配的子文件夹。
+
+按 Enter 后启动器隐藏，对话框回到前台并跳转到所选文件夹；选中文件时跳转到它所在的文件夹，文件名保持不变。
+其他插件的文件、文件夹结果也可以在 `Ctrl+K` 中选“在文件对话框中打开”。清单声明 `"platforms": ["windows"]`，
+其他系统不加载、不打包。
+
+跳转模拟用户操作：`Alt+D` 进入地址栏，写入路径，确认焦点仍在地址栏后才按 Enter，失败时不会按到“保存/打开”按钮，
+原因写入日志（`dialog-jump.failed`）。支持系统的 `IFileDialog` 对话框（含升级为新样式的 `GetOpenFileName`）；
+XP 旧样式对话框（没有地址栏）、Office / Qt / Java 等自绘对话框暂不支持。
+
 ## 剪贴板历史
 
 `clipboard` 是随 MyTools 启动的独立常驻插件，默认不参与普通全局搜索。

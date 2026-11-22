@@ -130,6 +130,7 @@ pub mod icons;
 pub mod log;
 pub mod matching;
 pub mod paths;
+pub mod platforms;
 pub mod plugin_settings;
 pub mod plugin_status;
 pub mod text;

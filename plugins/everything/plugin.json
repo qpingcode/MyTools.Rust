@@ -8,6 +8,7 @@
   "type": "search",
   "entry": "mytools-everything",
   "icon": "builtin:file-search",
+  "platforms": ["windows"],
   "alias": [
     "file"
   ],

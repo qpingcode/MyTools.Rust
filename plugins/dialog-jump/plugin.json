@@ -1,0 +1,34 @@
+{
+  "id": "dialog-jump",
+  "name": {
+    "key": "name",
+    "defaultValue": "File Dialog Jump"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-dialog-jump",
+  "icon": "builtin:folder-open",
+  "platforms": ["windows"],
+  "alias": [
+    "jump"
+  ],
+  "search": {
+    "global": false,
+    "aliasTimeoutMs": 5000
+  },
+  "hotkey": "Ctrl+Alt+G",
+  "contributes": {
+    "actions": [
+      {
+        "when": { "type": ["folder", "file"] },
+        "actions": [
+          {
+            "command": "jump",
+            "title": { "key": "action.jump", "defaultValue": "Open in File Dialog" },
+            "icon": "builtin:folder-open"
+          }
+        ]
+      }
+    ]
+  }
+}

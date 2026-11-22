@@ -21,6 +21,8 @@ struct Manifest {
     #[serde(default)]
     search: Search,
     #[serde(default)]
+    platforms: Vec<String>,
+    #[serde(default)]
     hotkey: Option<String>,
     #[serde(default)]
     commands: Vec<mytools_plugin_api::commands::CommandManifest>,
@@ -101,6 +103,9 @@ pub fn list(paths: &Paths) -> Result<Vec<Entry>> {
         let Ok(manifest) = serde_json::from_slice::<Manifest>(&bytes) else {
             continue;
         };
+        if !mytools_plugin_api::platforms::supports(&manifest.platforms) {
+            continue;
+        }
         let name = match &manifest.name.key {
             Some(key) => mytools_plugin_api::i18n::plugin_text(
                 &directory,

@@ -3556,6 +3556,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-dialog-jump"
+version = "0.0.1"
+dependencies = [
+ "mytools-everything",
+ "mytools-plugin-api",
+ "serde_json",
+ "windows 0.61.3",
+]
+
+[[package]]
 name = "mytools-encode"
 version = "0.0.1"
 dependencies = [

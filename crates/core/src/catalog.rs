@@ -240,6 +240,7 @@ impl Catalog {
                 let mut aliases = HashSet::new();
                 for path in paths {
                     match Plugin::load(&path, &context) {
+                        Ok(Loaded::Unsupported) => {}
                         Ok(Loaded::Disabled(plugin)) => catalog.disabled.push(plugin),
                         Ok(Loaded::Enabled(plugin)) => {
                             if !ids.insert(plugin.id.clone()) {

@@ -1,0 +1,15 @@
+{
+  "name": "File Dialog Jump",
+  "action.jump": "Open in File Dialog",
+  "no_dialog": "No Save or Open dialog in front",
+  "no_dialog_detail": "Focus a file dialog first, then press Ctrl+Alt+G",
+  "unsupported": "File dialog jump is only available on Windows",
+  "explorer": "Open in File Explorer · {path}",
+  "no_results": "No matching files or folders",
+  "no_results_detail": "Type part of a file or folder name to search with Everything, or a folder path",
+  "everything.not_running": "Everything is not running; only open folders and typed paths are listed",
+  "everything.busy": "Everything is busy; results may be incomplete",
+  "everything.failed": "Everything search failed: {error}",
+  "missing_path": "The file or folder no longer exists: {path}",
+  "dialog_gone": "The Save or Open dialog is no longer in front"
+}

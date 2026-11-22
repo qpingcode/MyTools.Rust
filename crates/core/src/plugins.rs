@@ -58,6 +58,9 @@ struct Manifest {
     /// How long `init` may take; omitted means the host's setting.
     #[serde(default, rename = "startupTimeoutMs")]
     startup_timeout_ms: Option<u64>,
+    /// The systems the plugin runs on; omitted means all. See `mytools_plugin_api::platforms`.
+    #[serde(default)]
+    platforms: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -197,6 +200,8 @@ pub struct DisabledPlugin {
 pub enum Loaded {
     Enabled(Plugin),
     Disabled(DisabledPlugin),
+    /// Made for other systems, e.g. a Windows-only plugin on macOS; not listed anywhere.
+    Unsupported,
 }
 
 #[derive(Clone)]
@@ -226,6 +231,9 @@ impl Plugin {
         let settings = context.settings;
         let mut manifest: Manifest =
             serde_json::from_slice(&fs::read(path)?).context(i18n::t("error.manifest_invalid"))?;
+        if !mytools_plugin_api::platforms::supports(&manifest.platforms) {
+            return Ok(Loaded::Unsupported);
+        }
         manifest.alias = settings.aliases(&manifest.id, &manifest.alias).to_vec();
         let language = mytools_plugin_api::i18n::language();
         let name = localized_name(&manifest.name, path, language)?;

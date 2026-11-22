@@ -29,6 +29,9 @@ try {
     foreach ($manifest in Get-ChildItem -Path (Join-Path $root 'plugins/*/plugin.json')) {
         $plugin = $manifest.Directory.Name
         $metadata = Get-Content -LiteralPath $manifest.FullName -Raw | ConvertFrom-Json
+        if ($metadata.platforms -and $metadata.platforms -notcontains 'windows') {
+            continue
+        }
         $directory = Join-Path $package "plugins/$plugin"
         New-Item -ItemType Directory -Force -Path $directory | Out-Null
         Copy-Item -LiteralPath $manifest.FullName -Destination $directory
