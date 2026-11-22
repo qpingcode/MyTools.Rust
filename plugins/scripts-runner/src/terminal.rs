@@ -23,7 +23,12 @@ pub fn run(command: &str, admin: bool) -> Result<()> {
         let home = std::env::var_os("USERPROFILE")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
-        crate::runner::launch(&shell()?, &parameters(command), &home, admin, true)
+        // An elevated shell starts in System32 whatever directory it is given, so enter it first.
+        let command = format!(
+            "Set-Location -LiteralPath '{}'\n{command}",
+            crate::runner::powershell_literal(&mytools_plugin_api::paths::display(&home))
+        );
+        crate::runner::launch(&shell()?, &parameters(&command), &home, admin, true)
     }
 }
 

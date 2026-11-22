@@ -22,9 +22,6 @@ pub fn run(store: &Store, script: &Script, admin: bool) -> Result<()> {
             .join("runs")
             .join(uuid::Uuid::new_v4().to_string());
         std::fs::create_dir_all(&directory)?;
-        let file = directory.join(format!("script.{}", script.kind.extension()));
-        std::fs::write(&file, encode(script.kind, &script.content))?;
-        let file = file.canonicalize()?;
         let home = std::env::var_os("USERPROFILE")
             .map(std::path::PathBuf::from)
             .unwrap_or(store.root.clone());
@@ -33,6 +30,10 @@ pub fn run(store: &Store, script: &Script, admin: bool) -> Result<()> {
         } else {
             script.directory.clone().into()
         };
+        let file = directory.join(format!("script.{}", script.kind.extension()));
+        let location = mytools_plugin_api::paths::display(&cwd);
+        std::fs::write(&file, encode(script.kind, &location, &script.content))?;
+        let file = file.canonicalize()?;
         let path = mytools_plugin_api::paths::display(&file);
         match script.mode {
             Mode::Window => launch(
@@ -82,16 +83,35 @@ pub fn executable(kind: Kind) -> Result<std::path::PathBuf> {
     })
 }
 
+/// Writes the script with a first line that enters `directory`. Windows starts an elevated
+/// `powershell.exe` or `cmd.exe` in `System32` whatever working directory it is given, so the
+/// script sets its own; the line stops the script when the directory cannot be entered.
 #[cfg(any(windows, test))]
-fn encode(kind: Kind, content: &str) -> Vec<u8> {
+fn encode(kind: Kind, directory: &str, content: &str) -> Vec<u8> {
     match kind {
-        Kind::Ps1 => [vec![0xef, 0xbb, 0xbf], content.as_bytes().to_vec()].concat(),
+        Kind::Ps1 => format!(
+            "\u{feff}Set-Location -LiteralPath '{}' -ErrorAction Stop\n{content}",
+            powershell_literal(directory)
+        )
+        .into_bytes(),
         Kind::Cmd => format!(
-            "@chcp 65001 >nul\r\n{}\r\n",
+            "@chcp 65001 >nul\r\n@cd /d \"{}\" || exit /b 1\r\n{}\r\n",
+            directory.replace('%', "%%"),
             content.replace("\r\n", "\n").replace('\n', "\r\n")
         )
         .into_bytes(),
     }
+}
+
+/// Escapes text for a single-quoted PowerShell string, which also ends at typographic quotes.
+#[cfg(any(windows, test))]
+pub(crate) fn powershell_literal(text: &str) -> String {
+    text.chars()
+        .flat_map(|ch| match ch {
+            '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}' => vec![ch, ch],
+            _ => vec![ch],
+        })
+        .collect()
 }
 
 /// Arguments for a console that stays open after the script ends.
@@ -160,16 +180,30 @@ mod tests {
     #[test]
     fn preserves_script_content_and_quotes_paths_without_inline_execution() {
         let content = "Write-Output '中文'\n# keep blank lines\n\n";
-        assert_eq!(&encode(Kind::Ps1, content)[3..], content.as_bytes());
         assert_eq!(
-            encode(Kind::Cmd, "echo 中文\n\necho done"),
-            "@chcp 65001 >nul\r\necho 中文\r\n\r\necho done\r\n".as_bytes()
+            encode(Kind::Ps1, r"C:\中文 dir", content),
+            format!("\u{feff}Set-Location -LiteralPath 'C:\\中文 dir' -ErrorAction Stop\n{content}")
+                .as_bytes()
+        );
+        assert_eq!(
+            encode(Kind::Cmd, r"C:\a b", "echo 中文\n\necho done"),
+            "@chcp 65001 >nul\r\n@cd /d \"C:\\a b\" || exit /b 1\r\necho 中文\r\n\r\necho done\r\n"
+                .as_bytes()
         );
         let path = r"C:\脚本 & tools\script.ps1";
         assert!(parameters(Kind::Ps1, path).ends_with(&format!("-File \"{path}\"")));
         assert_eq!(
             parameters(Kind::Cmd, r"C:\scripts\file.cmd"),
             r#"/d /k ""C:\scripts\file.cmd"""#
+        );
+    }
+    #[test]
+    fn escapes_quotes_and_percent_signs_in_the_directory() {
+        assert_eq!(powershell_literal("C:\\it's ‘x’"), "C:\\it''s ‘‘x’’");
+        assert!(
+            String::from_utf8(encode(Kind::Cmd, r"C:\100%\a", ""))
+                .unwrap()
+                .contains(r#"@cd /d "C:\100%%\a""#)
         );
     }
     #[test]
