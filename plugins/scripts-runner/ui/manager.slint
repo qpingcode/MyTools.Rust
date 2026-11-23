@@ -277,7 +277,7 @@ export component ScriptManager inherits Window {
                         }
                         Rectangle { horizontal-stretch: 1; }
                         ToolButton {
-                            icon: "builtin:text-initial"; kind: "ghost"; checked: root.sort-by-name;
+                            icon: "builtin:arrow-down-up"; kind: "ghost"; checked: root.sort-by-name;
                             enabled: !root.busy;
                             accessible-label: I18n.text(root.sort-by-name ? "sort.name" : "sort.created");
                             clicked => { root.toggle-sort(); }

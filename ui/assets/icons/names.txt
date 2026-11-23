@@ -1,6 +1,7 @@
 app-window
 archive
 arrow-down
+arrow-down-up
 arrow-left
 arrow-right
 arrow-up
