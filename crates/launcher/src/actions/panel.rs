@@ -15,8 +15,8 @@ pub(crate) struct Panel {
     visible: Vec<usize>,
     query: String,
     first: usize,
-    /// The editor or chat view, where shortcuts with Enter are kept for the text.
-    text_view: bool,
+    /// The chat view, where Enter, with or without Ctrl, sends the message.
+    chat_view: bool,
 }
 
 impl Panel {
@@ -69,7 +69,7 @@ impl Panel {
                 .as_ref()
                 .and_then(|target| shortcuts.get(target))
                 .unwrap_or_default();
-            row.shortcut_inactive = self.text_view && uses_enter(shortcut);
+            row.shortcut_inactive = self.chat_view && uses_enter(shortcut);
             row.shortcut = shortcut.into();
         }
     }
@@ -115,7 +115,7 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             visible: Vec::new(),
             query: String::new(),
             first,
-            text_view: ui.get_editor_view() || ui.get_chat_view(),
+            chat_view: ui.get_chat_view(),
         };
         panel.refresh_shortcuts(&state.action_shortcuts);
         panel.show(&ui, "");
@@ -209,7 +209,7 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             return false;
         };
         let text = text.to_lowercase();
-        let text_view = ui.get_editor_view() || ui.get_chat_view();
+        let chat_view = ui.get_chat_view();
         let Some(action) = entry
             .actions
             .iter()
@@ -217,7 +217,7 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
                 Target::for_action(action, &entry.actions).is_some_and(|target| {
                     let shortcuts = &state.action_shortcuts;
                     shortcuts.matches(&target, &text, (ctrl, shift, alt, meta))
-                        && !(text_view && shortcuts.get(&target).is_some_and(uses_enter))
+                        && !(chat_view && shortcuts.get(&target).is_some_and(uses_enter))
                 })
             })
             .cloned()
@@ -260,7 +260,7 @@ mod tests {
             visible: Vec::new(),
             query: String::new(),
             first: 1,
-            text_view: false,
+            chat_view: false,
         };
         for query in ["复制", "fzlj", "fuzhilujing"] {
             let results = panel.filter(query);

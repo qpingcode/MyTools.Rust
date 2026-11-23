@@ -237,8 +237,8 @@ fn allowed(hotkey: &Hotkey) -> bool {
         && keys(hotkey).is_some()
 }
 
-/// Whether a shortcut uses Enter, which the editor and chat views keep for their text:
-/// there such a shortcut is shown dimmed and does not run its action.
+/// Whether a shortcut uses Enter, which sends the message in the chat view: there such a
+/// shortcut is shown dimmed and does not run its action.
 pub fn uses_enter(shortcut: &str) -> bool {
     Hotkey::parse(shortcut).is_some_and(|hotkey| hotkey.key == "Enter")
 }

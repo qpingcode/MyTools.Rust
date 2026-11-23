@@ -12,8 +12,8 @@ export struct ResultData {
     description-highlighted: bool,
 }
 
-/// `shortcut-inactive`: the shortcut uses Enter, which the editor and chat views keep for
-/// their text, so it is shown dimmed there.
+/// `shortcut-inactive`: the shortcut uses Enter, which sends the message in the chat view,
+/// so it is shown dimmed there.
 export struct ActionData { title: string, icon: string, shortcut: string, shortcut-inactive: bool, bindable: bool, query: string, highlighted: bool }
 
 /// A block of a chat message: text (0), a heading (1), code (2), a quote (3), a table (4)
