@@ -55,5 +55,9 @@
   "plugin.disabled_reason": "已在设置中停用",
   "error.command_id": "命令 id 无效或重复：{id}",
   "command.description": "{plugin} · 命令",
-  "command.description_hotkey": "{plugin} · 命令 · {hotkey}"
+  "command.description_hotkey": "{plugin} · 命令 · {hotkey}",
+  "scope.description": "别名 {aliases}",
+  "scope.description_hotkey": "别名 {aliases} · 快捷键 {hotkey}",
+  "scope.alias_separator": "、",
+  "actions.open_scope": "进入"
 }

@@ -55,5 +55,9 @@
   "plugin.disabled_reason": "Disabled in Settings",
   "error.command_id": "Invalid or duplicate command id: {id}",
   "command.description": "{plugin} · Command",
-  "command.description_hotkey": "{plugin} · Command · {hotkey}"
+  "command.description_hotkey": "{plugin} · Command · {hotkey}",
+  "scope.description": "Alias {aliases}",
+  "scope.description_hotkey": "Alias {aliases} · Shortcut {hotkey}",
+  "scope.alias_separator": ", ",
+  "actions.open_scope": "Open"
 }

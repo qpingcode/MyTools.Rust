@@ -570,6 +570,9 @@ impl Catalog {
             output
                 .entries
                 .extend(crate::commands::entries(&self.plugins, query, None));
+            output
+                .entries
+                .extend(crate::scopes::entries(&self.plugins, query));
             rank_global(
                 &mut output.entries,
                 query,

@@ -52,6 +52,8 @@ enum Operation {
     },
     /// Runs the current query again with a longer timeout.
     Retry(u32),
+    /// Shows this plugin's scope, as if its alias was typed.
+    OpenScope(String),
 }
 
 pub enum ActionEffect {
@@ -99,7 +101,7 @@ impl Action {
             | Operation::Reveal(_)
             | Operation::Launch(_)
             | Operation::RunAsAdmin(_) => true,
-            Operation::Plugin { .. } | Operation::Retry(_) => false,
+            Operation::Plugin { .. } | Operation::Retry(_) | Operation::OpenScope(_) => false,
         }
     }
 
@@ -154,6 +156,12 @@ impl Action {
         match &self.operation {
             Operation::Copy(text) => return Ok(ActionEffect::CopyText(text.clone())),
             Operation::Retry(attempt) => return Ok(ActionEffect::Retry(*attempt)),
+            Operation::OpenScope(id) => {
+                return Ok(ActionEffect::SearchPlugin {
+                    id: id.clone(),
+                    text: String::new(),
+                });
+            }
             Operation::Open(path) | Operation::OpenApplication(path) => {
                 platform::open_application(path)?
             }
@@ -204,6 +212,21 @@ impl Action {
             title_key: "actions.execute",
             icon: "builtin:refresh-cw".into(),
             operation: Operation::Retry(attempt),
+            selection: None,
+            input: Input::None,
+            argument: None,
+            editable: None,
+        }
+    }
+
+    /// Opens a plugin's scope from global search.
+    pub(crate) fn open_scope(plugin_id: &str) -> Self {
+        Self {
+            id: ActionId::Plugin,
+            title: Some(i18n::t("actions.open_scope")),
+            title_key: "actions.execute",
+            icon: "builtin:arrow-right".into(),
+            operation: Operation::OpenScope(plugin_id.into()),
             selection: None,
             input: Input::None,
             argument: None,

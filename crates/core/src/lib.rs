@@ -8,6 +8,7 @@ mod history;
 mod i18n;
 mod platform;
 mod plugins;
+mod scopes;
 mod search_process;
 mod status;
 
