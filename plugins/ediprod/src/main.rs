@@ -5,7 +5,9 @@ use mytools_plugin_api::{PluginActionRequest, PluginEffect, SearchResponse, i18n
 
 #[cfg(windows)]
 mod clipboard;
+mod html;
 mod link;
+mod rtf;
 
 const FIX_JOB_LINK: &str = "fix-job-link";
 
@@ -29,10 +31,14 @@ fn run(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
 fn fix_job_link(catalog: &Catalog) -> Result<String, String> {
     let failed = |error: String| catalog.format("clipboard_failed", &[("error", &error)]);
     let content = clipboard::read().map_err(failed)?;
-    let job = link::find(content.html.as_deref(), content.text.as_deref())
-        .map_err(|problem| problem_message(problem, catalog))?;
-    let html = link::cf_html(&link::html(&job));
-    clipboard::write(&job.title, &html, &link::rtf(&job)).map_err(failed)?;
+    let job = link::find(
+        content.html.as_deref(),
+        content.rtf.as_deref(),
+        content.text.as_deref(),
+    )
+    .map_err(|problem| problem_message(problem, catalog))?;
+    let html = html::cf_html(&html::html(&job));
+    clipboard::write(&job.title, &html, &rtf::write(&job)).map_err(failed)?;
     Ok(job.title)
 }
 
@@ -96,7 +102,12 @@ mod tests {
         let content = clipboard::read().unwrap();
         assert_eq!(content.text.as_deref(), Some(title.as_str()));
         // The rewritten HTML still holds the same link, so running it again changes nothing.
-        let job = link::find(content.html.as_deref(), content.text.as_deref()).unwrap();
+        let job = link::find(
+            content.html.as_deref(),
+            content.rtf.as_deref(),
+            content.text.as_deref(),
+        )
+        .unwrap();
         assert_eq!(job.title, title);
         assert_eq!(fix_job_link(&catalog).unwrap(), title);
     }

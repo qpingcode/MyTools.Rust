@@ -12,18 +12,18 @@ use windows_sys::Win32::{
     },
 };
 
-/// What the clipboard holds now: its `HTML Format` document and its plain text.
+/// What the clipboard holds now: its `HTML Format` document, RTF and plain text.
 pub struct Content {
     pub html: Option<String>,
+    pub rtf: Option<String>,
     pub text: Option<String>,
 }
 
 pub fn read() -> Result<Content, String> {
     let _open = Open::new()?;
-    let html = data(format("HTML Format")).map(|bytes| {
-        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-        String::from_utf8_lossy(&bytes[..end]).into_owned()
-    });
+    // Both are 8-bit text up to a NUL: UTF-8 HTML, and RTF whose other characters are escaped.
+    let html = data(format("HTML Format")).map(|bytes| nul_terminated_text(&bytes));
+    let rtf = data(format("Rich Text Format")).map(|bytes| nul_terminated_text(&bytes));
     let text = data(CF_UNICODETEXT as u32).map(|bytes| {
         let units: Vec<u16> = bytes
             .as_chunks::<2>()
@@ -34,7 +34,7 @@ pub fn read() -> Result<Content, String> {
             .collect();
         String::from_utf16_lossy(&units)
     });
-    Ok(Content { html, text })
+    Ok(Content { html, rtf, text })
 }
 
 /// Replaces the clipboard with `text`, an `HTML Format` document and RTF, all at once.
@@ -63,6 +63,11 @@ pub fn write(text: &str, cf_html: &str, rtf: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn nul_terminated_text(bytes: &[u8]) -> String {
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
 fn nul_terminated(text: &str) -> Vec<u8> {
