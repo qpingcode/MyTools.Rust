@@ -1,6 +1,5 @@
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
-import { TextEditing } from "../text-editing.slint";
 
 /// A themed multi-line text field that scrolls to keep the cursor visible. Read-only text
 /// can still be selected and copied with Ctrl+C.
@@ -11,9 +10,6 @@ export component TextArea inherits Rectangle {
     in property <string> placeholder;
     /// Draws its own background and border; turn off inside a panel that already has them.
     in property <bool> framed: true;
-    /// Ctrl+Enter (Cmd+Enter) starts a new line like Shift+Enter, for a field where Enter
-    /// runs something instead.
-    in property <bool> ctrl-enter-newline;
     callback edited(string);
     forward-focus: input;
     public function focus-input() { input.focus(); }
@@ -40,20 +36,6 @@ export component TextArea inherits Rectangle {
             font-size: Theme.font-body;
             selection-background-color: Theme.selection;
             edited => { root.edited(self.text); }
-            key-pressed(event) => {
-                if (root.ctrl-enter-newline && !root.read-only && event.text == Key.Return
-                        && (event.modifiers.control || event.modifiers.meta)
-                        && !event.modifiers.shift && !event.modifiers.alt) {
-                    // TextInput ignores text typed with Ctrl, so the line break is put in here.
-                    let start = min(self.anchor-position-byte-offset, self.cursor-position-byte-offset);
-                    let end = max(self.anchor-position-byte-offset, self.cursor-position-byte-offset);
-                    self.text = TextEditing.replace(self.text, start, end, "\n");
-                    self.set-selection-offsets(start + 1, start + 1);
-                    root.edited(self.text);
-                    return accept;
-                }
-                reject
-            }
             cursor-position-changed(position) => {
                 if (position.y + scroll.content-y < 0px) {
                     scroll.content-y = -position.y;

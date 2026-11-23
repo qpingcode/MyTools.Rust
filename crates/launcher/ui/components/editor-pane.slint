@@ -20,7 +20,6 @@ export component EditorPane inherits Rectangle {
         width: (parent.width - 30px) / 2; height: parent.height - 18px;
         text <=> root.text;
         placeholder: I18n.text("editor.placeholder");
-        ctrl-enter-newline: true;
         edited(text) => { root.edited(text); }
     }
     Rectangle {

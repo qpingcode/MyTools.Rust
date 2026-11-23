@@ -9,11 +9,11 @@
 | Chrome 书签 | 直接输入书签标题、URL、文件夹关键词 | 全局搜索，不设置 alias；Enter 在系统默认浏览器打开，操作菜单可复制链接 |
 | encode | `encode hello`、`encode base64 hello` | 普通列表展示各格式结果；Enter 复制 |
 | decode | `decode base64 5Lit5paH` | 普通列表展示各格式结果；Enter 复制 |
-| formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；Enter 复制，`Ctrl+Enter` 换行 |
+| formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；Enter 复制，`Shift+Enter` 换行 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
 | Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，可联网搜索并标注来源；`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答、新对话、历史对话；可就选中文字提问 |
-| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，Enter 发起翻译（`Ctrl+Enter` 换行），完成后右侧显示译文，再按 Enter 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
+| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，Enter 发起翻译（`Shift+Enter` 换行），完成后右侧显示译文，再按 Enter 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
 

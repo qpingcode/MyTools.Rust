@@ -20,7 +20,6 @@ export { NoticeWindow, NoticeData } from "notice.slint";
 export { ToastWindow } from "toast.slint";
 export { Theme } from "../../../ui/theme.slint";
 export { TextFit } from "text-fit.slint";
-export { TextEditing } from "../../../ui/text-editing.slint";
 
 export component MainWindow inherits Window {
     title: "MyTools";
@@ -157,7 +156,7 @@ export component MainWindow inherits Window {
                 if (root.run-action-shortcut(event.text, event.modifiers.control, event.modifiers.shift,
                         event.modifiers.alt, event.modifiers.meta)) { return accept; }
             }
-            // In the editor Enter runs the result too; Ctrl+Enter or Shift+Enter starts a new line.
+            // In the editor Enter runs the result too; Shift+Enter starts a new line.
             if (root.editor-view && !root.actions-open && event.text == Key.Return
                     && !event.modifiers.control && !event.modifiers.meta && !event.modifiers.shift
                     && !event.modifiers.alt && !editor.composing && !search-bar.composing) {

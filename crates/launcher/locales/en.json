@@ -100,7 +100,7 @@
   "status.command_lost": "The command stopped without a result",
   "drag.missing": "The file no longer exists",
   "drag.failed": "Could not drag the file",
-  "editor.placeholder": "Type or paste text; Enter runs the first action, Ctrl+Enter starts a new line",
+  "editor.placeholder": "Type or paste text; Enter runs the first action, Shift+Enter starts a new line",
   "selection.empty": "No selected text was found. Select some text, then press the shortcut again.",
   "selection.unsupported": "Reading the selection is only supported on Windows",
   "selection.no_window": "No application is in front",

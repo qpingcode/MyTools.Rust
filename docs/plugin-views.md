@@ -116,7 +116,7 @@ Rust 插件使用 `serve_interactive(search, action)`，仅搜索插件继续使
   搜索，顶部搜索框保持不变。之后再在顶部输入，会重新覆盖左侧内容。
 - 结果带 `preview.text`（或 `text_file`）时，右侧只显示这段文本，只读、可以选中后 `Ctrl+C` 复制，不显示标题和说明；
   没有 `preview` 时只显示 `title` 和 `description`，适合“按 Enter 翻译”、出错说明这类提示。
-- 左侧输入框和顶部搜索框中 Enter 都执行结果的首个动作；左侧输入框中 `Ctrl+Enter`（macOS 为 `⌘Enter`）或 `Shift+Enter` 换行。
+- 左侧输入框和顶部搜索框中 Enter 都执行结果的首个动作；左侧输入框中 `Shift+Enter` 换行。
   顶部搜索框中按 `↓` 进入左侧输入框。绑定了 Enter 组合键的动作在这里不响应，动作面板中其快捷键显示为灰色。`Ctrl+K` 打开其余动作。
 - 动作返回 `refresh: true` 时，宿主重新搜索最近一次的查询（包括左侧编辑后的内容），不会用顶部内容覆盖左侧。
 
