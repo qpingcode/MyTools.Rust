@@ -1,7 +1,7 @@
 use super::{close_panel, start_action};
 use crate::{
     ActionData, MainWindow,
-    action_shortcuts::{Shortcuts, Target, uses_enter},
+    action_shortcuts::{Shortcuts, Target},
     app::State,
     i18n,
 };
@@ -15,8 +15,6 @@ pub(crate) struct Panel {
     visible: Vec<usize>,
     query: String,
     first: usize,
-    /// The chat view, where Enter, with or without Ctrl, sends the message.
-    chat_view: bool,
 }
 
 impl Panel {
@@ -65,12 +63,11 @@ impl Panel {
         for (row, action) in self.rows.iter_mut().zip(&self.actions) {
             let target = Target::for_action(action, &self.actions);
             row.bindable = target.is_some();
-            let shortcut = target
+            row.shortcut = target
                 .as_ref()
                 .and_then(|target| shortcuts.get(target))
-                .unwrap_or_default();
-            row.shortcut_inactive = self.chat_view && uses_enter(shortcut);
-            row.shortcut = shortcut.into();
+                .unwrap_or_default()
+                .into();
         }
     }
 }
@@ -115,7 +112,6 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             visible: Vec::new(),
             query: String::new(),
             first,
-            chat_view: ui.get_chat_view(),
         };
         panel.refresh_shortcuts(&state.action_shortcuts);
         panel.show(&ui, "");
@@ -209,15 +205,14 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             return false;
         };
         let text = text.to_lowercase();
-        let chat_view = ui.get_chat_view();
         let Some(action) = entry
             .actions
             .iter()
             .find(|action| {
                 Target::for_action(action, &entry.actions).is_some_and(|target| {
-                    let shortcuts = &state.action_shortcuts;
-                    shortcuts.matches(&target, &text, (ctrl, shift, alt, meta))
-                        && !(chat_view && shortcuts.get(&target).is_some_and(uses_enter))
+                    state
+                        .action_shortcuts
+                        .matches(&target, &text, (ctrl, shift, alt, meta))
                 })
             })
             .cloned()
@@ -260,7 +255,6 @@ mod tests {
             visible: Vec::new(),
             query: String::new(),
             first: 1,
-            chat_view: false,
         };
         for query in ["复制", "fzlj", "fuzhilujing"] {
             let results = panel.filter(query);

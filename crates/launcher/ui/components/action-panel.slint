@@ -95,8 +95,7 @@ export component ActionPanel inherits Rectangle {
             shortcut-label := Text {
                 x: edit-shortcut.x - self.width - 8px; y: 0px;
                 width: self.preferred-width; height: parent.height;
-                text: action.shortcut; color: action.shortcut-inactive ? Theme.disabled : Theme.muted;
-                font-size: Theme.font-caption;
+                text: action.shortcut; color: Theme.muted; font-size: Theme.font-caption;
                 vertical-alignment: center;
             }
             touch := TouchArea {

@@ -51,38 +51,6 @@ struct Binding {
     title: String,
 }
 
-impl Binding {
-    fn owner(&self) -> String {
-        let (group, fallback) = match &self.target {
-            Target::MyTools { action } => (
-                "MyTools",
-                i18n::t(match action {
-                    ActionId::Open => "actions.open",
-                    ActionId::OpenInBrowser => "actions.open_browser",
-                    ActionId::CopyText => "actions.copy",
-                    ActionId::CopyPath => "actions.copy_path",
-                    ActionId::CopyName => "actions.copy_name",
-                    ActionId::Reveal => "actions.reveal",
-                    ActionId::Launch => "actions.launch",
-                    ActionId::RunAsAdmin => "actions.run_as_admin",
-                    ActionId::Plugin => "actions.execute",
-                }),
-            ),
-            Target::Plugin {
-                plugin, command, ..
-            } => (plugin.as_str(), command.clone()),
-        };
-        format!(
-            "{group} · {}",
-            if self.title.is_empty() {
-                &fallback
-            } else {
-                &self.title
-            }
-        )
-    }
-}
-
 fn occupied(hotkey: &Hotkey, owner: &str) -> String {
     i18n::format(
         "actions.shortcut_occupied",
@@ -156,13 +124,9 @@ impl Shortcuts {
             if !allowed(&hotkey) {
                 return Err(i18n::t("actions.shortcut_invalid"));
             }
+            // Other actions may use the same shortcut: it runs whichever the selected result
+            // offers, the first in its list when it offers several.
             let shortcut = hotkey.to_string();
-            if let Some(binding) = next.0.iter().find(|binding| {
-                binding.target != target
-                    && Hotkey::parse(&binding.shortcut).as_ref() == Some(&hotkey)
-            }) {
-                return Err(occupied(&hotkey, &binding.owner()));
-            }
             next.0.retain(|binding| binding.target != target);
             next.0.push(Binding {
                 target,
@@ -237,12 +201,6 @@ fn allowed(hotkey: &Hotkey) -> bool {
         && keys(hotkey).is_some()
 }
 
-/// Whether a shortcut uses Enter, which sends the message in the chat view: there such a
-/// shortcut is shown dimmed and does not run its action.
-pub fn uses_enter(shortcut: &str) -> bool {
-    Hotkey::parse(shortcut).is_some_and(|hotkey| hotkey.key == "Enter")
-}
-
 fn keys(hotkey: &Hotkey) -> Option<slint::Keys> {
     let key = match hotkey.key.as_str() {
         "Left" => "LeftArrow".into(),
@@ -300,9 +258,6 @@ mod tests {
         let key: slint::SharedString = slint::platform::Key::Return.into();
         assert!(enter.matches(&builtin, &key, (true, false, false, false)));
         assert!(!enter.matches(&builtin, &key, (false, false, false, false)));
-        assert!(uses_enter("Ctrl+Enter") && !uses_enter("Ctrl+E"));
         assert!(!allowed(&Hotkey::parse("Shift+P").unwrap()));
-        assert!(restored.0[0].owner().starts_with("MyTools · "));
-        assert_eq!(restored.0[1].owner(), "clipboard · Pin");
     }
 }

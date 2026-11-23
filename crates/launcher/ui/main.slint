@@ -156,6 +156,11 @@ export component MainWindow inherits Window {
                 if (root.run-action-shortcut(event.text, event.modifiers.control, event.modifiers.shift,
                         event.modifiers.alt, event.modifiers.meta)) { return accept; }
             }
+            // Ctrl+Enter (Cmd+Enter) only runs an action bound to it; the search box and the
+            // chat input would otherwise treat it as Enter.
+            if (event.text == Key.Return && (event.modifiers.control || event.modifiers.meta)) {
+                return accept;
+            }
             // In the editor Enter runs the result too; Shift+Enter starts a new line.
             if (root.editor-view && !root.actions-open && event.text == Key.Return
                     && !event.modifiers.control && !event.modifiers.meta && !event.modifiers.shift
