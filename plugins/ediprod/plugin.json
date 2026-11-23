@@ -1,0 +1,28 @@
+{
+  "id": "ediprod",
+  "name": {
+    "key": "name",
+    "defaultValue": "ediProd"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-ediprod",
+  "icon": "builtin:link",
+  "platforms": ["windows"],
+  "search": {
+    "global": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "id": "fix-job-link",
+        "title": {
+          "key": "command.fix_job_link",
+          "defaultValue": "Fix Job Hyperlink on Clipboard"
+        },
+        "keywords": ["job", "hyperlink", "link", "ediprod", "WI", "CS", "链接", "超链接"],
+        "icon": "builtin:link"
+      }
+    ]
+  }
+}

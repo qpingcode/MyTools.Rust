@@ -1,0 +1,10 @@
+{
+  "name": "ediProd",
+  "command.fix_job_link": "整理剪贴板中的 Job 链接",
+  "fixed": "剪贴板已更新为 {title}",
+  "no_link": "剪贴板中没有 ediProd Job 链接",
+  "no_title": "剪贴板中的 Job 链接没有标题，请用 Copy Job Hyperlink 重新复制",
+  "several_links": "剪贴板中有多个 Job 链接，请只复制一个",
+  "clipboard_failed": "无法使用剪贴板：{error}",
+  "unsupported": "未知命令"
+}

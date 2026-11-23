@@ -25,6 +25,7 @@ members = [
     "plugins/ask-ai",
     "plugins/lan-transfer",
     "plugins/gemini-chrome",
+    "plugins/ediprod",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"

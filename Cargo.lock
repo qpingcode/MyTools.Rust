@@ -3566,6 +3566,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-ediprod"
+version = "0.0.1"
+dependencies = [
+ "mytools-plugin-api",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "mytools-encode"
 version = "0.0.1"
 dependencies = [
