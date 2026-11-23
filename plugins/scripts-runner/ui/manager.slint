@@ -4,12 +4,14 @@ import { I18n } from "../../../ui/i18n.slint";
 import { Icon } from "../../../ui/components/icon.slint";
 export { I18n } from "../../../ui/i18n.slint";
 
-/// One saved script as shown in the sidebar.
+/// One script as shown in the sidebar, saved or not.
 export struct ScriptRow {
     name: string,
     alias: string,
     /// "pwsh", "ps1" or "cmd".
     kind: string,
+    /// Has changes that are not saved yet.
+    dirty: bool,
 }
 
 /// The name of a script type as stored in `ScriptRow.kind`.
@@ -27,9 +29,12 @@ component ToolButton inherits Rectangle {
     in property <string> kind: "secondary";
     /// Optional keyboard shortcut shown dimmed after the text.
     in property <string> shortcut;
+    /// Shown pressed, for a button that toggles a setting.
+    in property <bool> checked;
     callback clicked();
     private property <color> fg: !root.enabled ? Theme.disabled
         : root.kind == "danger" ? #ffffff
+        : root.kind == "ghost" && root.checked ? Theme.accent
         : root.kind == "ghost" && touch.has-hover ? Theme.foreground
         : root.kind == "ghost" ? Theme.muted
         : Theme.foreground;
@@ -43,7 +48,7 @@ component ToolButton inherits Rectangle {
     background: !root.enabled ? (root.kind == "primary" ? Theme.primary.transparentize(0.6) : transparent)
         : root.kind == "primary" ? (touch.pressed ? Theme.primary : touch.has-hover ? Theme.primary-hover : Theme.primary)
         : root.kind == "danger" ? (touch.has-hover ? #c9504b : #b0403c)
-        : touch.pressed ? Theme.selected
+        : touch.pressed || root.checked ? Theme.selected
         : touch.has-hover ? Theme.hover
         : root.kind == "ghost" ? transparent : Theme.panel;
     animate background { duration: 90ms; }
@@ -106,9 +111,17 @@ component ScriptItem inherits Rectangle {
         }
         VerticalLayout {
             alignment: center; spacing: 3px;
-            Text {
-                text: root.script.name; color: Theme.foreground; font-size: Theme.font-body;
-                overflow: elide;
+            HorizontalLayout {
+                spacing: 6px;
+                Text {
+                    text: root.script.name == "" ? I18n.text("new") : root.script.name;
+                    color: Theme.foreground; font-size: Theme.font-body;
+                    overflow: elide;
+                }
+                if root.script.dirty: VerticalLayout {
+                    alignment: center;
+                    Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: Theme.warning; }
+                }
             }
             Text {
                 text: ScriptKind.label(root.script.kind) + (root.script.alias == "" ? "" : "  ·  " + root.script.alias);
@@ -195,6 +208,17 @@ export component ScriptManager inherits Window {
     in property <bool> busy;
     in property <bool> windows;
     in property <string> status;
+    /// Lists scripts by name (A-Z) instead of newest first.
+    in property <bool> sort-by-name;
+    /// Scripts other than the one in the form with unsaved changes.
+    in property <int> other-unsaved;
+    /// Asks whether to save before closing.
+    in property <bool> close-prompt;
+    in property <string> close-message;
+    callback toggle-sort();
+    callback close-save();
+    callback close-discard();
+    callback close-cancel();
     callback choose(int);
     callback create();
     callback save();
@@ -208,17 +232,19 @@ export component ScriptManager inherits Window {
     // Standard text widgets follow the dark launcher theme instead of the light default.
     init => { Palette.color-scheme = ColorScheme.dark; }
     private property <bool> runnable: root.saved && !root.dirty && !root.busy && root.windows;
+    private property <int> unsaved-count: root.other-unsaved + (root.dirty ? 1 : 0);
     /// The form's values as a sidebar row; an empty name shows as "New script".
     private property <ScriptRow> current-row: {
         name: root.script-name.is-empty ? I18n.text("new") : root.script-name,
         alias: root.alias,
         kind: root.kind == 2 ? "cmd" : root.kind == 1 ? "ps1" : "pwsh",
+        dirty: root.dirty,
     };
 
     FocusScope {
         capture-key-pressed(event) => {
             if (event.modifiers.control && (event.text == "s" || event.text == "S")) {
-                if (!root.busy) { root.save(); }
+                if (!root.busy && root.unsaved-count > 0) { root.save(); }
                 return accept;
             }
             return reject;
@@ -251,6 +277,12 @@ export component ScriptManager inherits Window {
                         }
                         Rectangle { horizontal-stretch: 1; }
                         ToolButton {
+                            icon: "builtin:text-initial"; kind: "ghost"; checked: root.sort-by-name;
+                            enabled: !root.busy;
+                            accessible-label: I18n.text(root.sort-by-name ? "sort.name" : "sort.created");
+                            clicked => { root.toggle-sort(); }
+                        }
+                        ToolButton {
                             icon: "builtin:plus"; kind: "ghost"; enabled: !root.busy;
                             accessible-label: I18n.text("new");
                             clicked => { root.create(); }
@@ -267,13 +299,7 @@ export component ScriptManager inherits Window {
                                 enabled: !root.busy;
                                 clicked => { root.choose(index); }
                             }
-                            // A new, unsaved script appears as its own row until it is saved.
-                            if !root.saved: ScriptItem {
-                                script: root.current-row;
-                                selected: true;
-                                enabled: !root.busy;
-                            }
-                            if root.scripts.length == 0 && root.saved: Text {
+                            if root.scripts.length == 0: Text {
                                 text: I18n.text("empty"); color: Theme.muted;
                                 font-size: Theme.font-small; wrap: word-wrap;
                                 horizontal-alignment: center;
@@ -417,9 +443,48 @@ export component ScriptManager inherits Window {
                         clicked => { root.discard(); }
                     }
                     ToolButton {
-                        text: I18n.text("save"); shortcut: "Ctrl+S"; icon: "builtin:check"; kind: "primary";
-                        enabled: !root.busy;
+                        text: root.unsaved-count > 1 ? I18n.text("save.all") + " (" + root.unsaved-count + ")" : I18n.text("save");
+                        shortcut: "Ctrl+S"; icon: "builtin:check"; kind: "primary";
+                        enabled: !root.busy && root.unsaved-count > 0;
                         clicked => { root.save(); }
+                    }
+                }
+            }
+        }
+    }
+
+    // Asked when the window is closed with unsaved scripts.
+    if root.close-prompt: Rectangle {
+        background: #00000080;
+        TouchArea {}
+        FocusScope {
+            init => { self.focus(); }
+            key-pressed(event) => {
+                if (event.text == Key.Escape) { root.close-cancel(); return accept; }
+                return reject;
+            }
+        }
+        Rectangle {
+            width: 420px; height: prompt.preferred-height;
+            border-radius: 10px; border-width: 1px; border-color: Theme.border;
+            background: Theme.popup;
+            prompt := VerticalLayout {
+                padding: 22px; spacing: 16px;
+                Text {
+                    text: I18n.text("close.title"); color: Theme.foreground;
+                    font-size: Theme.font-heading; font-weight: 600;
+                }
+                Text {
+                    text: root.close-message; color: Theme.muted;
+                    font-size: Theme.font-body; wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 8px; alignment: end;
+                    ToolButton { text: I18n.text("close.cancel"); kind: "ghost"; clicked => { root.close-cancel(); } }
+                    ToolButton { text: I18n.text("close.discard"); clicked => { root.close-discard(); } }
+                    ToolButton {
+                        text: I18n.text("close.save"); icon: "builtin:check"; kind: "primary";
+                        clicked => { root.close-save(); }
                     }
                 }
             }

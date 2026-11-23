@@ -51,6 +51,10 @@ pub struct Script {
     pub directory: String,
     #[serde(default)]
     pub mode: Mode,
+    /// When the script was created, in milliseconds since the Unix epoch; 0 for scripts
+    /// saved before this was recorded, which keep their order in the store instead.
+    #[serde(default)]
+    pub created: u64,
 }
 impl Script {
     pub fn validate(&self) -> Result<()> {
@@ -77,6 +81,13 @@ impl Script {
         );
         Ok(())
     }
+}
+
+/// Preferences of the manager window, kept apart from the scripts.
+const SETTINGS: &str = "manager.json";
+#[derive(Deserialize, Serialize)]
+struct Settings {
+    sort_by_name: bool,
 }
 
 pub struct Store {
@@ -109,25 +120,52 @@ impl Store {
         );
         Ok(scripts)
     }
+    #[cfg(test)]
     pub fn update(&self, script: Script, original: Option<&Script>) -> Result<()> {
-        script.validate()?;
+        self.save_all(&[(script, original.cloned())])
+    }
+    /// Saves several edited scripts together, each paired with the version it was edited
+    /// from (`None` for a new script): either all are written or none is.
+    pub fn save_all(&self, changes: &[(Script, Option<Script>)]) -> Result<()> {
+        for (script, _) in changes {
+            script.validate()?;
+        }
         self.mutate(|scripts| {
-            let existing = scripts.iter().find(|s| s.id == script.id);
-            ensure!(existing == original, i18n::t("store.conflict"));
-            ensure!(
-                !scripts.iter().any(|s| s.id != script.id
-                    && !script.alias.is_empty()
-                    && mytools_plugin_api::matching::normalize(&s.alias)
-                        == mytools_plugin_api::matching::normalize(&script.alias)),
-                i18n::t("validation.duplicate")
-            );
-            if let Some(current) = scripts.iter_mut().find(|s| s.id == script.id) {
-                *current = script;
-            } else {
-                scripts.push(script);
+            for (script, original) in changes {
+                let existing = scripts.iter().find(|s| s.id == script.id);
+                ensure!(existing == original.as_ref(), i18n::t("store.conflict"));
+                match scripts.iter_mut().find(|s| s.id == script.id) {
+                    Some(current) => *current = script.clone(),
+                    None => scripts.push(script.clone()),
+                }
+            }
+            // Checked once everything is applied, so two scripts can swap aliases.
+            for (script, _) in changes {
+                let alias = mytools_plugin_api::matching::normalize(&script.alias);
+                ensure!(
+                    script.alias.is_empty()
+                        || !scripts.iter().any(|s| s.id != script.id
+                            && mytools_plugin_api::matching::normalize(&s.alias) == alias),
+                    i18n::format("validation.duplicate", &[("name", &script.name)])
+                );
             }
             Ok(())
         })
+    }
+    /// Whether the manager lists scripts by name (the default) or newest first.
+    pub fn sort_by_name(&self) -> bool {
+        fs::read(self.root.join(SETTINGS))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Settings>(&bytes).ok())
+            .is_none_or(|settings| settings.sort_by_name)
+    }
+    pub fn set_sort_by_name(&self, sort_by_name: bool) -> Result<()> {
+        fs::create_dir_all(&self.root)?;
+        fs::write(
+            self.root.join(SETTINGS),
+            serde_json::to_vec_pretty(&Settings { sort_by_name })?,
+        )?;
+        Ok(())
     }
     pub fn delete(&self, original: &Script) -> Result<()> {
         self.mutate(|scripts| {
@@ -181,6 +219,7 @@ mod tests {
             content: "Write-Output '中文'\n# multiline".into(),
             directory: String::new(),
             mode: Mode::Background,
+            created: 0,
         }
     }
     #[test]
@@ -208,6 +247,41 @@ mod tests {
         assert!(store.delete(&script).is_err());
         store.delete(&changed).unwrap();
         assert!(store.load().unwrap().is_empty());
+        fs::remove_dir_all(store.root).unwrap();
+    }
+    #[test]
+    fn saves_several_scripts_together_or_none() {
+        let store = Store {
+            root: std::env::temp_dir().join(format!("scripts-store-{}", uuid::Uuid::new_v4())),
+        };
+        let (mut first, mut second) = (sample(), sample());
+        second.alias = "other".into();
+        store
+            .save_all(&[(first.clone(), None), (second.clone(), None)])
+            .unwrap();
+        // Swapping aliases is allowed because the check runs after both are applied.
+        let (old_first, old_second) = (first.clone(), second.clone());
+        (first.alias, second.alias) = (second.alias.clone(), first.alias.clone());
+        store
+            .save_all(&[
+                (first.clone(), Some(old_first)),
+                (second.clone(), Some(old_second.clone())),
+            ])
+            .unwrap();
+        // One invalid script keeps the other from being written.
+        let mut renamed = second.clone();
+        renamed.name = "Renamed".into();
+        let mut invalid = sample();
+        invalid.content = String::new();
+        assert!(
+            store
+                .save_all(&[(renamed, Some(second.clone())), (invalid, None)])
+                .is_err()
+        );
+        assert_eq!(store.load().unwrap(), vec![first, second]);
+        assert!(store.sort_by_name());
+        store.set_sort_by_name(false).unwrap();
+        assert!(!store.sort_by_name());
         fs::remove_dir_all(store.root).unwrap();
     }
 }

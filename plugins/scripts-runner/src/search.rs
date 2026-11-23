@@ -166,6 +166,7 @@ mod tests {
             content: "Write-Output test".into(),
             directory: String::new(),
             mode: Default::default(),
+            created: 0,
         };
         store.update(script.clone(), None).unwrap();
         let items = search(&store, "dev", false).unwrap().items;
@@ -204,6 +205,7 @@ mod tests {
             content: "podman ps".into(),
             directory: String::new(),
             mode: Default::default(),
+            created: 0,
         };
         store.update(script.clone(), None).unwrap();
         let resource = |id: &str| Resource::PluginItem { id: id.into() };

@@ -166,6 +166,7 @@ mod tests {
             content: "echo hi".into(),
             directory: String::new(),
             mode: crate::store::Mode::Background,
+            created: 0,
         };
         prepare(
             &run,
