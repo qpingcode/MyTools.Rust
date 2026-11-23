@@ -17,8 +17,8 @@ use windows::Win32::{
             VK_SHIFT,
         },
         WindowsAndMessaging::{
-            GUITHREADINFO, GetForegroundWindow, GetGUIThreadInfo, IsChild, IsWindow,
-            SendMessageW, SetForegroundWindow, WM_SETTEXT,
+            GUITHREADINFO, GetForegroundWindow, GetGUIThreadInfo, IsChild, IsWindow, SendMessageW,
+            SetForegroundWindow, WM_SETTEXT,
         },
     },
 };
@@ -112,10 +112,8 @@ fn focused_address(dialog: HWND) -> Option<HWND> {
     };
     unsafe { GetGUIThreadInfo(win::thread_id(dialog), &mut info) }.ok()?;
     let focus = info.hwndFocus;
-    (!focus.is_invalid()
-        && unsafe { IsChild(dialog, focus) }.as_bool()
-        && is_address_edit(focus))
-    .then_some(focus)
+    (!focus.is_invalid() && unsafe { IsChild(dialog, focus) }.as_bool() && is_address_edit(focus))
+        .then_some(focus)
 }
 
 /// Puts the path in the address bar and waits until it stays there: right after Alt+D the

@@ -27,9 +27,9 @@ pub fn open_folders() -> Vec<PathBuf> {
     let Ok(_com) = ComApartment::initialize() else {
         return Vec::new();
     };
-    let Ok(windows) = (unsafe {
-        CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_LOCAL_SERVER)
-    }) else {
+    let Ok(windows) =
+        (unsafe { CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_LOCAL_SERVER) })
+    else {
         return Vec::new();
     };
     let order = win::z_order();
@@ -50,7 +50,10 @@ pub fn open_folders() -> Vec<PathBuf> {
 
 fn folder_of(windows: &IShellWindows, index: i32) -> Option<(HWND, bool, PathBuf)> {
     unsafe {
-        let view = windows.Item(&integer_variant(index)).ok().and_then(shell_view)?;
+        let view = windows
+            .Item(&integer_variant(index))
+            .ok()
+            .and_then(shell_view)?;
         let view_window = view.GetWindow().ok()?;
         let folder: IFolderView = view.cast().ok()?;
         let item: IShellItem = folder.GetFolder().ok()?;

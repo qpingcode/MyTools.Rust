@@ -95,4 +95,3 @@ pub fn query_everything(query: &str) -> Result<Found, SearchError> {
 pub fn query_everything(_query: &str) -> Result<Found, SearchError> {
     Err(SearchError::Failed("unsupported".into()))
 }
-

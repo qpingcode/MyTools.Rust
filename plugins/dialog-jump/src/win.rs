@@ -26,7 +26,9 @@ pub fn title(window: HWND) -> String {
 
 /// The text of a control in another process, read with `WM_GETTEXT`.
 pub fn control_text(control: HWND) -> String {
-    let len = unsafe { SendMessageW(control, WM_GETTEXTLENGTH, None, None) }.0.max(0) as usize;
+    let len = unsafe { SendMessageW(control, WM_GETTEXTLENGTH, None, None) }
+        .0
+        .max(0) as usize;
     let mut text = vec![0u16; len + 1];
     let copied = unsafe {
         SendMessageW(

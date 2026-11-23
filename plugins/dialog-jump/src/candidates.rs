@@ -168,7 +168,10 @@ mod tests {
         assert_eq!(names, ["albums", "Alpha"]);
         let all = collect(&format!("{}\\", root.display()), vec![], vec![]);
         assert_eq!(all.len(), 4, "the folder itself and its three subfolders");
-        assert!(all.iter().all(|candidate| candidate.source == Source::Typed));
+        assert!(
+            all.iter()
+                .all(|candidate| candidate.source == Source::Typed)
+        );
     }
 
     #[test]

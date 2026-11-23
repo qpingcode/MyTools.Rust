@@ -1,9 +1,9 @@
 //! File search backed by a running Everything (voidtools) instance.
+use mytools_everything::{Hit, SearchError, query_everything};
 use mytools_plugin_api::{
     ActionId, ActionSpec, Icon, PluginActionRequest, PluginEffect, Preview, Resource, SearchItem,
     SearchResponse, i18n::Catalog,
 };
-use mytools_everything::{Hit, SearchError, query_everything};
 use std::path::PathBuf;
 
 /// Plugin command behind "press Enter to retry".
