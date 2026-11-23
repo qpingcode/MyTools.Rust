@@ -1,6 +1,7 @@
-//! ediProd helpers. "Fix Job Hyperlink on Clipboard" rewrites a copied job hyperlink so
-//! plain-text targets paste "WI01147547 - Title" and rich-text targets paste a link with
-//! that title, instead of the bare URL CargoWise puts in the plain text.
+//! ediProd helpers. Both commands rewrite a copied job hyperlink so plain-text targets
+//! paste "WI01147547 - Title" and rich-text targets paste a link with that title, instead
+//! of the bare URL CargoWise puts in the plain text. "Copy Job Hyperlink" then pastes it
+//! into the application in front; "Fix Job Hyperlink on Clipboard" only rewrites it.
 use mytools_plugin_api::{PluginActionRequest, PluginEffect, SearchResponse, i18n::Catalog};
 
 #[cfg(windows)]
@@ -9,16 +10,23 @@ mod html;
 mod link;
 mod rtf;
 
+const COPY_JOB_HYPERLINK: &str = "copy-job-hyperlink";
 const FIX_JOB_LINK: &str = "fix-job-link";
 
 fn run(request: PluginActionRequest, catalog: &Catalog) -> SearchResponse {
-    if request.command != FIX_JOB_LINK {
-        return error(catalog.get("unsupported").into());
-    }
+    let paste = match request.command.as_str() {
+        COPY_JOB_HYPERLINK => true,
+        FIX_JOB_LINK => false,
+        _ => return error(catalog.get("unsupported").into()),
+    };
     match fix_job_link(catalog) {
         Ok(title) => SearchResponse {
             effect: Some(PluginEffect {
-                message: catalog.format("fixed", &[("title", &title)]),
+                // The host's paste, as "Paste as Plain Text" uses: into the application
+                // that was in front before the launcher.
+                paste,
+                message: catalog
+                    .format(if paste { "pasted" } else { "fixed" }, &[("title", &title)]),
                 ..PluginEffect::hide()
             }),
             ..Default::default()

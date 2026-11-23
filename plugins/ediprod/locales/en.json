@@ -1,9 +1,11 @@
 {
   "name": "ediProd",
+  "command.copy_job_hyperlink": "Copy Job Hyperlink",
   "command.fix_job_link": "Fix Job Hyperlink on Clipboard",
   "fixed": "Clipboard now holds {title}",
+  "pasted": "Pasted {title}",
   "no_link": "The clipboard holds no ediProd job hyperlink",
-  "no_title": "The job link on the clipboard has no title; copy it again with Copy Job Hyperlink",
+  "no_title": "The job link on the clipboard has no title; copy the job hyperlink again in CargoWise",
   "several_links": "The clipboard holds several job links; copy just one",
   "clipboard_failed": "Could not use the clipboard: {error}",
   "unsupported": "Unknown command"

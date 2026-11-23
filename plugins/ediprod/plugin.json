@@ -15,6 +15,15 @@
   "contributes": {
     "commands": [
       {
+        "id": "copy-job-hyperlink",
+        "title": {
+          "key": "command.copy_job_hyperlink",
+          "defaultValue": "Copy Job Hyperlink"
+        },
+        "keywords": ["job", "hyperlink", "link", "paste", "ediprod", "WI", "CS", "链接", "超链接", "粘贴"],
+        "icon": "builtin:link"
+      },
+      {
         "id": "fix-job-link",
         "title": {
           "key": "command.fix_job_link",
