@@ -216,7 +216,6 @@ fn launcher_owner(hotkey: &Hotkey) -> Option<&'static str> {
     match (hotkey.key.as_str(), plain, ctrl_only) {
         ("F1", true, _) => Some("actions.shortcut_license"),
         ("K", _, true) => Some("actions.title"),
-        ("Enter", _, _) if hotkey.ctrl || hotkey.meta => Some("actions.execute"),
         ("Tab", _, _) => Some("actions.shortcut_tab"),
         ("Escape", _, _) => Some("actions.shortcut_dismiss"),
         ("Backspace" | "Delete", _, _) | ("A" | "C" | "V" | "X" | "Y" | "Z", _, true) => {
@@ -228,12 +227,20 @@ fn launcher_owner(hotkey: &Hotkey) -> Option<&'static str> {
 
 fn allowed(hotkey: &Hotkey) -> bool {
     let key = hotkey.key.as_str();
-    if launcher_owner(hotkey).is_some() || matches!(key, "F1" | "Enter") {
+    // Enter alone runs the selected result and Shift+Enter starts a new line.
+    let plain_enter = key == "Enter" && !hotkey.ctrl && !hotkey.alt && !hotkey.meta;
+    if launcher_owner(hotkey).is_some() || key == "F1" || plain_enter {
         return false;
     }
     // A shift-only printable shortcut would intercept ordinary capitalized input.
     (hotkey.ctrl || hotkey.alt || hotkey.meta || key.starts_with('F') && key.len() > 1)
         && keys(hotkey).is_some()
+}
+
+/// Whether a shortcut uses Enter, which the editor and chat views keep for their text:
+/// there such a shortcut is shown dimmed and does not run its action.
+pub fn uses_enter(shortcut: &str) -> bool {
+    Hotkey::parse(shortcut).is_some_and(|hotkey| hotkey.key == "Enter")
 }
 
 fn keys(hotkey: &Hotkey) -> Option<slint::Keys> {
@@ -243,6 +250,7 @@ fn keys(hotkey: &Hotkey) -> Option<slint::Keys> {
         "Up" => "UpArrow".into(),
         "Down" => "DownArrow".into(),
         "Space" => " ".into(),
+        "Enter" => "Return".into(),
         key if key.len() == 1 => key.to_ascii_lowercase(),
         key => key.into(),
     };
@@ -283,6 +291,16 @@ mod tests {
         let f8: slint::SharedString = slint::platform::Key::F8.into();
         assert!(restored.matches(&plugin, &f8, (false, false, false, false)));
         assert!(!allowed(&Hotkey::parse("Ctrl+K").unwrap()));
+        assert!(!allowed(&Hotkey::parse("Shift+Enter").unwrap()));
+        let enter = Shortcuts(vec![Binding {
+            target: builtin.clone(),
+            shortcut: "Ctrl+Enter".into(),
+            title: String::new(),
+        }]);
+        let key: slint::SharedString = slint::platform::Key::Return.into();
+        assert!(enter.matches(&builtin, &key, (true, false, false, false)));
+        assert!(!enter.matches(&builtin, &key, (false, false, false, false)));
+        assert!(uses_enter("Ctrl+Enter") && !uses_enter("Ctrl+E"));
         assert!(!allowed(&Hotkey::parse("Shift+P").unwrap()));
         assert!(restored.0[0].owner().starts_with("MyTools · "));
         assert_eq!(restored.0[1].owner(), "clipboard · Pin");

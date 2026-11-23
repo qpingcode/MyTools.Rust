@@ -20,6 +20,7 @@ export { NoticeWindow, NoticeData } from "notice.slint";
 export { ToastWindow } from "toast.slint";
 export { Theme } from "../../../ui/theme.slint";
 export { TextFit } from "text-fit.slint";
+export { TextEditing } from "../../../ui/text-editing.slint";
 
 export component MainWindow inherits Window {
     title: "MyTools";
@@ -156,9 +157,10 @@ export component MainWindow inherits Window {
                 if (root.run-action-shortcut(event.text, event.modifiers.control, event.modifiers.shift,
                         event.modifiers.alt, event.modifiers.meta)) { return accept; }
             }
-            // In the editor Enter starts a new line, so Ctrl+Enter (Cmd+Enter) runs the result.
+            // In the editor Enter runs the result too; Ctrl+Enter or Shift+Enter starts a new line.
             if (root.editor-view && !root.actions-open && event.text == Key.Return
-                    && (event.modifiers.control || event.modifiers.meta)) {
+                    && !event.modifiers.control && !event.modifiers.meta && !event.modifiers.shift
+                    && !event.modifiers.alt && !editor.composing && !search-bar.composing) {
                 root.execute(root.selected);
                 return accept;
             }
@@ -228,7 +230,7 @@ export component MainWindow inherits Window {
                 visible: root.editor-view;
                 text <=> root.editor-text;
                 // A result with text shows the text alone; title and description are for
-                // prompts and errors, such as "Ctrl+Enter translates".
+                // prompts and errors, such as "Enter translates".
                 result-title: root.results.length > 0 && root.preview-text == ""
                     ? root.results[0].title : "";
                 result-description: root.results.length > 0 && root.preview-text == ""
@@ -266,7 +268,7 @@ export component MainWindow inherits Window {
                 loading: root.show-loading || root.plugins-starting;
                 primary-title: root.primary-title;
                 shortcut-label: root.shortcut-label;
-                primary-shortcut: root.editor-view ? "Ctrl+Enter" : root.chat-view && root.chat-busy ? "Esc" : "Enter";
+                primary-shortcut: root.chat-view && root.chat-busy ? "Esc" : "Enter";
                 actions-available: root.actions-available && !root.searching;
                 primary-available: root.primary-available && !root.searching;
                 busy: root.action-busy;

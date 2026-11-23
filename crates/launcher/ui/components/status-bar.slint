@@ -8,7 +8,7 @@ export component StatusBar inherits Rectangle {
     in property <bool> failed;
     in property <string> primary-title;
     in property <string> shortcut-label;
-    /// The key that runs the primary action; the editor view needs Ctrl+Enter.
+    /// The key that runs the primary action: Enter, or Esc while a chat answer streams.
     in property <string> primary-shortcut: "Enter";
     in property <bool> actions-available;
     in property <bool> primary-available;

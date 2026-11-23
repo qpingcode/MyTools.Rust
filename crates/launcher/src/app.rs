@@ -1,6 +1,6 @@
 use crate::{
-    AboutWindow, AppTray, I18n, MainWindow, ResultData, TextFit, Theme, actions, commands, config,
-    desktop, i18n, icons,
+    AboutWindow, AppTray, I18n, MainWindow, ResultData, TextEditing, TextFit, Theme, actions,
+    commands, config, desktop, i18n, icons,
     search::{Event, Query, QuerySender, SearchWorker},
     theme, tray,
 };
@@ -61,6 +61,10 @@ pub fn run(instance: &crate::single_instance::Instance) -> anyhow::Result<()> {
     let about = AboutWindow::new()?;
     theme::apply_configured(&about.global::<Theme>());
     ui.global::<I18n>().on_text(|key| i18n::t(&key).into());
+    ui.global::<TextEditing>()
+        .on_replace(|text, start, end, insert| {
+            crate::text_editing::replace(&text, start, end, &insert).into()
+        });
     ui.global::<TextFit>()
         .on_path(|text, width, font_size| crate::elide::fit_path(&text, width, font_size).into());
     ui.global::<TextFit>()

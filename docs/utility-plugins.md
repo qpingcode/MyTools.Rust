@@ -9,11 +9,11 @@
 | Chrome 书签 | 直接输入书签标题、URL、文件夹关键词 | 全局搜索，不设置 alias；Enter 在系统默认浏览器打开，操作菜单可复制链接 |
 | encode | `encode hello`、`encode base64 hello` | 普通列表展示各格式结果；Enter 复制 |
 | decode | `decode base64 5Lit5paH` | 普通列表展示各格式结果；Enter 复制 |
-| formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；`Ctrl+Enter` 复制 |
+| formatter | `fmt {"a":1}`、`fmt @C:\Temp\input.xml` | 编辑视图：左侧粘贴内容，自动识别 JSON 或 XML，右侧显示格式化结果；Enter 复制，`Ctrl+Enter` 换行 |
 | process-killer | `ps chrome`、`ps :8080`、`ps port 8080`、`ps 8080` | 按进程名称或本地 TCP/UDP 端口查询；Enter 或“结束进程”动作终止所选进程 |
 | UUID generator | `uuid `、`uuid v7`、`uuid v4 10` | UUID v4/v7；单个提供大小写、无连字符、花括号格式，批量提供复制全部；最多 50 个 |
 | Ask AI | 输入问题后按 `Tab`，或 `ai ` | 对话视图：回答逐字显示，可联网搜索并标注来源；`Enter` 继续提问，`Esc` 停止，`Ctrl+K` 复制回答、新对话、历史对话；可就选中文字提问 |
-| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，`Ctrl+Enter` 发起翻译，完成后右侧显示译文，再按 `Ctrl+Enter` 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
+| translator | `tr hello`、`tr en 你好`、`tr zh Hello` | 编辑视图：左侧输入原文，Enter 发起翻译（`Ctrl+Enter` 换行），完成后右侧显示译文，再按 Enter 复制；单词另有音标、英文释义和例句，`Ctrl+K` 可朗读。选中文字后按 `Ctrl+Alt+T` 翻译选中内容 |
 | quick text | `qt add email | hello@example.com`，然后 `email` 或 `qt email` | Enter 保存；全局按短语、内容查找；Enter 复制，“删除快捷文本”动作删除 |
 | 保持唤醒 | `awake ` | 插件启用期间电脑不会因空闲睡眠，屏幕保持常亮；`awake ` 显示当前状态。在设置中停用插件即恢复正常睡眠 |
 
@@ -54,9 +54,9 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 默认模型与请求格式参考 [DeepSeek 官方文档](https://api-docs.deepseek.com/quick_start)。
 配置及环境变量在每次执行翻译时读取；macOS 修改环境变量后需要从带有新环境的进程重新启动 MyTools。
 不带方向时，含汉字的文本译成英文，其他文本译成简体中文；可显式使用 `en` 或 `zh`。
-输入完成后按 `Ctrl+Enter` 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
+输入完成后按 Enter 才发送文本；插件等 API 完成后回复，宿主收到回复后再查询一次读取结果。
 同一时间只执行一个请求，全程不轮询。
-超时、鉴权失败、限流及响应截断会显示“翻译失败，按 Ctrl+Enter 重试”，右侧显示完整错误原因（含所用代理）。
+超时、鉴权失败、限流及响应截断会显示“翻译失败，按 Enter 重试”，右侧显示完整错误原因（含所用代理）。
 
 ### 翻译选中文字
 
@@ -83,7 +83,7 @@ quick text 的 `|` 后也支持文件输入。更新快捷文本时，用相同�
 输入单个英文单词（如 `tr hello`），或输入简短中文且译文是单个英文单词（如 `tr 苹果` → apple）时，
 同一次请求额外返回该英文单词的信息，在右侧译文下方依次显示（可选中复制）：
 
-1. 译文 — `Ctrl+Enter` 复制；`Ctrl+K` 可朗读该单词（Windows SAPI / macOS `say`，离线）或重新翻译
+1. 译文 — Enter 复制；`Ctrl+K` 可朗读该单词（Windows SAPI / macOS `say`，离线）或重新翻译
 2. 音标，如 `/həˈləʊ/`
 3. 英文释义
 4. 两三条例句及中文翻译

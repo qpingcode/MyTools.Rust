@@ -7,6 +7,6 @@
   "invalid.json": "Not valid JSON",
   "invalid.xml": "Not valid XML",
   "unknown": "Not JSON or XML",
-  "formats": "JSON starts with { or [, XML with <; @file loads a file. Ctrl+Enter copies the result.",
+  "formats": "JSON starts with { or [, XML with <; @file loads a file. Enter copies the result.",
   "usage": "Paste JSON or XML on the left"
 }

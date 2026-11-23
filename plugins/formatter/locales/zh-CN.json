@@ -7,6 +7,6 @@
   "invalid.json": "不是有效的 JSON",
   "invalid.xml": "不是有效的 XML",
   "unknown": "无法识别为 JSON 或 XML",
-  "formats": "以 { 或 [ 开头按 JSON 处理，以 < 开头按 XML 处理；@文件路径 读取文件。Ctrl+Enter 复制结果。",
+  "formats": "以 { 或 [ 开头按 JSON 处理，以 < 开头按 XML 处理；@文件路径 读取文件。Enter 复制结果。",
   "usage": "在左侧粘贴 JSON 或 XML"
 }

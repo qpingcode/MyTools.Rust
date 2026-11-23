@@ -1,7 +1,7 @@
 use super::{close_panel, start_action};
 use crate::{
     ActionData, MainWindow,
-    action_shortcuts::{Shortcuts, Target},
+    action_shortcuts::{Shortcuts, Target, uses_enter},
     app::State,
     i18n,
 };
@@ -15,6 +15,8 @@ pub(crate) struct Panel {
     visible: Vec<usize>,
     query: String,
     first: usize,
+    /// The editor or chat view, where shortcuts with Enter are kept for the text.
+    text_view: bool,
 }
 
 impl Panel {
@@ -63,11 +65,12 @@ impl Panel {
         for (row, action) in self.rows.iter_mut().zip(&self.actions) {
             let target = Target::for_action(action, &self.actions);
             row.bindable = target.is_some();
-            row.shortcut = target
+            let shortcut = target
                 .as_ref()
                 .and_then(|target| shortcuts.get(target))
-                .unwrap_or_default()
-                .into();
+                .unwrap_or_default();
+            row.shortcut_inactive = self.text_view && uses_enter(shortcut);
+            row.shortcut = shortcut.into();
         }
     }
 }
@@ -112,6 +115,7 @@ pub(super) fn wire_panel(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             visible: Vec::new(),
             query: String::new(),
             first,
+            text_view: ui.get_editor_view() || ui.get_chat_view(),
         };
         panel.refresh_shortcuts(&state.action_shortcuts);
         panel.show(&ui, "");
@@ -205,14 +209,15 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
             return false;
         };
         let text = text.to_lowercase();
+        let text_view = ui.get_editor_view() || ui.get_chat_view();
         let Some(action) = entry
             .actions
             .iter()
             .find(|action| {
                 Target::for_action(action, &entry.actions).is_some_and(|target| {
-                    state
-                        .action_shortcuts
-                        .matches(&target, &text, (ctrl, shift, alt, meta))
+                    let shortcuts = &state.action_shortcuts;
+                    shortcuts.matches(&target, &text, (ctrl, shift, alt, meta))
+                        && !(text_view && shortcuts.get(&target).is_some_and(uses_enter))
                 })
             })
             .cloned()
@@ -255,6 +260,7 @@ mod tests {
             visible: Vec::new(),
             query: String::new(),
             first: 1,
+            text_view: false,
         };
         for query in ["复制", "fzlj", "fuzhilujing"] {
             let results = panel.filter(query);

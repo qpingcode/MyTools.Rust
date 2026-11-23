@@ -89,7 +89,7 @@ fn speak_action(word: &str, catalog: &Catalog) -> mytools_plugin_api::ActionSpec
 }
 
 /// The whole translation as the single result of the editor view: the right side shows the
-/// translation and, for a word, its IPA, definition and examples, all selectable. Ctrl+Enter
+/// translation and, for a word, its IPA, definition and examples, all selectable. Enter
 /// copies the translation alone; Ctrl+K reads the word aloud or translates again.
 fn entry_item(entry: &Entry, id: &str, catalog: &Catalog) -> SearchItem {
     let word = spoken_word(entry);
@@ -155,7 +155,7 @@ fn search(state: &Mutex<State>, query: &str, literal: bool, catalog: &Catalog) -
     let items = if let Some(entry) = state.cache.get(&request.input, request.target) {
         vec![entry_item(entry, &id, catalog)]
     } else if let Some(error) = state.errors.get(&id) {
-        // The editor shows the title and the full error; Ctrl+Enter retries.
+        // The editor shows the title and the full error; Enter retries.
         let mut item = text::editor_prompt(catalog.get("failed"), error.clone());
         item.actions = Some(vec![
             text::command("translate", catalog.get("retry").into()).with_item(id.clone()),

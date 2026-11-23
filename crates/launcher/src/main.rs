@@ -22,6 +22,7 @@ mod search;
 mod shortcut_capture;
 mod single_instance;
 mod startup;
+mod text_editing;
 mod theme;
 mod toast;
 mod tray;

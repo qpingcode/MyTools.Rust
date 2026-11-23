@@ -80,7 +80,7 @@ pub fn hint(title: impl Into<String>, description: impl Into<String>) -> SearchI
 }
 
 /// The result of a text tool in the `editor` view: the right side shows `shown` alone, and
-/// Ctrl+Enter copies `copied` (the default action of a text result). `title` is not shown
+/// Enter copies `copied` (the default action of a text result). `title` is not shown
 /// there but names the result, e.g. for screen readers.
 pub fn editor_result(title: impl Into<String>, copied: String, shown: String) -> SearchItem {
     let title = title.into();
@@ -100,8 +100,8 @@ pub fn editor_result(title: impl Into<String>, copied: String, shown: String) ->
 }
 
 /// A prompt or an error in the `editor` view: without a preview, the right side shows
-/// `title` and `description`, e.g. "Translate / Ctrl+Enter sends the text". It has no
-/// actions; add the one Ctrl+Enter should run.
+/// `title` and `description`, e.g. "Translate / Enter sends the text". It has no
+/// actions; add the one Enter should run.
 pub fn editor_prompt(title: impl Into<String>, description: impl Into<String>) -> SearchItem {
     let mut item = item(title, String::new(), description);
     item.preview = None;
@@ -161,10 +161,10 @@ mod tests {
                 text: "你好".into()
             }
         );
-        assert!(result.actions.is_none(), "Ctrl+Enter copies by default");
-        let prompt = editor_prompt("Translate", "Ctrl+Enter sends the text");
+        assert!(result.actions.is_none(), "Enter copies by default");
+        let prompt = editor_prompt("Translate", "Enter sends the text");
         assert!(prompt.preview.is_none());
-        assert_eq!(prompt.description, "Ctrl+Enter sends the text");
+        assert_eq!(prompt.description, "Enter sends the text");
         assert!(prompt.actions.is_some_and(|actions| actions.is_empty()));
     }
 
