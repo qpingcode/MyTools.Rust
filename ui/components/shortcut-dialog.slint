@@ -10,6 +10,10 @@ export component ShortcutDialog inherits Rectangle {
     private property <string> error;
     callback normalize(string, bool, bool, bool, bool) -> string;
     callback submit(string) -> string;
+    /// A note about the shortcut being entered that does not stop saving it, e.g. that
+    /// other actions use it too. Empty by default.
+    pure callback check(string) -> string;
+    private property <string> note: root.shortcut == "" ? "" : root.check(root.shortcut);
     callback cancelled();
 
     visible: root.opened;
@@ -79,6 +83,10 @@ export component ShortcutDialog inherits Rectangle {
             }
             if root.error != "": Text {
                 text: root.error; color: Theme.warning; font-size: Theme.font-small;
+                wrap: word-wrap;
+            }
+            if root.error == "" && root.note != "": Text {
+                text: root.note; color: Theme.muted; font-size: Theme.font-small;
                 wrap: word-wrap;
             }
             HorizontalLayout {

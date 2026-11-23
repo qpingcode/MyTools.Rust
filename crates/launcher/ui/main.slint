@@ -117,6 +117,8 @@ export component MainWindow inherits Window {
     callback execute-action(int);
     callback filter-actions(string);
     callback assign-action-shortcut(int, string) -> string;
+    /// Which other actions already use a shortcut, as a note for the shortcut dialog.
+    pure callback check-action-shortcut(int, string) -> string;
     callback run-action-shortcut(string, bool, bool, bool, bool) -> bool;
     callback capture-shortcut(string, bool, bool, bool, bool) -> string;
     private property <int> shortcut-index: -1;
@@ -318,6 +320,7 @@ export component MainWindow inherits Window {
                 if (error == "") { root.close-shortcut-dialog(); }
                 error
             }
+            check(text) => { root.check-action-shortcut(root.shortcut-index, text) }
             cancelled => { root.close-shortcut-dialog(); }
         }
     }

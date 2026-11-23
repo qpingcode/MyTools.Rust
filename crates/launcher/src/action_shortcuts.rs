@@ -51,6 +51,38 @@ struct Binding {
     title: String,
 }
 
+impl Binding {
+    fn owner(&self) -> String {
+        let (group, fallback) = match &self.target {
+            Target::MyTools { action } => (
+                "MyTools",
+                i18n::t(match action {
+                    ActionId::Open => "actions.open",
+                    ActionId::OpenInBrowser => "actions.open_browser",
+                    ActionId::CopyText => "actions.copy",
+                    ActionId::CopyPath => "actions.copy_path",
+                    ActionId::CopyName => "actions.copy_name",
+                    ActionId::Reveal => "actions.reveal",
+                    ActionId::Launch => "actions.launch",
+                    ActionId::RunAsAdmin => "actions.run_as_admin",
+                    ActionId::Plugin => "actions.execute",
+                }),
+            ),
+            Target::Plugin {
+                plugin, command, ..
+            } => (plugin.as_str(), command.clone()),
+        };
+        format!(
+            "{group} · {}",
+            if self.title.is_empty() {
+                &fallback
+            } else {
+                &self.title
+            }
+        )
+    }
+}
+
 fn occupied(hotkey: &Hotkey, owner: &str) -> String {
     i18n::format(
         "actions.shortcut_occupied",
@@ -80,6 +112,33 @@ impl Shortcuts {
             .iter()
             .find(|binding| &binding.target == target)
             .map(|binding| binding.shortcut.as_str())
+    }
+
+    /// A note naming the other actions that use `text`, which `target` may share with them;
+    /// empty when there are none.
+    pub fn shared(&self, target: &Target, text: &str) -> String {
+        let Some(hotkey) = Hotkey::parse(text) else {
+            return String::new();
+        };
+        let owners: Vec<String> = self
+            .0
+            .iter()
+            .filter(|binding| {
+                &binding.target != target
+                    && Hotkey::parse(&binding.shortcut).as_ref() == Some(&hotkey)
+            })
+            .map(Binding::owner)
+            .collect();
+        if owners.is_empty() {
+            return String::new();
+        }
+        i18n::format(
+            "actions.shortcut_shared",
+            &[
+                ("shortcut", &hotkey.to_string()),
+                ("names", &owners.join(" / ")),
+            ],
+        )
     }
 
     pub fn assign(
@@ -259,5 +318,14 @@ mod tests {
         assert!(enter.matches(&builtin, &key, (true, false, false, false)));
         assert!(!enter.matches(&builtin, &key, (false, false, false, false)));
         assert!(!allowed(&Hotkey::parse("Shift+P").unwrap()));
+        assert!(restored.0[0].owner().starts_with("MyTools · "));
+        assert_eq!(restored.0[1].owner(), "clipboard · Pin");
+        assert!(
+            restored
+                .shared(&plugin, "Ctrl+Shift+P")
+                .contains("MyTools · ")
+        );
+        assert!(restored.shared(&builtin, "Ctrl+Shift+P").is_empty());
+        assert!(restored.shared(&plugin, "Ctrl+Shift+Q").is_empty());
     }
 }

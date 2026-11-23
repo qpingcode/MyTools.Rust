@@ -33,6 +33,7 @@
   "actions.no_matches": "No matching actions",
   "actions.shortcut_edit": "Edit action shortcut",
   "actions.shortcut_invalid": "Invalid or reserved shortcut. Try Ctrl+Shift+P.",
+  "actions.shortcut_shared": "{shortcut} is also used by “{names}”. It runs the action the selected result offers, the first listed when it offers several.",
   "actions.shortcut_occupied": "{shortcut} is already used by {name}.",
   "actions.shortcut_launcher": "Open launcher",
   "actions.shortcut_selection": "Capture selection",

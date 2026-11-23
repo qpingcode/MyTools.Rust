@@ -33,6 +33,7 @@
   "actions.no_matches": "没有匹配的操作",
   "actions.shortcut_edit": "修改操作快捷键",
   "actions.shortcut_invalid": "快捷键无效或已保留。可试用 Ctrl+Shift+P。",
+  "actions.shortcut_shared": "{shortcut} 也用于「{names}」。按下时执行当前结果上有的操作，同时有多个时执行列表中靠前的。",
   "actions.shortcut_occupied": "{shortcut} 已被「{name}」占用。",
   "actions.shortcut_launcher": "打开启动器",
   "actions.shortcut_selection": "捕获选区",

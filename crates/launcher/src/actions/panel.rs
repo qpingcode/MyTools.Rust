@@ -185,6 +185,17 @@ pub(super) fn wire_shortcuts(ui: &MainWindow, state: &Rc<RefCell<State>>) {
         ui.set_selected_action(index);
         slint::SharedString::default()
     });
+    let check_state = state.clone();
+    ui.on_check_action_shortcut(move |index, text| {
+        let state = check_state.borrow();
+        state
+            .panel
+            .as_ref()
+            .and_then(|panel| Target::for_action(panel.action(index)?, &panel.actions))
+            .map(|target| state.action_shortcuts.shared(&target, &text))
+            .unwrap_or_default()
+            .into()
+    });
     let weak = ui.as_weak();
     let state = state.clone();
     ui.on_run_action_shortcut(move |text, ctrl, shift, alt, meta| {
