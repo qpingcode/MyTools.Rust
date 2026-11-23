@@ -38,6 +38,7 @@
   "store.invalid": "Script store contains invalid or duplicate IDs.",
   "store.conflict": "This script was changed in another window. Reopen the manager before editing again.",
   "platform.unsupported": "PowerShell and CMD execution is currently supported on Windows only.",
+  "pwsh.missing": "PowerShell 7 was not found in Program Files\\PowerShell\\7. Install it, or change the script type to PowerShell 5.1.",
   "error.detail": "Action failed: {error}",
   "field.mode": "Run mode",
   "mode.window": "Window",

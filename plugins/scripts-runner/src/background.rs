@@ -73,9 +73,9 @@ fn execute(job: &Job) -> Result<(i32, String)> {
     // hidden console to UTF-8 first keeps non-ASCII output intact without editing the script.
     let script = match job.kind {
         // Prompts fail instead of waiting for input nobody can see.
-        Kind::Ps1 => format!(
+        Kind::Ps1 | Kind::Pwsh => format!(
             "chcp 65001 >nul & \"{}\" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{file}\"",
-            crate::runner::executable(Kind::Ps1)?.display()
+            crate::runner::executable(job.kind)?.display()
         ),
         Kind::Cmd => format!("\"{file}\""),
     };

@@ -8,8 +8,15 @@ export { I18n } from "../../../ui/i18n.slint";
 export struct ScriptRow {
     name: string,
     alias: string,
-    /// "ps1" or "cmd".
+    /// "pwsh", "ps1" or "cmd".
     kind: string,
+}
+
+/// The name of a script type as stored in `ScriptRow.kind`.
+global ScriptKind {
+    pure public function label(kind: string) -> string {
+        kind == "cmd" ? "CMD" : kind == "pwsh" ? "PowerShell 7" : "PowerShell 5.1"
+    }
 }
 
 component ToolButton inherits Rectangle {
@@ -104,7 +111,7 @@ component ScriptItem inherits Rectangle {
                 overflow: elide;
             }
             Text {
-                text: (root.script.kind == "cmd" ? "CMD" : "PowerShell") + (root.script.alias == "" ? "" : "  ·  " + root.script.alias);
+                text: ScriptKind.label(root.script.kind) + (root.script.alias == "" ? "" : "  ·  " + root.script.alias);
                 color: Theme.muted; font-size: Theme.font-caption; overflow: elide;
             }
         }
@@ -205,7 +212,7 @@ export component ScriptManager inherits Window {
     private property <ScriptRow> current-row: {
         name: root.script-name.is-empty ? I18n.text("new") : root.script-name,
         alias: root.alias,
-        kind: root.kind == 1 ? "cmd" : "ps1",
+        kind: root.kind == 2 ? "cmd" : root.kind == 1 ? "ps1" : "pwsh",
     };
 
     FocusScope {
@@ -297,7 +304,7 @@ export component ScriptManager inherits Window {
                             }
                             Text {
                                 text: root.dirty ? I18n.text("unsaved.badge")
-                                    : root.saved ? (root.kind == 1 ? "CMD" : "PowerShell") + (root.alias == "" ? "" : "  ·  " + root.alias)
+                                    : root.saved ? ScriptKind.label(root.current-row.kind) + (root.alias == "" ? "" : "  ·  " + root.alias)
                                     : I18n.text("new.detail");
                                 color: root.dirty ? Theme.warning : Theme.muted;
                                 font-size: Theme.font-small;
@@ -337,7 +344,7 @@ export component ScriptManager inherits Window {
                         row: 1; col: 0; spacing: 6px;
                         FieldLabel { text: I18n.text("field.type"); }
                         Segmented {
-                            options: ["PowerShell (.ps1)", "CMD (.cmd)"];
+                            options: ["PowerShell 7", "PowerShell 5.1", "CMD"];
                             current <=> root.kind; enabled: !root.busy;
                         }
                     }
@@ -379,7 +386,7 @@ export component ScriptManager inherits Window {
                         FieldLabel { text: I18n.text("field.content"); }
                         Rectangle { horizontal-stretch: 1; }
                         FieldLabel {
-                            text: root.kind == 1 ? "script.cmd" : "script.ps1";
+                            text: root.kind == 2 ? "script.cmd" : "script.ps1";
                             font-family: "Cascadia Mono"; color: Theme.placeholder;
                         }
                     }

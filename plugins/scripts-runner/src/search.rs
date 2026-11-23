@@ -84,8 +84,8 @@ fn item(script: &Script) -> SearchItem {
         script.content.clone(),
         // Scripts without an alias show only their type, without a dangling separator.
         match script.alias.as_str() {
-            "" => script.kind.extension().to_owned(),
-            alias => format!("{} · {alias}", script.kind.extension()),
+            "" => script.kind.name().to_owned(),
+            alias => format!("{} · {alias}", script.kind.name()),
         },
     );
     item.resource = Resource::PluginItem {

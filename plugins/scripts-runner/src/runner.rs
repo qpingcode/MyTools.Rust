@@ -1,4 +1,3 @@
-#[cfg(any(windows, test))]
 use crate::store::Kind;
 #[cfg(windows)]
 use crate::store::Mode;
@@ -69,18 +68,40 @@ pub fn run(store: &Store, script: &Script, admin: bool) -> Result<()> {
     }
 }
 
-/// The system interpreter for a script type, never one found through `PATH`.
+/// The interpreter for a script type at its fixed install location, never one found through
+/// `PATH`, so an elevated run cannot pick up a planted copy. A missing PowerShell 7 is not
+/// replaced by Windows PowerShell, since scripts written for one may fail in the other.
 #[cfg(windows)]
 pub fn executable(kind: Kind) -> Result<std::path::PathBuf> {
+    if kind == Kind::Pwsh {
+        return pwsh().ok_or_else(|| anyhow::anyhow!(i18n::t("pwsh.missing")));
+    }
     let system = std::path::PathBuf::from(
         std::env::var_os("SystemRoot")
             .ok_or_else(|| anyhow::anyhow!(i18n::t("platform.unsupported")))?,
     )
     .join("System32");
     Ok(match kind {
-        Kind::Ps1 => system.join("WindowsPowerShell/v1.0/powershell.exe"),
+        Kind::Ps1 | Kind::Pwsh => system.join("WindowsPowerShell/v1.0/powershell.exe"),
         Kind::Cmd => system.join("cmd.exe"),
     })
+}
+
+/// PowerShell 7 where its installer puts it.
+#[cfg(windows)]
+fn pwsh() -> Option<std::path::PathBuf> {
+    let path = std::path::PathBuf::from(std::env::var_os("ProgramFiles")?)
+        .join(r"PowerShell\7\pwsh.exe");
+    path.is_file().then_some(path)
+}
+
+/// The type a new script starts with: PowerShell 7 when it is installed.
+pub fn preferred_kind() -> Kind {
+    #[cfg(windows)]
+    if pwsh().is_some() {
+        return Kind::Pwsh;
+    }
+    Kind::Ps1
 }
 
 /// Writes the script with a first line that enters `directory`. Windows starts an elevated
@@ -89,7 +110,7 @@ pub fn executable(kind: Kind) -> Result<std::path::PathBuf> {
 #[cfg(any(windows, test))]
 fn encode(kind: Kind, directory: &str, content: &str) -> Vec<u8> {
     match kind {
-        Kind::Ps1 => format!(
+        Kind::Ps1 | Kind::Pwsh => format!(
             "\u{feff}Set-Location -LiteralPath '{}' -ErrorAction Stop\n{content}",
             powershell_literal(directory)
         )
@@ -118,7 +139,7 @@ pub(crate) fn powershell_literal(text: &str) -> String {
 #[cfg(any(windows, test))]
 fn parameters(kind: Kind, file: &str) -> String {
     match kind {
-        Kind::Ps1 => format!("-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File \"{file}\""),
+        Kind::Ps1 | Kind::Pwsh => format!("-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File \"{file}\""),
         Kind::Cmd => format!("/d /k \"\"{file}\"\""),
     }
 }
@@ -128,7 +149,7 @@ fn parameters(kind: Kind, file: &str) -> String {
 #[cfg(any(windows, test))]
 fn close_parameters(kind: Kind, interpreter: &str, file: &str) -> String {
     let command = match kind {
-        Kind::Ps1 => {
+        Kind::Ps1 | Kind::Pwsh => {
             format!("\"{interpreter}\" -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"{file}\"")
         }
         Kind::Cmd => format!("call \"{file}\""),

@@ -38,6 +38,7 @@
   "store.invalid": "脚本数据存在无效或重复 ID。",
   "store.conflict": "脚本已被其他窗口修改，请重新打开管理窗口后再编辑。",
   "platform.unsupported": "目前仅支持在 Windows 上执行 PowerShell 和 CMD 脚本。",
+  "pwsh.missing": "未在 Program Files\\PowerShell\\7 找到 PowerShell 7。请先安装，或把脚本类型改为 PowerShell 5.1。",
   "error.detail": "操作失败：{error}",
   "field.mode": "运行方式",
   "mode.window": "窗口",

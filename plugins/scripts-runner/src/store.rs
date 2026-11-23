@@ -7,14 +7,25 @@ use std::{fs, io::Read, path::PathBuf};
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
     #[default]
+    /// Windows PowerShell 5.1, which ships with the system.
     Ps1,
     Cmd,
+    /// PowerShell 7.
+    Pwsh,
 }
 impl Kind {
     pub fn extension(self) -> &'static str {
         match self {
+            Self::Ps1 | Self::Pwsh => "ps1",
+            Self::Cmd => "cmd",
+        }
+    }
+    /// The stored name, also shown next to the script in search results.
+    pub fn name(self) -> &'static str {
+        match self {
             Self::Ps1 => "ps1",
             Self::Cmd => "cmd",
+            Self::Pwsh => "pwsh",
         }
     }
 }
@@ -171,6 +182,12 @@ mod tests {
             directory: String::new(),
             mode: Mode::Background,
         }
+    }
+    #[test]
+    fn powershell_7_is_stored_as_pwsh_and_runs_a_ps1_file() {
+        assert_eq!(serde_json::to_string(&Kind::Pwsh).unwrap(), r#""pwsh""#);
+        assert_eq!(serde_json::from_str::<Kind>(r#""ps1""#).unwrap(), Kind::Ps1);
+        assert_eq!(Kind::Pwsh.extension(), "ps1");
     }
     #[test]
     fn stable_identity_roundtrip_duplicate_alias_and_concurrent_edits() {

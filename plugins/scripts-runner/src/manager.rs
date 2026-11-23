@@ -84,11 +84,7 @@ pub fn run(id: Option<String>) -> anyhow::Result<()> {
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
             name: ui.get_script_name().trim().into(),
             alias: ui.get_alias().trim().into(),
-            kind: if ui.get_kind() == 0 {
-                Kind::Ps1
-            } else {
-                Kind::Cmd
-            },
+            kind: kind_from(ui.get_kind()),
             content: ui.get_content().to_string(),
             directory: ui.get_directory().trim().into(),
             mode: mode_from(ui.get_mode()),
@@ -201,7 +197,7 @@ fn refresh(ui: &ScriptManager, state: &State) {
             .map(|s| ScriptRow {
                 name: s.name.clone().into(),
                 alias: s.alias.clone().into(),
-                kind: s.kind.extension().into(),
+                kind: s.kind.name().into(),
             })
             .collect::<Vec<_>>(),
     )));
@@ -223,7 +219,11 @@ fn load(ui: &ScriptManager, state: &mut State, script: Option<Script>) {
         field(|s| &s.content),
         field(|s| &s.directory),
     );
-    let kind = i32::from(script.as_ref().is_some_and(|s| s.kind == Kind::Cmd));
+    let kind = kind_index(
+        script
+            .as_ref()
+            .map_or_else(crate::runner::preferred_kind, |s| s.kind),
+    );
     let mode = mode_index(script.as_ref().map(|s| s.mode).unwrap_or_default());
     // The saved copies define "unchanged"; the form is dirty once it differs from them.
     ui.set_saved_name(name.clone());
@@ -241,6 +241,17 @@ fn load(ui: &ScriptManager, state: &mut State, script: Option<Script>) {
     ui.set_saved(script.is_some());
     ui.set_deleting(false);
     state.original = script;
+}
+/// The order of the type options in the form.
+const KINDS: [Kind; 3] = [Kind::Pwsh, Kind::Ps1, Kind::Cmd];
+fn kind_index(kind: Kind) -> i32 {
+    KINDS.iter().position(|k| *k == kind).unwrap_or(0) as i32
+}
+fn kind_from(index: i32) -> Kind {
+    usize::try_from(index)
+        .ok()
+        .and_then(|i| KINDS.get(i).copied())
+        .unwrap_or_default()
 }
 fn mode_index(mode: Mode) -> i32 {
     match mode {
