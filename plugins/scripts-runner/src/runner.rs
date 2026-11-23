@@ -90,8 +90,8 @@ pub fn executable(kind: Kind) -> Result<std::path::PathBuf> {
 /// PowerShell 7 where its installer puts it.
 #[cfg(windows)]
 fn pwsh() -> Option<std::path::PathBuf> {
-    let path = std::path::PathBuf::from(std::env::var_os("ProgramFiles")?)
-        .join(r"PowerShell\7\pwsh.exe");
+    let path =
+        std::path::PathBuf::from(std::env::var_os("ProgramFiles")?).join(r"PowerShell\7\pwsh.exe");
     path.is_file().then_some(path)
 }
 
@@ -139,7 +139,9 @@ pub(crate) fn powershell_literal(text: &str) -> String {
 #[cfg(any(windows, test))]
 fn parameters(kind: Kind, file: &str) -> String {
     match kind {
-        Kind::Ps1 | Kind::Pwsh => format!("-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File \"{file}\""),
+        Kind::Ps1 | Kind::Pwsh => {
+            format!("-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File \"{file}\"")
+        }
         Kind::Cmd => format!("/d /k \"\"{file}\"\""),
     }
 }
@@ -203,8 +205,10 @@ mod tests {
         let content = "Write-Output '中文'\n# keep blank lines\n\n";
         assert_eq!(
             encode(Kind::Ps1, r"C:\中文 dir", content),
-            format!("\u{feff}Set-Location -LiteralPath 'C:\\中文 dir' -ErrorAction Stop\n{content}")
-                .as_bytes()
+            format!(
+                "\u{feff}Set-Location -LiteralPath 'C:\\中文 dir' -ErrorAction Stop\n{content}"
+            )
+            .as_bytes()
         );
         assert_eq!(
             encode(Kind::Cmd, r"C:\a b", "echo 中文\n\necho done"),
