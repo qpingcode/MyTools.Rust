@@ -1,0 +1,16 @@
+{
+  "name": "Chrome 中的 Gemini",
+  "launch": "启动 Chrome 并启用 Gemini",
+  "launch.detail": "在 Chrome 的配置文件中启用 Gemini in Chrome，并带 Gemini 启动参数启动 Chrome；需要美国网络出口",
+  "restart": "重启 Chrome 并启用 Gemini",
+  "restart.detail": "关闭正在运行的 Chrome，在其配置文件中启用 Gemini in Chrome，再带 Gemini 启动参数重新启动；需要美国网络出口",
+  "unchecked": "不检查网络直接启动",
+  "started": "已启动 Chrome 并启用 Gemini",
+  "invalid": "未知命令",
+  "country.unknown": "无法检测网络出口国家，未启动 Chrome",
+  "country.other": "Gemini 需要美国网络出口，当前出口为 {country}，未启动 Chrome",
+  "chrome.missing": "未找到 Google Chrome",
+  "close.failed": "无法关闭 Chrome：{error}",
+  "repair.failed": "无法修改 Chrome 的 Gemini 设置：{error}",
+  "start.failed": "无法启动 Chrome：{error}"
+}

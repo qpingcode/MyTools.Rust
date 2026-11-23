@@ -1,0 +1,16 @@
+{
+  "name": "Gemini in Chrome",
+  "launch": "Start Chrome with Gemini",
+  "launch.detail": "Enables Gemini in Chrome in Chrome's profile settings and starts Chrome with the Gemini switches; needs a US network exit",
+  "restart": "Restart Chrome with Gemini",
+  "restart.detail": "Closes the running Chrome, enables Gemini in Chrome in its profile settings and starts it again with the Gemini switches; needs a US network exit",
+  "unchecked": "Start without checking the network",
+  "started": "Chrome started with Gemini enabled",
+  "invalid": "Unknown command",
+  "country.unknown": "Could not check the network exit country; Chrome was not started",
+  "country.other": "Gemini needs a US network exit, but the current exit is {country}; Chrome was not started",
+  "chrome.missing": "Google Chrome was not found",
+  "close.failed": "Could not close Chrome: {error}",
+  "repair.failed": "Could not update Chrome's Gemini settings: {error}",
+  "start.failed": "Could not start Chrome: {error}"
+}

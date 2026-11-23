@@ -3596,6 +3596,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mytools-gemini-chrome"
+version = "0.0.1"
+dependencies = [
+ "mytools-plugin-api",
+ "reqwest",
+ "serde_json",
+]
+
+[[package]]
 name = "mytools-lan-transfer"
 version = "0.0.1"
 dependencies = [

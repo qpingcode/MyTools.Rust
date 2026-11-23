@@ -24,6 +24,7 @@ members = [
     "plugins/awake",
     "plugins/ask-ai",
     "plugins/lan-transfer",
+    "plugins/gemini-chrome",
 ]
 default-members = ["crates/launcher"]
 resolver = "2"

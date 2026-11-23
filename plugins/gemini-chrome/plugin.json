@@ -1,0 +1,19 @@
+{
+  "id": "gemini-chrome",
+  "name": {
+    "key": "name",
+    "defaultValue": "Gemini in Chrome"
+  },
+  "version": "0.0.1",
+  "type": "search",
+  "entry": "mytools-gemini-chrome",
+  "icon": "builtin:sparkles",
+  "alias": [
+    "gemini",
+    "glic"
+  ],
+  "search": {
+    "global": false
+  },
+  "view": "list"
+}
